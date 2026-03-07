@@ -4,3 +4,4 @@ rootProject.name = 'studyolle-msa'
 // Gradle은 'infra:eureka-server' 를 projectDir/infra/eureka-server 경로에서 찾는다.
 include 'infra:eureka-server'
 include 'infra:config-server'
+include 'infra:api-gateway'
