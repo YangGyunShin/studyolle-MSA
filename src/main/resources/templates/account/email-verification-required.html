@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<!-- ============================================================
+     이메일 인증 필요 안내 페이지
+
+     [용도]
+     이메일 미인증 사용자가 제한된 기능(스터디 생성, 가입, 모임 만들기 등)에
+     접근하려 할 때 EmailVerificationInterceptor에 의해 리다이렉트되는 페이지.
+
+     [디자인]
+     404 페이지와 동일한 글래스모피즘 스타일을 유지하되,
+     인증 메일 재전송 CTA를 제공하여 사용자가 바로 행동할 수 있도록 유도.
+     ============================================================ -->
+<head th:replace="fragments.html :: head"></head>
+<body class="page-main">
+
+<!-- ✅ 네비게이션 바 -->
+<div th:replace="fragments.html :: main-nav"></div>
+
+<!-- ✅ 배경 장식 오브 -->
+<!-- page-orb 제거 (v4 Warm Flat Minimal) -->
+
+<!-- ✅ 메인 콘텐츠 -->
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+
+            <!-- 아이콘 -->
+            <div class="mb-4">
+                <div style="width: 80px; height: 80px; border-radius: 24px;
+                            background: linear-gradient(135deg, rgba(191,164,115,0.15), rgba(191,164,115,0.1));
+                            display: inline-flex; align-items: center; justify-content: center;">
+                    <i class="fa-solid fa-envelope-circle-check" style="font-size: 2rem; color: #bfa473;"></i>
+                </div>
+            </div>
+
+            <h2 class="fw-bold mb-3">이메일 인증이 필요합니다</h2>
+            <p class="text-muted mb-4">
+                이 기능을 사용하려면 이메일 인증을 완료해야 합니다.<br/>
+                가입 시 입력한 이메일로 인증 링크를 보내드렸어요.
+            </p>
+
+            <!-- 안내 카드 -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-start text-start mb-3">
+                        <i class="fa-solid fa-circle-info me-3 mt-1" style="color: #8e85b0;"></i>
+                        <div>
+                            <p class="small mb-1 fw-medium" style="color: #4a4540;">인증 메일을 못 받으셨나요?</p>
+                            <p class="text-muted small mb-0">
+                                스팸 폴더를 확인하시거나, 아래 버튼을 눌러 인증 메일을 다시 받으세요.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 이메일 인증 관련 제한 안내 -->
+                    <div class="d-flex flex-column gap-2 mb-3 text-start">
+                        <div class="d-flex align-items-center">
+                            <i class="fa-solid fa-lock text-muted me-2" style="font-size: 0.75rem;"></i>
+                            <span class="text-muted small">스터디 개설</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <i class="fa-solid fa-lock text-muted me-2" style="font-size: 0.75rem;"></i>
+                            <span class="text-muted small">스터디 가입</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <i class="fa-solid fa-lock text-muted me-2" style="font-size: 0.75rem;"></i>
+                            <span class="text-muted small">모임 만들기 및 참가 신청</span>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: rgba(0,0,0,0.04);">
+
+                    <p class="text-muted small mb-2">
+                        <i class="fa-solid fa-envelope me-1"></i>
+                        <span th:text="${account.email}">user@email.com</span> 으로 인증 메일이 발송되었습니다.
+                    </p>
+                </div>
+            </div>
+
+            <!-- 행동 버튼 -->
+            <div class="d-flex justify-content-center gap-3">
+                <a th:href="@{/resend-confirm-email(email=${account.email})}"
+                   class="btn btn-primary rounded-pill px-4">
+                    <i class="fa-solid fa-paper-plane me-1"></i> 인증 메일 재전송
+                </a>
+                <a th:href="@{/}" class="btn btn-outline-secondary rounded-pill px-4">
+                    <i class="fa-solid fa-house me-1"></i> 홈으로
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ✅ 푸터 -->
+<div th:replace="fragments.html :: footer"></div>
+
+</body>
+</html>

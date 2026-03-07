@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments.html :: head"></head>
+<body>
+
+<!-- 네비게이션 바 -->
+<nav th:replace="fragments.html :: main-nav"></nav>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+
+        <!-- 설정 메뉴 -->
+        <div class="col-md-3 mb-4">
+            <div th:replace="fragments.html :: settings-menu(currentMenu='account')"></div>
+        </div>
+
+        <!-- 닉네임 변경 폼 -->
+        <div class="col-md-9">
+            <h2 class="fw-bold mb-4">닉네임 변경</h2>
+
+            <!-- 성공 메시지 -->
+            <div th:if="${message}" class="alert alert-info alert-dismissible fade show" role="alert">
+                <span th:text="${message}">완료</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+
+            <form th:object="${nicknameForm}" th:action="@{/settings/account}" method="post"
+                  class="bg-white p-4 shadow rounded needs-validation" novalidate>
+
+                <!-- 닉네임 변경 안내 -->
+                <div class="alert alert-warning mb-4">
+                    닉네임을 변경하면 프로필 페이지 링크도 바뀝니다!
+                </div>
+
+                <!-- 닉네임 입력 -->
+                <div class="mb-3">
+                    <label for="nickname" class="form-label">닉네임</label>
+                    <input id="nickname" type="text" th:field="*{nickname}" class="form-control"
+                           aria-describedby="nicknameHelp" required>
+                    <div id="nicknameHelp" class="form-text">
+                        공백없이 문자와 숫자로만 3자 이상 20자 이내로 입력하세요. 가입 후에 변경할 수 있습니다.
+                    </div>
+                    <div class="invalid-feedback">닉네임을 입력하세요.</div>
+                    <div class="form-text text-danger" th:if="${#fields.hasErrors('nickname')}" th:errors="*{nickname}">
+                        nickname Error
+                    </div>
+                </div>
+
+                <!-- 저장 버튼 -->
+                <div class="d-grid">
+                    <button class="btn btn-primary btn-lg" type="submit" aria-describedby="submitHelp">변경하기</button>
+                </div>
+            </form>
+
+            <!-- 구분선 -->
+            <hr class="my-5">
+
+            <!-- 계정 삭제 -->
+            <div>
+                <h2 class="text-danger fw-bold mb-3">계정 삭제</h2>
+                <div class="alert alert-danger">
+                    이 계정은 삭제할 수 없습니다.
+                </div>
+                <button class="btn btn-outline-danger disabled">계정 삭제</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 푸터 -->
+    <footer th:replace="fragments.html :: footer" class="mt-5"></footer>
+</div>
+
+<!-- 유효성 검사 스크립트 -->
+<script th:replace="fragments.html :: form-validation"></script>
+
+</body>
+</html>

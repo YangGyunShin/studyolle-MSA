@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments.html :: head"></head>
+<body>
+
+<!-- 네비게이션 바 -->
+<nav th:replace="fragments.html :: main-nav"></nav>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+
+            <!-- 페이지 제목 -->
+            <p class="lead mb-4">스터디올래 이메일 로그인</p>
+
+            <!-- 에러 메시지 -->
+            <div th:if="${error}" class="alert alert-danger shadow-sm" role="alert" th:text="${error}">
+                로그인할 수 없습니다.
+            </div>
+
+            <!-- 성공 메시지 -->
+            <div th:if="${error == null}" class="alert alert-success shadow-sm">
+                이메일로 로그인 되었습니다.
+                <a th:href="@{/settings/password}" class="alert-link fw-bold">비밀번호를 설정하세요.</a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- 푸터 -->
+<footer th:replace="fragments.html :: footer" class="mt-5"></footer>
+
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments.html :: head"></head>
+<body>
+    <nav th:replace="fragments.html :: main-nav"></nav>
+    <div th:replace="fragments.html :: study-banner"></div>
+    <div th:replace="fragments.html :: study-info"></div>
+    <div th:replace="fragments.html :: study-menu(studyMenu='settings')"></div>
+
+    <div class="container py-4">
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="row g-4">
+            <!-- 사이드바 -->
+            <div class="col-md-3">
+              <div th:replace="fragments.html :: study-settings-menu(currentMenu='study')"></div>
+            </div>
+            <!-- 메인 콘텐츠 -->
+            <div class="col-md-9">
+              <div th:replace="fragments.html :: message"></div>
+
+              <!-- 스터디 공개 및 종료 -->
+              <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom pt-3 pb-2">
+                  <h6 class="fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-rocket text-primary me-2"></i>스터디 공개 및 종료
+                  </h6>
+                </div>
+                <div class="card-body p-4">
+                  <form th:if="${!study.published && !study.closed}" action="#"
+                        th:action="@{'/study/' + ${study.getPath()} + '/settings/study/publish'}" method="post" novalidate>
+                    <div class="alert alert-primary border-0 rounded-3" role="alert">
+                      <i class="fa-solid fa-circle-info me-2"></i>
+                      스터디를 다른 사용자에게 공개할 준비가 되었다면 버튼을 클릭하세요.
+                      소개, 배너 이미지, 스터디 주제 및 활동 지역을 등록했는지 확인하세요.
+                      공개하면 관심있는 사용자에게 알림을 전송합니다.
+                    </div>
+                    <button class="btn btn-primary rounded-pill w-100" type="submit">
+                      <i class="fa-solid fa-globe me-1"></i> 스터디 공개
+                    </button>
+                  </form>
+                  <form th:if="${study.published && !study.closed}" action="#"
+                        th:action="@{'/study/' + ${study.getPath()} + '/settings/study/close'}" method="post" novalidate>
+                    <div class="alert alert-warning border-0 rounded-3" role="alert">
+                      <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                      스터디를 종료하면 더이상 팀원을 모집하거나 모임을 만들 수 없으며, 경로와 이름을 수정할 수 없습니다.
+                      모임과 참여한 팀원의 기록은 그대로 보관됩니다.
+                    </div>
+                    <button class="btn btn-warning rounded-pill w-100" type="submit">
+                      <i class="fa-solid fa-lock me-1"></i> 스터디 종료
+                    </button>
+                  </form>
+                  <div th:if="${study.closed}" class="alert alert-secondary border-0 rounded-3 mb-0">
+                    <i class="fa-solid fa-lock me-2"></i>
+                    이 스터디는 <span class="date-time" th:text="${study.closedDateTime}"></span>에 종료됐습니다.
+                    다시 진행하고 싶다면 새로운 스터디를 만드세요.
+                  </div>
+                </div>
+              </div>
+
+              <!-- 팀원 모집 (모집 시작) -->
+              <div th:if="${!study.closed && !study.recruiting && study.published}" class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom pt-3 pb-2">
+                  <h6 class="fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-user-plus text-success me-2"></i>팀원 모집
+                  </h6>
+                </div>
+                <div class="card-body p-4">
+                  <form action="#" th:action="@{'/study/' + ${study.getPath()} + '/settings/recruit/start'}" method="post" novalidate>
+                    <div class="alert alert-info border-0 rounded-3" role="alert">
+                      <i class="fa-solid fa-circle-info me-2"></i>
+                      팀원을 모집합니다. 충분한 팀원을 모집했다면 모집을 멈출 수 있습니다.
+                      팀원 모집 정보는 1시간에 한번만 변경할 수 있습니다.
+                    </div>
+                    <button class="btn btn-success rounded-pill w-100" type="submit">
+                      <i class="fa-solid fa-bullhorn me-1"></i> 팀원 모집 시작
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <!-- 팀원 모집 (모집 중단) -->
+              <div th:if="${!study.closed && study.recruiting && study.published}" class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom pt-3 pb-2">
+                  <h6 class="fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-user-plus text-success me-2"></i>팀원 모집
+                  </h6>
+                </div>
+                <div class="card-body p-4">
+                  <form action="#" th:action="@{'/study/' + ${study.getPath()} + '/settings/recruit/stop'}" method="post" novalidate>
+                    <div class="alert alert-primary border-0 rounded-3" role="alert">
+                      <i class="fa-solid fa-circle-info me-2"></i>
+                      팀원 모집을 중단합니다. 충원이 필요할 때 다시 시작할 수 있습니다.
+                      팀원 모집 정보는 1시간에 한번만 변경할 수 있습니다.
+                    </div>
+                    <button class="btn btn-outline-secondary rounded-pill w-100" type="submit">
+                      <i class="fa-solid fa-pause me-1"></i> 팀원 모집 중단
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <!-- 스터디 경로 수정 -->
+              <div th:if="${!study.closed}" class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom pt-3 pb-2">
+                  <h6 class="fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-link text-warning me-2"></i>스터디 경로
+                  </h6>
+                </div>
+                <div class="card-body p-4">
+                  <form class="needs-validation" th:action="@{'/study/' + ${study.path} + '/settings/study/path'}" method="post" novalidate>
+                    <div class="alert alert-warning border-0 rounded-3" role="alert">
+                      <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                      경로를 수정하면 이전 경로로 스터디에 접근할 수 없습니다.
+                    </div>
+                    <div class="mb-3">
+                      <div class="input-group">
+                        <span class="input-group-text bg-light text-muted small">studyolle.com/study/</span>
+                        <input id="path" type="text" name="newPath" th:value="${study.path}" class="form-control"
+                               placeholder="예) study-path" required>
+                      </div>
+                      <div class="form-text">공백 없이 문자, 숫자, 대시(-), 언더바(_)만 3~20자.</div>
+                      <div class="invalid-feedback">스터디 경로를 입력하세요.</div>
+                      <div class="text-danger small" th:if="${studyPathError}" th:text="${studyPathError}">Error</div>
+                    </div>
+                    <button class="btn btn-outline-warning rounded-pill w-100" type="submit">
+                      <i class="fa-solid fa-pen me-1"></i> 경로 수정
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <!-- 스터디 이름 수정 -->
+              <div th:if="${!study.closed}" class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-bottom pt-3 pb-2">
+                  <h6 class="fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-heading text-warning me-2"></i>스터디 이름
+                  </h6>
+                </div>
+                <div class="card-body p-4">
+                  <form class="needs-validation" th:action="@{'/study/' + ${study.path} + '/settings/study/title'}" method="post" novalidate>
+                    <div class="mb-3">
+                      <input id="title" type="text" name="newTitle" th:value="${study.title}" class="form-control"
+                             placeholder="스터디 이름" required maxlength="50">
+                      <div class="form-text">50자 이내로 입력하세요.</div>
+                      <div class="invalid-feedback">스터디 이름을 입력하세요.</div>
+                      <div class="text-danger small" th:if="${studyTitleError}" th:text="${studyTitleError}">Error</div>
+                    </div>
+                    <button class="btn btn-outline-warning rounded-pill w-100" type="submit">
+                      <i class="fa-solid fa-pen me-1"></i> 이름 수정
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <!-- 스터디 삭제 (위험 영역) -->
+              <div class="card border-0 shadow-sm rounded-3 border-danger mb-4" style="border: 1px solid #c4917e !important;">
+                <div class="card-header bg-danger bg-opacity-10 border-bottom pt-3 pb-2">
+                  <h6 class="fw-bold text-danger mb-0">
+                    <i class="fa-solid fa-trash-can me-2"></i>스터디 삭제
+                  </h6>
+                </div>
+                <div class="card-body p-4">
+                  <div th:if="${study.isRemovable()}">
+                    <form action="#" th:action="@{'/study/' + ${study.getPath()} + '/settings/study/remove'}" method="post" novalidate>
+                      <div class="alert alert-danger border-0 rounded-3" role="alert">
+                        <i class="fa-solid fa-circle-exclamation me-2"></i>
+                        스터디를 삭제하면 모든 기록이 삭제되며 <strong>복구할 수 없습니다</strong>.
+                      </div>
+                      <button class="btn btn-danger rounded-pill w-100" type="submit">
+                        <i class="fa-solid fa-trash-can me-1"></i> 스터디 삭제
+                      </button>
+                    </form>
+                  </div>
+                  <div th:if="${!study.isRemovable()}">
+                    <form action="#" th:action="@{'/study/' + ${study.getPath()} + '/settings/study/remove'}" method="post" novalidate>
+                      <div class="alert alert-secondary border-0 rounded-3 mb-3" role="alert">
+                        <i class="fa-solid fa-ban me-2"></i>
+                        공개 중이고 모임을 했던 스터디는 삭제할 수 없습니다.
+                      </div>
+                      <button class="btn btn-outline-danger rounded-pill w-100" type="submit" disabled>
+                        <i class="fa-solid fa-trash-can me-1"></i> 스터디 삭제
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div th:replace="fragments.html :: footer"></div>
+    <script th:replace="fragments.html :: tooltip"></script>
+    <script th:replace="fragments.html :: form-validation"></script>
+</body>
+</html>

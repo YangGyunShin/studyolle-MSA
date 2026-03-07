@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<!-- ============================================================
+     게시글 상세 페이지
+
+     [템플릿 위치] templates/board/view.html
+     [컨트롤러 return] "board/view"
+
+     [레이아웃] 2컬럼 (event/view.html 패턴 참고)
+       - 왼쪽(col-lg-8): 본문 + 수정/삭제 + 댓글
+       - 오른쪽(col-lg-4): 사이드바 (게시글 메타 정보)
+     ============================================================ -->
+<head th:replace="fragments.html :: head"></head>
+
+<body>
+<div th:replace="fragments.html :: main-nav"></div>
+<div th:replace="fragments.html :: study-banner"></div>
+<div th:replace="fragments.html :: study-info"></div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+            <!-- 뒤로 가기 -->
+            <a th:href="@{'/study/' + ${study.path} + '/board'}"
+               class="text-decoration-none text-muted small mb-3 d-inline-block">
+                <i class="fa-solid fa-arrow-left me-1"></i> 게시판으로 돌아가기
+            </a>
+
+            <!-- flash 메시지 -->
+            <div th:if="${message}" class="alert alert-success alert-dismissible fade show border-0 rounded-3 mb-3" role="alert">
+                <i class="fa-solid fa-check-circle me-1"></i>
+                <span th:text="${message}">메시지</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            <div th:if="${commentError}" class="alert alert-warning alert-dismissible fade show border-0 rounded-3 mb-3" role="alert">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                <span th:text="${commentError}">에러</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <div class="row g-4">
+                <!-- ========== 왼쪽: 게시글 본문 + 댓글 ========== -->
+                <div class="col-lg-8">
+
+                    <!-- 게시글 본문 카드 -->
+                    <div class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-body p-4">
+                            <!-- 카테고리 뱃지 -->
+                            <span class="badge rounded-pill px-2 py-1 mb-2"
+                                  th:style="${board.category.name() == 'NOTICE'}
+                                      ? 'background: rgba(196,145,126,0.22); color: #8a5b48;'
+                                      : (${board.category.name() == 'RESOURCE'}
+                                          ? 'background: rgba(142,133,176,0.22); color: #5c5480;'
+                                          : (${board.category.name() == 'QNA'}
+                                              ? 'background: rgba(191,164,115,0.22); color: #6e5a30;'
+                                              : 'background: rgba(158,150,137,0.18); color: #4a4540;'))"
+                                  th:text="${board.category.displayName}">카테고리</span>
+
+                            <!-- 제목 -->
+                            <h5 class="fw-bold mb-3" style="color: #4a4540;" th:text="${board.title}">게시글 제목</h5>
+
+                            <!-- 작성자 정보 -->
+                            <div class="d-flex align-items-center gap-2 mb-4 pb-3 border-bottom">
+                                <svg th:if="${#strings.isEmpty(board.createdBy?.profileImage)}"
+                                     th:data-jdenticon-value="${board.createdBy.nickname}"
+                                     width="32" height="32" class="rounded-circle border bg-light"></svg>
+                                <img th:if="${!#strings.isEmpty(board.createdBy?.profileImage)}"
+                                     th:src="${board.createdBy.profileImage}"
+                                     width="32" height="32" class="rounded-circle border" alt="프로필">
+                                <div>
+                                    <span class="fw-medium small" style="color: #4a4540;"
+                                          th:text="${board.createdBy.nickname}">닉네임</span>
+                                    <div class="text-muted" style="font-size: 0.75rem;">
+                                        <span class="date-time" th:text="${board.createdDateTime}">2025-01-01</span>
+                                        <span th:if="${board.modifiedDateTime != null}" class="ms-1">
+                                            (수정됨 <span class="date-time" th:text="${board.modifiedDateTime}">2025-01-02</span>)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 본문 -->
+                            <div class="board-content" th:utext="${board.content}" style="line-height: 1.8;">
+                                게시글 본문 내용
+                            </div>
+                        </div>
+
+                        <!-- 수정/삭제 버튼 (작성자 본인 또는 관리자) -->
+                        <div sec:authorize="isAuthenticated()"
+                             th:if="${board.canModify(account)}"
+                             class="card-footer bg-transparent border-top d-flex justify-content-end gap-2 p-3">
+                            <a th:href="@{'/study/' + ${study.path} + '/board/' + ${board.id} + '/edit'}"
+                               class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                <i class="fa-solid fa-pen-to-square me-1"></i> 수정
+                            </a>
+                            <form th:action="@{'/study/' + ${study.path} + '/board/' + ${board.id}}"
+                                  method="post" class="d-inline"
+                                  onsubmit="return confirm('정말 삭제하시겠습니까? 댓글도 함께 삭제됩니다.');">
+                                <input type="hidden" name="_method" value="DELETE">
+                                <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                                    <i class="fa-solid fa-trash me-1"></i> 삭제
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- ========== 댓글 섹션 ========== -->
+                    <div class="card border-0 shadow-sm rounded-3">
+                        <div class="card-body p-4">
+                            <h6 class="fw-bold mb-3 d-flex align-items-center">
+                                <i class="fa-solid fa-comments me-2 section-icon-violet"></i> 댓글
+                                <span class="badge rounded-pill ms-2 fw-normal"
+                                      style="background: rgba(142,133,176,0.1); color: #8e85b0;"
+                                      th:text="${board.comments.size()} + '개'">0개</span>
+                            </h6>
+
+                            <!-- 댓글 목록 -->
+                            <div th:if="${board.comments.size() > 0}" class="d-flex flex-column gap-3 mb-4">
+                                <div th:each="comment : ${board.comments}"
+                                     class="p-3 rounded-3"
+                                     style="background: rgba(142,133,176,0.04);">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <!-- 왼쪽: 작성자 + 내용 -->
+                                        <div class="d-flex gap-2 flex-grow-1">
+                                            <svg th:if="${#strings.isEmpty(comment.account?.profileImage)}"
+                                                 th:data-jdenticon-value="${comment.account.nickname}"
+                                                 width="28" height="28" class="rounded-circle flex-shrink-0 mt-1"></svg>
+                                            <img th:if="${!#strings.isEmpty(comment.account?.profileImage)}"
+                                                 th:src="${comment.account.profileImage}"
+                                                 width="28" height="28" class="rounded-circle flex-shrink-0 mt-1" alt="프로필">
+                                            <div>
+                                                <div class="d-flex align-items-center gap-2 mb-1">
+                                                    <span class="fw-medium small" style="color: #4a4540;"
+                                                          th:text="${comment.account.nickname}">닉네임</span>
+                                                    <span class="text-muted" style="font-size: 0.72rem;"
+                                                          th:text="${#temporals.format(comment.createdDateTime, 'MM.dd HH:mm')}">01.01 12:00</span>
+                                                </div>
+                                                <p class="mb-0 small" style="color: #4a4540; white-space: pre-wrap;"
+                                                   th:text="${comment.content}">댓글 내용</p>
+                                            </div>
+                                        </div>
+                                        <!-- 오른쪽: 삭제 버튼 -->
+                                        <form sec:authorize="isAuthenticated()"
+                                              th:if="${comment.canDelete(account)}"
+                                              th:action="@{'/study/' + ${study.path} + '/board/' + ${board.id} + '/comments/' + ${comment.id}}"
+                                              method="post" class="flex-shrink-0 ms-2"
+                                              onsubmit="return confirm('댓글을 삭제하시겠습니까?');">
+                                            <input type="hidden" name="_method" value="DELETE">
+                                            <button type="submit" class="btn btn-sm text-muted p-0"
+                                                    style="font-size: 0.72rem;">
+                                                <i class="fa-solid fa-xmark"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 댓글 없을 때 -->
+                            <div th:if="${board.comments.size() == 0}" class="text-center py-3 mb-3">
+                                <p class="text-muted small mb-0">
+                                    <i class="fa-regular fa-comment me-1"></i> 아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
+                                </p>
+                            </div>
+
+                            <!-- 댓글 작성 폼 (로그인 + 멤버) -->
+                            <div sec:authorize="isAuthenticated()"
+                                 th:if="${study.isManager(#authentication.principal) || study.isMember(#authentication.principal)}">
+                                <form th:action="@{'/study/' + ${study.path} + '/board/' + ${board.id} + '/comments'}"
+                                      th:object="${boardCommentForm}" method="post">
+                                    <div class="d-flex gap-2">
+                                        <textarea th:field="*{content}" class="form-control form-control-sm"
+                                                  placeholder="댓글을 입력하세요..." rows="2" maxlength="500"
+                                                  style="resize: none;"></textarea>
+                                        <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3 flex-shrink-0 align-self-end">
+                                            <i class="fa-solid fa-paper-plane me-1"></i> 등록
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ========== 오른쪽: 사이드바 ========== -->
+                <div class="col-lg-4">
+                    <div class="card border-0 shadow-sm rounded-3 sticky-top" style="top: 80px;">
+                        <div class="card-body p-4">
+                            <h6 class="fw-bold mb-3 d-flex align-items-center">
+                                <i class="fa-solid fa-circle-info me-2 section-icon"></i> 게시글 정보
+                            </h6>
+
+                            <div class="d-flex flex-column gap-3">
+                                <!-- 카테고리 -->
+                                <div>
+                                    <p class="text-muted small mb-1">카테고리</p>
+                                    <span class="badge rounded-pill px-3 py-2"
+                                          style="background: rgba(142,133,176,0.1); color: #8e85b0;"
+                                          th:text="${board.category.displayName}">카테고리</span>
+                                </div>
+
+                                <!-- 작성자 -->
+                                <div>
+                                    <p class="text-muted small mb-1">작성자</p>
+                                    <span class="fw-semibold small" style="color: #4a4540;"
+                                          th:text="${board.createdBy.nickname}">닉네임</span>
+                                </div>
+
+                                <!-- 작성일 -->
+                                <div>
+                                    <p class="text-muted small mb-1">작성일</p>
+                                    <span class="small fw-medium" style="color: #4a4540;">
+                                        <i class="fa-solid fa-calendar-days me-1 section-icon"></i>
+                                        <span th:text="${#temporals.format(board.createdDateTime, 'yyyy년 MM월 dd일 HH:mm')}">2025년 01월 01일</span>
+                                    </span>
+                                </div>
+
+                                <!-- 수정일 -->
+                                <div th:if="${board.modifiedDateTime != null}">
+                                    <p class="text-muted small mb-1">수정일</p>
+                                    <span class="small fw-medium" style="color: #4a4540;">
+                                        <i class="fa-solid fa-pen me-1 section-icon-violet"></i>
+                                        <span th:text="${#temporals.format(board.modifiedDateTime, 'yyyy년 MM월 dd일 HH:mm')}">2025년 01월 02일</span>
+                                    </span>
+                                </div>
+
+                                <!-- 댓글 수 -->
+                                <div>
+                                    <p class="text-muted small mb-1">댓글</p>
+                                    <span class="fw-semibold small" style="color: #4a4540;">
+                                        <i class="fa-solid fa-comments me-1 section-icon-violet"></i>
+                                        <span th:text="${board.commentCount}">0</span>개
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="fragments.html :: footer"></div>
+<script th:replace="fragments.html :: date-time"></script>
+<script src="https://cdn.jsdelivr.net/npm/jdenticon@3.2.0/dist/jdenticon.min.js"></script>
+</body>
+</html>

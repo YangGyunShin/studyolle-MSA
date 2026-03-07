@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>이메일 로그인 - StudyOlle</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" crossorigin="anonymous"/>
+    <link rel="stylesheet" th:href="@{/css/glassmorphism.css}">
+
+    <style>
+        .result-card {
+            background: #fdfcfa;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            border: 1px solid #e8e4dd;
+            border-radius: 20px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+            padding: 3rem 2.5rem;
+            max-width: 520px;
+            width: 100%;
+            text-align: center;
+            animation: cardEntrance 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            opacity: 0;
+            transform: translateY(30px) scale(0.95);
+        }
+
+        @keyframes cardEntrance { to { opacity: 1; transform: translateY(0) scale(1); } }
+
+        .mail-icon, .error-icon {
+            width: 90px; height: 90px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1.5rem; font-size: 2.2rem; color: #fff;
+            animation: iconBounce 0.6s 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+
+        .mail-icon {
+            background: #8e85b0;
+            box-shadow: none;
+        }
+
+        .error-icon {
+            background: #c4917e;
+            box-shadow: none;
+        }
+
+        @keyframes iconBounce { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+        .result-title {
+            font-family: 'Plus Jakarta Sans', 'Pretendard Variable', sans-serif;
+            font-weight: 800; font-size: 1.5rem; color: #4a4540;
+            margin-bottom: 0.5rem; animation: textFadeIn 0.5s 0.6s ease both;
+        }
+
+        .result-subtitle {
+            font-size: 0.95rem; color: #6b6560; margin-bottom: 0.5rem;
+            animation: textFadeIn 0.5s 0.7s ease both;
+        }
+
+        .result-email {
+            font-weight: 700; color: #8e85b0; font-size: 1.05rem;
+            margin-bottom: 1rem; animation: textFadeIn 0.5s 0.8s ease both;
+        }
+
+        @keyframes textFadeIn { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+
+        .page-logo {
+            position: fixed; top: 24px; left: 32px;
+            display: flex; align-items: center; gap: 8px;
+            text-decoration: none; z-index: 10;
+            animation: textFadeIn 0.5s 0.2s ease both;
+        }
+
+        .page-logo img { width: 32px; height: 32px; }
+
+        .page-logo span {
+            font-family: 'Plus Jakarta Sans', 'Pretendard Variable', sans-serif;
+            font-weight: 800; font-size: 1.1rem; color: #4a4540;
+        }
+
+        .result-card.error-state { border-color: rgba(239, 68, 68, 0.15); }
+    </style>
+</head>
+
+<body class="glass-page">
+
+<div class="bg-animated"></div>
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<a class="page-logo" th:href="@{/}">
+    <img src="/images/logo_sm.png" alt="로고">
+    <span>StudyOlle</span>
+</a>
+
+<!-- ✅ 정상: 로그인 링크 전송 완료 -->
+<div class="result-card" th:if="${error == null}">
+    <div class="mail-icon">
+        <i class="fa-solid fa-link"></i>
+    </div>
+    <h1 class="result-title">로그인 링크를 보냈습니다</h1>
+    <p class="result-subtitle">아래 이메일에서 로그인 링크를 확인해주세요</p>
+    <p class="result-email" th:text="${email}">your@email.com</p>
+</div>
+
+<!-- ❌ 에러 -->
+<div class="result-card error-state" th:if="${error}">
+    <div class="error-icon">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+    </div>
+    <h1 class="result-title">로그인 링크 전송 실패</h1>
+    <p class="result-subtitle">이메일이 정확하지 않거나 가입하지 않은 이메일입니다</p>
+    <p class="result-email" th:text="${email}">your@email.com</p>
+</div>
+
+</body>
+</html>

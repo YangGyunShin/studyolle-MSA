@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments.html :: head}"></head>
+<body>
+    <nav th:replace="~{fragments.html :: main-nav}"></nav>
+    <div th:replace="~{fragments.html :: study-banner}"></div>
+
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+
+                <!-- ========== 헤더 ========== -->
+                <div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+                    <div>
+                        <!-- 스터디로 돌아가기 링크 -->
+                        <a class="text-decoration-none d-inline-flex align-items-center gap-1 mb-2"
+                           style="color: #8e85b0; font-size: 0.88rem;"
+                           th:href="@{'/study/' + ${study.path}}">
+                            <i class="fa-solid fa-arrow-left" style="font-size: 0.75rem;"></i>
+                            <span th:text="${study.title}">스터디명</span>
+                        </a>
+                        <h2 class="fw-bold mb-0" style="color: #4a4540;" th:text="${event.title}">모임 이름</h2>
+                    </div>
+                    <div class="d-flex gap-2 mt-2 mt-md-0">
+                        <span sec:authorize="isAuthenticated()">
+                            <button th:if="${event.isEnrollableFor(#authentication.principal)}"
+                                    class="btn btn-primary rounded-pill px-4"
+                                    data-bs-toggle="modal" data-bs-target="#enroll">
+                                <i class="fa-solid fa-plus-circle me-1"></i> 참가 신청
+                            </button>
+                            <button th:if="${event.isDisenrollableFor(#authentication.principal)}"
+                                    class="btn btn-outline-primary rounded-pill px-4"
+                                    data-bs-toggle="modal" data-bs-target="#disenroll">
+                                <i class="fa-solid fa-minus-circle me-1"></i> 참가 취소
+                            </button>
+                            <span class="badge rounded-pill px-3 py-2"
+                                  style="background: rgba(142,133,176,0.1); color: #8e85b0;"
+                                  th:if="${event.isAttended(#authentication.principal)}">
+                                <i class="fa-solid fa-check-circle me-1"></i> 참석 완료
+                            </span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <!-- ========== 왼쪽: 모임 설명 + 참가자 ========== -->
+                    <div class="col-lg-8">
+                        <!-- 모임 설명 카드 -->
+                        <div class="card border-0 shadow-sm rounded-3 mb-4">
+                            <div class="card-body p-4">
+                                <h6 class="fw-bold mb-3 d-flex align-items-center">
+                                    <i class="fa-solid fa-align-left me-2 section-icon"></i> 상세 모임 설명
+                                </h6>
+                                <div th:utext="${event.description}" class="text-muted" style="line-height: 1.8;"></div>
+                            </div>
+                        </div>
+
+                        <!-- 참가자 카드 -->
+                        <div class="card border-0 shadow-sm rounded-3">
+                            <div class="card-body p-4">
+                                <h6 class="fw-bold mb-3 d-flex align-items-center">
+                                    <i class="fa-solid fa-users me-2 section-icon-violet"></i> 모임 참가 신청
+                                    <span class="badge rounded-pill ms-2 fw-normal"
+                                          style="background: rgba(142,133,176,0.1); color: #8e85b0;"
+                                          th:text="${event.enrollments.size()} + '명'">0명</span>
+                                </h6>
+
+                                <!-- 참가자가 없을 때 -->
+                                <div th:if="${event.enrollments.size() == 0}" class="text-center py-4">
+                                    <div class="empty-icon empty-icon-indigo mx-auto mb-2">
+                                        <i class="fa-solid fa-user-group"></i>
+                                    </div>
+                                    <p class="text-muted small">아직 참가 신청이 없습니다.</p>
+                                </div>
+
+                                <!-- 참가자 리스트 (카드 스타일) -->
+                                <div th:if="${event.enrollments.size() > 0}" class="d-flex flex-column gap-2">
+                                    <div th:each="enroll: ${event.enrollments}"
+                                         class="d-flex align-items-center justify-content-between p-3 rounded-3"
+                                         style="background: rgba(142,133,176,0.04);">
+                                        <!-- 왼쪽: 번호 + 아바타 + 이름 -->
+                                        <div class="d-flex align-items-center gap-3">
+                                            <span class="text-muted small fw-medium" style="min-width: 20px;"
+                                                  th:text="${enrollStat.count}">1</span>
+                                            <a th:href="@{'/profile/' + ${enroll.account.nickname}}"
+                                               class="text-decoration-none d-flex align-items-center gap-2">
+                                                <svg th:if="${#strings.isEmpty(enroll.account?.profileImage)}"
+                                                     th:data-jdenticon-value="${enroll.account.nickname}"
+                                                     width="32" height="32" class="rounded-circle border bg-light"></svg>
+                                                <img th:if="${!#strings.isEmpty(enroll.account?.profileImage)}"
+                                                     th:src="${enroll.account?.profileImage}"
+                                                     width="32" height="32" class="rounded-circle border object-fit-cover"/>
+                                                <div>
+                                                    <span class="fw-semibold small text-dark" th:text="${enroll.account.nickname}">닉네임</span>
+                                                    <br>
+                                                    <span class="text-muted" style="font-size: 0.75rem;"
+                                                          th:text="${#temporals.format(enroll.enrolledAt, 'MM.dd HH:mm')}">02.18 16:20</span>
+                                                </div>
+                                            </a>
+                                        </div>
+
+                                        <!-- 오른쪽: 상태 + 관리 버튼 -->
+                                        <div class="d-flex align-items-center gap-2">
+                                            <!-- 상태 배지 -->
+                                            <span th:if="${enroll.accepted}" class="badge rounded-pill px-2 py-1"
+                                                  style="background: rgba(142,133,176,0.1); color: #8e85b0; font-size: 0.7rem;">
+                                                확정
+                                            </span>
+                                            <span th:if="${!enroll.accepted}" class="badge rounded-pill px-2 py-1"
+                                                  style="background: rgba(158,150,137,0.1); color: #6b6560; font-size: 0.7rem;">
+                                                대기
+                                            </span>
+
+                                            <!-- 관리자: 수락/거절 -->
+                                            <span sec:authorize="isAuthenticated()"
+                                                  th:if="${study.isManager(#authentication.principal)}">
+                                                <a th:if="${event.canAccept(enroll)}"
+                                                   class="btn btn-sm rounded-pill px-3"
+                                                   style="border: 1px solid rgba(142,133,176,0.2); color: #8e85b0; font-size: 0.75rem;"
+                                                   th:href="@{'/study/' + ${study.path} + '/events/' + ${event.id} + '/enrollments/' + ${enroll.id} + '/accept'}">수락</a>
+                                                <a th:if="${event.canReject(enroll)}"
+                                                   class="btn btn-sm rounded-pill px-3"
+                                                   style="border: 1px solid rgba(158,150,137,0.2); color: #6b6560; font-size: 0.75rem;"
+                                                   th:href="@{'/study/' + ${study.path} + '/events/' + ${event.id} + '/enrollments/' + ${enroll.id} + '/reject'}">거절</a>
+                                            </span>
+
+                                            <!-- 관리자: 체크인 -->
+                                            <span sec:authorize="isAuthenticated()"
+                                                  th:if="${study.isManager(#authentication.principal)}">
+                                                <a th:if="${enroll.accepted && !enroll.attended}"
+                                                   class="btn btn-sm rounded-pill px-3"
+                                                   style="border: 1px solid rgba(142,133,176,0.2); color: #8e85b0; font-size: 0.75rem;"
+                                                   th:href="@{'/study/' + ${study.path} + '/events/' + ${event.id} + '/enrollments/' + ${enroll.id} + '/checkin'}">체크인</a>
+                                                <a th:if="${enroll.accepted && enroll.attended}"
+                                                   class="btn btn-sm rounded-pill px-3"
+                                                   style="border: 1px solid rgba(158,150,137,0.2); color: #6b6560; font-size: 0.75rem;"
+                                                   th:href="@{'/study/' + ${study.path} + '/events/' + ${event.id} + '/enrollments/' + ${enroll.id} + '/cancel-checkin'}">체크인 취소</a>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========== 오른쪽: 모임 정보 사이드바 ========== -->
+                    <div class="col-lg-4">
+                        <div class="card border-0 shadow-sm rounded-3 sticky-top" style="top: 80px;">
+                            <div class="card-body p-4">
+                                <h6 class="fw-bold mb-3 d-flex align-items-center">
+                                    <i class="fa-solid fa-circle-info me-2 section-icon"></i> 모임 정보
+                                </h6>
+
+                                <div class="d-flex flex-column gap-3">
+                                    <!-- 모집 방법 -->
+                                    <div>
+                                        <p class="text-muted small mb-1">모집 방법</p>
+                                        <span th:if="${event.eventType.name() == 'FCFS'}"
+                                              class="badge rounded-pill px-3 py-2"
+                                              style="background: rgba(142,133,176,0.1); color: #8e85b0;">
+                                            <i class="fa-solid fa-bolt me-1"></i> 선착순
+                                        </span>
+                                        <span th:if="${event.eventType.name() == 'CONFIRMATIVE'}"
+                                              class="badge rounded-pill px-3 py-2"
+                                              style="background: rgba(142,133,176,0.1); color: #8e85b0;">
+                                            <i class="fa-solid fa-user-check me-1"></i> 관리자 확인
+                                        </span>
+                                    </div>
+
+                                    <!-- 모집 인원 -->
+                                    <div>
+                                        <p class="text-muted small mb-1">모집 인원</p>
+                                        <span class="fw-semibold" style="color: #4a4540;">
+                                            <span th:text="${event.limitOfEnrollments}">10</span>명
+                                        </span>
+                                    </div>
+
+                                    <!-- 참가 마감 -->
+                                    <div>
+                                        <p class="text-muted small mb-1">참가 신청 마감</p>
+                                        <span class="small fw-medium" style="color: #4a4540;">
+                                            <i class="fa-solid fa-clock me-1 section-icon-violet"></i>
+                                            <span th:text="${#temporals.format(event.endEnrollmentDateTime, 'yyyy.MM.dd (E) HH:mm')}">2026.02.19 (수) 16:17</span>
+                                        </span>
+                                    </div>
+
+                                    <!-- 모임 일시 -->
+                                    <div>
+                                        <p class="text-muted small mb-1">모임 일시</p>
+                                        <span class="small fw-medium" style="color: #4a4540;">
+                                            <i class="fa-solid fa-calendar-day me-1 section-icon"></i>
+                                            <span th:text="${#temporals.format(event.startDateTime, 'yyyy.MM.dd (E) HH:mm')}">2026.02.22 (일) 16:17</span>
+                                        </span>
+                                        <br>
+                                        <span class="text-muted small ms-4">
+                                            ~ <span th:text="${#temporals.format(event.endDateTime, 'MM.dd (E) HH:mm')}">02.28 (토) 16:17</span>
+                                        </span>
+                                    </div>
+
+                                    <!-- 모임장 -->
+                                    <div>
+                                        <p class="text-muted small mb-1">모임장</p>
+                                        <a th:href="@{'/profile/' + ${event.createdBy?.nickname}}"
+                                           class="text-decoration-none d-flex align-items-center gap-2">
+                                            <svg th:if="${#strings.isEmpty(event.createdBy?.profileImage)}"
+                                                 th:data-jdenticon-value="${event.createdBy?.nickname}"
+                                                 width="28" height="28" class="rounded-circle border bg-light"></svg>
+                                            <img th:if="${!#strings.isEmpty(event.createdBy?.profileImage)}"
+                                                 th:src="${event.createdBy?.profileImage}"
+                                                 width="28" height="28" class="rounded-circle border object-fit-cover"/>
+                                            <span class="fw-semibold small" style="color: #4a4540;"
+                                                  th:text="${event.createdBy?.nickname}">닉네임</span>
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <!-- 관리자 메뉴 -->
+                                <div sec:authorize="isAuthenticated()"
+                                     th:if="${study.isManager(#authentication.principal)}"
+                                     class="border-top mt-3 pt-3">
+                                    <p class="text-muted small mb-2">모임 관리</p>
+                                    <div class="d-flex flex-column gap-2">
+                                        <a class="btn btn-sm btn-outline-primary rounded-pill"
+                                           th:href="@{'/study/' + ${study.path} + '/events/' + ${event.id} + '/edit'}">
+                                            <i class="fa-solid fa-pen me-1"></i> 모임 수정
+                                        </a>
+                                        <button class="btn btn-sm btn-outline-danger rounded-pill"
+                                                data-bs-toggle="modal" data-bs-target="#cancel">
+                                            <i class="fa-solid fa-trash me-1"></i> 모임 취소
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 모달: 참가 신청 ========== -->
+    <div class="modal fade" id="enroll" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 20px; border: 1px solid rgba(255,255,255,0.7); box-shadow: 0 8px 32px rgba(0,0,0,0.08);">
+                <div class="modal-header border-0 pb-0 px-4 pt-4">
+                    <h5 class="modal-title fw-bold" th:text="${event.title}">모임 이름</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body px-4">
+                    <p class="text-muted">모임에 참석하시겠습니까?</p>
+                    <p class="small text-muted">확인 버튼을 클릭하면 참가 신청이 완료됩니다.</p>
+                </div>
+                <div class="modal-footer border-0 px-4 pb-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">닫기</button>
+                    <form th:action="@{'/study/' + ${study.path} + '/events/' + ${event.id} + '/enroll'}" method="post">
+                        <button class="btn btn-primary rounded-pill px-4" type="submit">확인</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 모달: 참가 취소 ========== -->
+    <div class="modal fade" id="disenroll" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 20px; border: 1px solid rgba(255,255,255,0.7); box-shadow: 0 8px 32px rgba(0,0,0,0.08);">
+                <div class="modal-header border-0 pb-0 px-4 pt-4">
+                    <h5 class="modal-title fw-bold" th:text="${event.title}">모임 이름</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body px-4">
+                    <p class="text-muted">모임 참가 신청을 취소하시겠습니까?</p>
+                    <p class="small text-muted">다른 대기자에게 참석 기회가 주어집니다.</p>
+                </div>
+                <div class="modal-footer border-0 px-4 pb-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">닫기</button>
+                    <form th:action="@{'/study/' + ${study.path} + '/events/' + ${event.id} + '/disenroll'}" method="post">
+                        <button class="btn btn-primary rounded-pill px-4" type="submit">확인</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 모달: 모임 취소(삭제) ========== -->
+    <div class="modal fade" id="cancel" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 20px; border: 1px solid rgba(255,255,255,0.7); box-shadow: 0 8px 32px rgba(0,0,0,0.08);">
+                <div class="modal-header border-0 pb-0 px-4 pt-4">
+                    <h5 class="modal-title fw-bold" th:text="${event.title}">모임 이름</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body px-4">
+                    <p class="text-danger fw-semibold">모임을 취소하시겠습니까?</p>
+                    <p class="small text-muted">모임 및 참가 신청 관련 데이터가 모두 삭제됩니다.</p>
+                </div>
+                <div class="modal-footer border-0 px-4 pb-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">닫기</button>
+                    <form th:action="@{'/study/' + ${study.path} + '/events/' + ${event.id}}" th:method="delete">
+                        <button class="btn btn-danger rounded-pill px-4" type="submit">삭제</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:replace="~{fragments.html :: footer}"></div>
+</body>
+</html>

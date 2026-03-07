@@ -1,0 +1,1733 @@
+/* ============================================================
+   main-style.css
+   StudyOlle 사이트 전역 스타일 (Warm Flat Minimal)
+
+   [v3 리디자인 - 글래스모피즘 -> 웜 플랫 미니멀]
+   - 글래스모피즘 효과 제거 (backdrop-filter, blur, 투명도)
+   - 따뜻한 톤 배경 (#f5f3ef) + 솔리드 카드
+   - 채도 낮춘 머티드 컬러 팔레트
+   - IBM Plex Sans KR + Gowun Batang 폰트 조합
+   - 넓은 여백 + 명확한 계층 구조
+   - DBeaver 스타일 참고: 플랫, 깔끔, 기능 중심
+
+   [컬러 팔레트 - Muted Warm Tones]
+   - Primary: #8e85b0 (머티드 퍼플)
+   - Success: #7fac8e (세이지 그린)
+   - Accent:  #a099bd (더스티 라벤더)
+   - Warning: #bfa473 (모래색)
+   - Rose:    #c4917e (더스티 로즈)
+   - Text:    #4a4540 (웜 다크)
+   - TextSub: #9e9689 (웜 그레이)
+   - Border:  #e8e4dd (웜 보더)
+   - Surface: #fdfcfa (오프화이트)
+   - BG:      #f5f3ef (웜 그레이 배경)
+   ============================================================ */
+
+/* ============================
+   1. 기본 폰트 & 레이아웃
+   ============================ */
+body, input, button, select, optgroup, textarea, .tooltip, .popover {
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', -apple-system, sans-serif;
+}
+
+body {
+    color: #4a4540;
+    line-height: 1.65;
+    background: #f5f3ef;
+    min-height: 100vh;
+}
+
+body.bg-light {
+    background: #f5f3ef !important;
+}
+
+/* 메인 페이지: 미세한 웜 그라디언트 (장식 최소화) */
+body.page-main {
+    background:
+        radial-gradient(ellipse at 20% 0%, rgba(142, 133, 176, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(191, 164, 115, 0.05) 0%, transparent 50%),
+        #f5f3ef;
+    background-attachment: fixed;
+}
+
+h1, h2, h3, h4, h5, h6, .fw-bold, .fw-semibold {
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', -apple-system, sans-serif;
+    letter-spacing: -0.02em;
+}
+
+.container {
+    max-width: 1140px;
+}
+
+/* ============================
+   2. 페이지 장식 오브 (제거 - 빈 선언 유지)
+      기존 HTML에 .page-orb 클래스가 남아있을 수 있으므로
+      display:none으로 숨김 처리
+   ============================ */
+.page-orb {
+    display: none !important;
+}
+
+.page-orb-1,
+.page-orb-2,
+.page-orb-3 {
+    display: none !important;
+}
+
+/* ============================
+   3. 네비게이션 바 (솔리드 라이트)
+   ============================ */
+
+/* 검색 폼: 고정 w-50 대신 clamp()로 반응형 너비 적용
+   - 최소 160px (좁은 화면), 최대 360px (넓은 화면)
+   - 32%는 컨테이너 폭 기준 비율 */
+.nav-search-form {
+    width: clamp(160px, 32%, 360px);
+}
+
+.navbar-glass {
+    background: #fdfcfa !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom: 1px solid #e8e4dd;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    padding: 0.6rem 0;
+    transition: box-shadow 0.3s ease;
+}
+
+.navbar-glass .navbar-brand {
+    color: #4a4540;
+    font-weight: 700;
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', sans-serif;
+    letter-spacing: -0.3px;
+    font-size: 1.15rem;
+}
+
+.navbar-glass .nav-link {
+    color: #6b6560;
+    font-weight: 500;
+    font-size: 0.9rem;
+    padding: 0.5rem 0.85rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.navbar-glass .nav-link:hover {
+    color: #8e85b0;
+    background: rgba(142, 133, 176, 0.06);
+}
+
+.navbar-glass .form-control {
+    background: #f5f3ef;
+    border: 1.5px solid #e8e4dd;
+    border-radius: 10px;
+    color: #4a4540;
+    font-size: 0.9rem;
+    padding: 0.45rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.navbar-glass .form-control::placeholder {
+    color: #b8b2a8;
+}
+
+.navbar-glass .form-control:focus {
+    background: #fff;
+    border-color: #a099bd;
+    box-shadow: 0 0 0 3px rgba(142, 133, 176, 0.1);
+    color: #4a4540;
+}
+
+.navbar-glass .dropdown-menu {
+    background: #fdfcfa;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 1px solid #e8e4dd;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    padding: 0.5rem;
+    margin-top: 8px;
+}
+
+.navbar-glass .dropdown-item {
+    border-radius: 8px;
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.15s ease;
+    color: #4a4540;
+}
+
+.navbar-glass .dropdown-item:hover {
+    background: rgba(142, 133, 176, 0.06);
+    color: #8e85b0;
+}
+
+/* 스터디 개설 버튼 */
+.btn-nav-cta {
+    background: #4a4540;
+    color: #fff !important;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.45rem 1rem;
+    transition: all 0.2s ease;
+    box-shadow: none;
+}
+
+.btn-nav-cta:hover {
+    background: #3a3530;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    color: #fff !important;
+}
+
+/* 모바일 토글 */
+.navbar-glass .navbar-toggler {
+    border: 1.5px solid #e8e4dd;
+    border-radius: 8px;
+    padding: 0.3rem 0.5rem;
+}
+
+.navbar-glass .navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%2874, 69, 64, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+/* ============================
+   4. 카드 (솔리드, 웜 보더)
+   ============================ */
+.card {
+    border: 1px solid #e8e4dd;
+    border-radius: 14px;
+    background: #fdfcfa;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.card.border-0 {
+    border: 1px solid #e8e4dd !important;
+}
+
+.card.shadow-sm {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+}
+
+.card.shadow-sm:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+}
+
+.card-header.bg-white,
+.card-header {
+    background: transparent !important;
+    border-bottom-color: #f0ede8;
+}
+
+/* 호버 리프트 효과 */
+.hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* 스터디 카드 이미지 */
+.card-img-top {
+    object-fit: cover;
+    height: 140px;
+    border-radius: 14px 14px 0 0;
+}
+
+/* ============================
+   5. 사이드바 카드
+   ============================ */
+.sidebar-card {
+    display: block;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.sidebar-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05) !important;
+}
+
+.sidebar-edit-icon {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.sidebar-card:hover .sidebar-edit-icon {
+    opacity: 0.6;
+}
+
+/* ============================
+   6. 섹션 타이틀
+   ============================ */
+.section-title {
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', sans-serif;
+    font-weight: 700;
+    color: #4a4540;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.card-header .section-title {
+    position: relative;
+}
+
+/* ============================
+   7. 빈 상태 아이콘
+   ============================ */
+.empty-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 0.75rem;
+}
+
+.empty-icon-indigo {
+    background: rgba(142, 133, 176, 0.08);
+    color: rgba(142, 133, 176, 0.4);
+}
+
+.empty-icon-rose {
+    background: rgba(196, 145, 126, 0.08);
+    color: rgba(196, 145, 126, 0.4);
+}
+
+.empty-icon-emerald {
+    background: rgba(127, 172, 142, 0.08);
+    color: rgba(127, 172, 142, 0.4);
+}
+
+.empty-icon-amber {
+    background: rgba(191, 164, 115, 0.08);
+    color: rgba(191, 164, 115, 0.4);
+}
+
+.empty-icon-sky {
+    background: rgba(142, 133, 176, 0.08);
+    color: rgba(142, 133, 176, 0.4);
+}
+
+.empty-icon-slate {
+    background: rgba(158, 150, 137, 0.08);
+    color: rgba(158, 150, 137, 0.4);
+}
+
+/* ============================
+   8. 버튼 스타일
+   ============================ */
+.form-control, .btn {
+    border-radius: 10px;
+}
+
+.btn {
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: #8e85b0;
+    border: none;
+    box-shadow: none;
+}
+
+.btn-primary:hover {
+    background: #7a7199;
+    box-shadow: 0 2px 8px rgba(142, 133, 176, 0.2);
+    transform: translateY(-1px);
+}
+
+.btn-outline-primary {
+    color: #8e85b0;
+    border-color: rgba(142, 133, 176, 0.3);
+    border-width: 1.5px;
+}
+
+.btn-outline-primary:hover {
+    background: rgba(142, 133, 176, 0.06);
+    border-color: #8e85b0;
+    color: #7a7199;
+}
+
+.btn-outline-warning {
+    border-color: rgba(191, 164, 115, 0.3);
+    border-width: 1.5px;
+    color: #bfa473;
+}
+
+.btn-outline-warning:hover {
+    background: rgba(191, 164, 115, 0.06);
+    border-color: #bfa473;
+    color: #a68f60;
+}
+
+.btn-outline-danger {
+    border-color: rgba(196, 145, 126, 0.3);
+    border-width: 1.5px;
+    color: #c4917e;
+}
+
+.btn-outline-danger:hover {
+    background: rgba(196, 145, 126, 0.06);
+    border-color: #c4917e;
+    color: #b07a66;
+}
+
+.btn-outline-info {
+    border-color: rgba(142, 133, 176, 0.3);
+    border-width: 1.5px;
+    color: #8e85b0;
+}
+
+.btn.rounded-pill {
+    font-weight: 600;
+    letter-spacing: -0.2px;
+}
+
+/* CTA 버튼 (그라디언트 제거 -> 솔리드) */
+.btn-gradient-primary {
+    background: #4a4540;
+    color: #fff;
+    border: none;
+    font-weight: 600;
+    box-shadow: none;
+    transition: all 0.2s ease;
+}
+
+.btn-gradient-primary:hover {
+    background: #3a3530;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    color: #fff;
+}
+
+.btn-glass-outline {
+    background: #fdfcfa;
+    backdrop-filter: none;
+    border: 1.5px solid rgba(142, 133, 176, 0.25);
+    color: #8e85b0;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-glass-outline:hover {
+    background: rgba(142, 133, 176, 0.04);
+    border-color: rgba(142, 133, 176, 0.4);
+    color: #7a7199;
+}
+
+/* ============================
+   9. 폼 요소
+   ============================ */
+.form-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #6b6560;
+}
+
+.form-control {
+    background: #fdfcfa;
+    border: 1.5px solid #e8e4dd;
+    color: #4a4540;
+    padding: 0.6rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    background: #fff;
+    border-color: #a099bd;
+    box-shadow: 0 0 0 3px rgba(142, 133, 176, 0.1);
+}
+
+.text-danger {
+    font-size: 0.875rem;
+}
+
+/* ============================
+   10. 스터디 리스트 사이드바 링크
+   ============================ */
+.study-link {
+    transition: all 0.15s ease;
+    border-radius: 8px !important;
+}
+
+.study-link:hover {
+    background-color: rgba(142, 133, 176, 0.05) !important;
+}
+
+.study-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* ============================
+   11. 뱃지 스타일
+   ============================ */
+.badge {
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+/* ============================
+   12. 알림 관련
+   ============================ */
+.text-info .fa-bell {
+    animation: bell-ring 0.6s ease-in-out;
+}
+
+@keyframes bell-ring {
+    0%, 100% { transform: rotate(0); }
+    25%      { transform: rotate(10deg); }
+    75%      { transform: rotate(-10deg); }
+}
+
+.alert-glass-warning {
+    background: rgba(191, 164, 115, 0.08);
+    backdrop-filter: none;
+    border: 1px solid rgba(191, 164, 115, 0.2);
+    border-radius: 12px;
+    color: #8a7342;
+}
+
+/* ============================
+   13. Mark 하이라이트
+   ============================ */
+mark {
+    padding: 0;
+    background: linear-gradient(to right, #8e85b0 50%, transparent 50%);
+    background-position: right bottom;
+    background-size: 200% 100%;
+    transition: all .5s ease;
+    color: #fff;
+}
+
+mark.animate {
+    background-position: left bottom;
+    color: #000;
+}
+
+/* ============================
+   14. 리스트 그룹 (설정 메뉴)
+   ============================ */
+.list-group {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.list-group-item {
+    border-color: #f0ede8;
+    background: #fdfcfa;
+}
+
+.list-group-item.active {
+    background: #4a4540;
+    border-color: transparent;
+}
+
+.list-group-item-action:hover {
+    background-color: rgba(142, 133, 176, 0.04);
+}
+
+/* ============================
+   15. 푸터 (솔리드)
+   ============================ */
+.footer-glass {
+    background: #fdfcfa;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-top: 1px solid #e8e4dd;
+}
+
+.footer-glass .brand-name {
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #b8b2a8;
+    letter-spacing: 1px;
+}
+
+/* ============================
+   16. 히어로 섹션 (랜딩 전용)
+   ============================ */
+.hero-section {
+    background: #f5f3ef;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 500px;
+    height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(142, 133, 176, 0.06), transparent 70%);
+    pointer-events: none;
+}
+
+.hero-section::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: -10%;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(191, 164, 115, 0.04), transparent 70%);
+    pointer-events: none;
+}
+
+.hero-title {
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 800;
+    color: #4a4540;
+    letter-spacing: -1px;
+    line-height: 1.25;
+}
+
+.hero-title .highlight {
+    background: linear-gradient(135deg, #8e85b0, #a099bd);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.hero-subtitle {
+    font-size: 1.1rem;
+    color: #9e9689;
+    line-height: 1.8;
+    font-family: 'Gowun Batang', serif;
+}
+
+/* ============================
+   17. 기능 소개 카드 (랜딩)
+   ============================ */
+.feature-card {
+    background: #fdfcfa;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 1px solid #e8e4dd;
+    border-radius: 16px;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    box-shadow: none;
+    transition: transform 0.25s ease, box-shadow 0.3s ease;
+}
+
+.feature-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+}
+
+.feature-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+}
+
+.feature-icon.icon-indigo  { background: rgba(142, 133, 176, 0.1);  color: #8e85b0; }
+.feature-icon.icon-rose    { background: rgba(196, 145, 126, 0.1);  color: #c4917e; }
+.feature-icon.icon-emerald { background: rgba(127, 172, 142, 0.1);  color: #7fac8e; }
+
+.feature-title {
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', sans-serif;
+    font-weight: 700;
+    color: #4a4540;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.feature-desc {
+    color: #9e9689;
+    font-size: 0.88rem;
+    line-height: 1.65;
+    margin: 0;
+}
+
+/* ============================
+   18. 네비게이션 Pills (스터디 탭)
+   ============================ */
+.nav-pills .nav-link {
+    color: #9e9689;
+    font-weight: 500;
+    border-radius: 8px;
+}
+
+.nav-pills .nav-link.active {
+    background: #4a4540;
+}
+
+/* ============================
+   19. Tagify 드롭다운
+   ============================ */
+.tagify__dropdown {
+    background: #fdfcfa;
+    backdrop-filter: none;
+    border: 1px solid #e8e4dd;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.tagify__dropdown__item {
+    color: #4a4540 !important;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+}
+
+.tagify__dropdown__item--active {
+    background: #4a4540 !important;
+    color: #fff !important;
+}
+
+/* ============================
+   20. Bootstrap 색상 오버라이드 (웜 톤 통일)
+
+   [설계 의도]
+   Bootstrap 기본 색상(blue, red, green, yellow)을
+   프로젝트 웜 팔레트로 일괄 매핑한다.
+   개별 템플릿 수정 없이 CSS 오버라이드만으로 색상 통일.
+
+   매핑 규칙:
+   - primary/info  -> 머티드 퍼플 (#8e85b0)
+   - success       -> 세이지 그린 (#7fac8e)
+   - warning       -> 모래색 (#bfa473)
+   - danger        -> 더스티 로즈 (#c4917e)
+   ============================ */
+
+/* --- Alert 컴포넌트 --- */
+
+.alert-info {
+    background: rgba(142, 133, 176, 0.06) !important;
+    border: 1px solid rgba(142, 133, 176, 0.15) !important;
+    border-radius: 12px !important;
+    color: #5c5480 !important;
+}
+
+.alert-info .alert-link,
+.alert-info a {
+    color: #7a7199 !important;
+}
+
+.alert-primary {
+    background: rgba(142, 133, 176, 0.06) !important;
+    border: 1px solid rgba(142, 133, 176, 0.15) !important;
+    border-radius: 12px !important;
+    color: #5c5480 !important;
+}
+
+.alert-primary .alert-link,
+.alert-primary a {
+    color: #7a7199 !important;
+}
+
+.alert-success {
+    background: rgba(127, 172, 142, 0.08) !important;
+    border: 1px solid rgba(127, 172, 142, 0.2) !important;
+    border-radius: 12px !important;
+    color: #4a7a58 !important;
+}
+
+.alert-success .alert-link,
+.alert-success a {
+    color: #3d6b4a !important;
+}
+
+.alert-warning {
+    background: rgba(191, 164, 115, 0.08) !important;
+    border: 1px solid rgba(191, 164, 115, 0.2) !important;
+    border-radius: 12px !important;
+    color: #8a7342 !important;
+}
+
+.alert-warning .alert-link,
+.alert-warning a {
+    color: #7a6535 !important;
+}
+
+.alert-danger {
+    background: rgba(196, 145, 126, 0.08) !important;
+    border: 1px solid rgba(196, 145, 126, 0.2) !important;
+    border-radius: 12px !important;
+    color: #8a5b48 !important;
+}
+
+.alert-danger .alert-link,
+.alert-danger a {
+    color: #7a4d3c !important;
+}
+
+/* --- 텍스트 유틸리티 --- */
+
+.text-info {
+    color: #8e85b0 !important;
+}
+
+.text-success {
+    color: #7fac8e !important;
+}
+
+.text-warning {
+    color: #bfa473 !important;
+}
+
+.text-danger {
+    color: #c4917e !important;
+}
+
+/* --- 버튼: btn-success --- */
+
+.btn-success {
+    background: #7fac8e;
+    border-color: #7fac8e;
+    color: #fff;
+}
+
+.btn-success:hover {
+    background: #6d9a7c;
+    border-color: #6d9a7c;
+    box-shadow: 0 2px 8px rgba(127, 172, 142, 0.2);
+    transform: translateY(-1px);
+}
+
+.btn-success:active,
+.btn-success:focus {
+    background: #5e8a6c !important;
+    border-color: #5e8a6c !important;
+    box-shadow: 0 0 0 3px rgba(127, 172, 142, 0.15) !important;
+}
+
+/* --- 버튼: btn-warning --- */
+
+.btn-warning {
+    background: #bfa473;
+    border-color: #bfa473;
+    color: #fff;
+}
+
+.btn-warning:hover {
+    background: #a68f60;
+    border-color: #a68f60;
+    box-shadow: 0 2px 8px rgba(191, 164, 115, 0.2);
+    transform: translateY(-1px);
+    color: #fff;
+}
+
+.btn-warning:active,
+.btn-warning:focus {
+    background: #96804f !important;
+    border-color: #96804f !important;
+    box-shadow: 0 0 0 3px rgba(191, 164, 115, 0.15) !important;
+    color: #fff;
+}
+
+/* --- 버튼: btn-danger --- */
+
+.btn-danger {
+    background: #c4917e;
+    border-color: #c4917e;
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background: #b07a66;
+    border-color: #b07a66;
+    box-shadow: 0 2px 8px rgba(196, 145, 126, 0.2);
+    transform: translateY(-1px);
+}
+
+.btn-danger:active,
+.btn-danger:focus {
+    background: #9d6b58 !important;
+    border-color: #9d6b58 !important;
+    box-shadow: 0 0 0 3px rgba(196, 145, 126, 0.15) !important;
+}
+
+/* --- 버튼: btn-info --- */
+
+.btn-info {
+    background: #8e85b0;
+    border-color: #8e85b0;
+    color: #fff;
+}
+
+.btn-info:hover {
+    background: #7a7199;
+    border-color: #7a7199;
+    box-shadow: 0 2px 8px rgba(142, 133, 176, 0.2);
+    transform: translateY(-1px);
+}
+
+/* --- 버튼: btn-outline-success --- */
+
+.btn-outline-success {
+    border-color: rgba(127, 172, 142, 0.3);
+    border-width: 1.5px;
+    color: #7fac8e;
+}
+
+.btn-outline-success:hover {
+    background: rgba(127, 172, 142, 0.06);
+    border-color: #7fac8e;
+    color: #5e8a6c;
+}
+
+/* --- 버튼: btn-outline-info --- */
+
+.btn-outline-info {
+    border-color: rgba(142, 133, 176, 0.3);
+    border-width: 1.5px;
+    color: #8e85b0;
+}
+
+.btn-outline-info:hover {
+    background: rgba(142, 133, 176, 0.06);
+    border-color: #8e85b0;
+    color: #7a7199;
+}
+
+/* --- bg-* 배경 유틸리티 --- */
+
+.bg-primary {
+    background-color: #8e85b0 !important;
+}
+
+.bg-success {
+    background-color: #7fac8e !important;
+}
+
+.bg-warning {
+    background-color: #bfa473 !important;
+}
+
+.bg-danger {
+    background-color: #c4917e !important;
+}
+
+.bg-info {
+    background-color: #8e85b0 !important;
+}
+
+/* --- -emphasis 텍스트 유틸리티 (subtle 배지 내부 텍스트) --- */
+
+.text-primary-emphasis {
+    color: #5c5480 !important;
+}
+
+.text-success-emphasis {
+    color: #4a7a58 !important;
+}
+
+.text-warning-emphasis {
+    color: #8a7342 !important;
+}
+
+.text-danger-emphasis {
+    color: #8a5b48 !important;
+}
+
+.text-info-emphasis {
+    color: #5c5480 !important;
+}
+
+.text-secondary-emphasis {
+    color: #6b6560 !important;
+}
+
+/* --- Bootstrap 5 CSS 변수 (bg-opacity-* 조합 지원) --- */
+
+:root {
+    --bs-primary-rgb: 142, 133, 176;
+    --bs-success-rgb: 127, 172, 142;
+    --bs-warning-rgb: 191, 164, 115;
+    --bs-danger-rgb: 196, 145, 126;
+    --bs-info-rgb: 142, 133, 176;
+    --bs-primary: #8e85b0;
+    --bs-success: #7fac8e;
+    --bs-warning: #bfa473;
+    --bs-danger: #c4917e;
+    --bs-info: #8e85b0;
+    --bs-link-color: #8e85b0;
+    --bs-link-hover-color: #7a7199;
+}
+
+/* --- border-* 보더 유틸리티 --- */
+
+.border-primary {
+    border-color: #8e85b0 !important;
+}
+
+.border-success {
+    border-color: #7fac8e !important;
+}
+
+.border-warning {
+    border-color: #bfa473 !important;
+}
+
+.border-danger {
+    border-color: #c4917e !important;
+}
+
+.border-info {
+    border-color: #8e85b0 !important;
+}
+
+/* --- 페이지네이션 --- */
+
+.page-link {
+    color: #8e85b0;
+}
+
+.page-link:hover {
+    color: #7a7199;
+}
+
+.page-item.active .page-link {
+    background-color: #8e85b0;
+    border-color: #8e85b0;
+}
+
+/* --- 링크 색상 --- */
+a {
+    color: #8e85b0;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: #7a7199;
+}
+
+/* 폼 카드 (글래스 효과 제거 -> 솔리드) */
+form.bg-white,
+.bg-white.shadow,
+.bg-white.shadow-sm {
+    background: #fdfcfa !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 1px solid #e8e4dd;
+    border-radius: 14px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* 페이지 타이틀 */
+h2.fw-bold {
+    color: #4a4540;
+    letter-spacing: -0.5px;
+}
+
+/* ============================
+   21. 패스워드 매칭 이펙트
+   ============================ */
+.pw-wrapper {
+    position: relative;
+}
+
+.pw-wrapper .pw-match-icon {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%) scale(0);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+                opacity 0.3s ease;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.pw-wrapper.pw-match .pw-match-icon {
+    background: #7fac8e;
+    color: #fff;
+    transform: translateY(-50%) scale(1);
+    opacity: 1;
+}
+
+.pw-wrapper.pw-match input {
+    border-color: rgba(127, 172, 142, 0.5) !important;
+    background: rgba(236, 244, 238, 0.5) !important;
+    padding-right: 48px;
+}
+
+.pw-wrapper.pw-mismatch .pw-match-icon {
+    background: rgba(196, 145, 126, 0.15);
+    color: #c4917e;
+    transform: translateY(-50%) scale(1);
+    opacity: 1;
+}
+
+.pw-wrapper.pw-mismatch input {
+    border-color: rgba(196, 145, 126, 0.3) !important;
+    background: rgba(246, 239, 235, 0.5) !important;
+    padding-right: 48px;
+}
+
+.pw-match-text {
+    font-size: 0.78rem;
+    margin-top: 4px;
+    transition: all 0.3s ease;
+}
+
+.pw-match-text.text-success {
+    color: #7fac8e !important;
+}
+
+.pw-match-text.text-danger {
+    color: #c4917e !important;
+}
+
+/* ============================
+   22. Bootstrap 컴포넌트 색상 통일
+   ============================ */
+
+/* 체크박스/토글 스위치 */
+.form-check-input:checked {
+    background-color: #8e85b0;
+    border-color: #8e85b0;
+}
+
+.form-check-input:focus {
+    border-color: rgba(142, 133, 176, 0.5);
+    box-shadow: 0 0 0 0.25rem rgba(142, 133, 176, 0.12);
+}
+
+.form-switch .form-check-input:checked {
+    background-color: #8e85b0;
+}
+
+/* text-primary */
+.text-primary {
+    color: #8e85b0 !important;
+}
+
+/* bg-primary 배지 */
+.badge.bg-primary {
+    background: #8e85b0 !important;
+}
+
+/* 푸터 로고 */
+.footer-glass .footer-logo {
+    display: none;
+}
+
+body.page-main .footer-glass .footer-logo {
+    display: block;
+}
+
+/* ============================
+   23. 컬러 시스템 (머티드 웜 톤)
+   ============================ */
+
+/* 태그 배지: 머티드 퍼플 */
+.badge.badge-tag,
+.badge.bg-primary-subtle {
+    background: rgba(142, 133, 176, 0.08) !important;
+    color: #7a7199 !important;
+    border: 1px solid rgba(142, 133, 176, 0.12);
+}
+
+/* 지역 배지: 더스티 라벤더 */
+.badge.badge-zone,
+.badge.bg-danger-subtle {
+    background: rgba(160, 153, 189, 0.08) !important;
+    color: #8a82a8 !important;
+    border: 1px solid rgba(160, 153, 189, 0.12);
+}
+
+/* 상태 배지: 모집중 -> 세이지 */
+.badge.bg-success-subtle {
+    background: rgba(127, 172, 142, 0.1) !important;
+    color: #5e8a6c !important;
+    border: 1px solid rgba(127, 172, 142, 0.2);
+}
+
+/* 상태 배지: 모집마감 -> 웜 그레이 */
+.badge.bg-warning-subtle {
+    background: rgba(158, 150, 137, 0.08) !important;
+    color: #8a8278 !important;
+    border: 1px solid rgba(158, 150, 137, 0.15);
+}
+
+/* 상태 배지: 준비중 -> 연한 퍼플 */
+.badge.bg-secondary-subtle {
+    background: rgba(142, 133, 176, 0.06) !important;
+    color: #8e85b0 !important;
+    border: 1px solid rgba(142, 133, 176, 0.1);
+}
+
+/* 관리자 배지 */
+.badge.badge-admin {
+    background: rgba(191, 164, 115, 0.1);
+    color: #8a7342;
+    border: 1px solid rgba(191, 164, 115, 0.15);
+    font-size: 0.65rem;
+}
+
+/* 빈 상태 아이콘: 웜 그레이 통일 */
+.empty-icon-indigo,
+.empty-icon-rose,
+.empty-icon-emerald,
+.empty-icon-amber,
+.empty-icon-sky {
+    background: rgba(158, 150, 137, 0.06);
+    color: rgba(158, 150, 137, 0.3);
+}
+
+/* 섹션 아이콘 색상 */
+.section-icon {
+    color: #8e85b0;
+}
+
+.section-icon-violet {
+    color: #a099bd;
+}
+
+/* ============================
+   24. 모임 만들기 폼
+   ============================ */
+.event-form-glass {
+    background: #fdfcfa;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 1px solid #e8e4dd;
+    border-radius: 18px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    padding: 2.5rem;
+}
+
+.event-form-glass .form-group {
+    margin-bottom: 1.5rem;
+}
+
+.event-form-glass label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #6b6560;
+    margin-bottom: 0.4rem;
+    display: block;
+}
+
+.event-form-glass .form-control,
+.event-form-glass .custom-select,
+.event-form-glass select {
+    background: #fdfcfa;
+    border: 1.5px solid #e8e4dd;
+    border-radius: 10px;
+    padding: 0.65rem 1rem;
+    font-size: 0.9rem;
+    transition: all 0.25s ease;
+}
+
+.event-form-glass .form-control:focus,
+.event-form-glass .custom-select:focus,
+.event-form-glass select:focus {
+    background: #fff;
+    border-color: #a099bd;
+    box-shadow: 0 0 0 3px rgba(142, 133, 176, 0.1);
+}
+
+.event-form-glass .form-text {
+    font-size: 0.8rem;
+    color: #b8b2a8;
+    margin-top: 0.35rem;
+}
+
+.event-form-glass .btn-primary {
+    background: #8e85b0;
+    border: none;
+    border-radius: 10px;
+    padding: 0.75rem 2rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    box-shadow: none;
+    transition: all 0.2s ease;
+}
+
+.event-form-glass .btn-primary:hover {
+    background: #7a7199;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(142, 133, 176, 0.2);
+}
+
+/* 폼 헤더 */
+.event-form-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #f0ede8;
+}
+
+.event-form-header h2 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #4a4540;
+    letter-spacing: -0.5px;
+}
+
+.event-form-header .study-link {
+    color: #8e85b0;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.event-form-header .study-link:hover {
+    color: #7a7199;
+}
+
+/* 폼 그리드 */
+.event-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .event-form-grid {
+        grid-template-columns: 1fr;
+    }
+    .event-form-glass {
+        padding: 1.5rem;
+    }
+}
+
+/* ============================
+   25. Tagify 태그 웜 스타일
+   ============================ */
+
+/* 태그 컨테이너 */
+.tagify {
+    --tags-border-color: #e8e4dd;
+    --tags-hover-border-color: rgba(142, 133, 176, 0.3);
+    --tags-focus-border-color: #a099bd;
+    border-radius: 10px !important;
+    background: #fdfcfa;
+    border: 1.5px solid #e8e4dd !important;
+    padding: 6px 8px;
+    transition: all 0.25s ease;
+}
+
+.tagify:hover {
+    border-color: rgba(142, 133, 176, 0.25) !important;
+}
+
+.tagify.tagify--focus {
+    border-color: #a099bd !important;
+    box-shadow: 0 0 0 3px rgba(142, 133, 176, 0.08);
+    background: #fff;
+}
+
+/* 개별 태그 칩 */
+.tagify__tag {
+    --tag-bg: rgba(142, 133, 176, 0.08);
+    --tag-hover: rgba(142, 133, 176, 0.14);
+    --tag-text-color: #7a7199;
+    --tag-text-color--edit: #7a7199;
+    --tag-remove-bg: rgba(142, 133, 176, 0.12);
+    --tag-remove-btn-color: #8e85b0;
+    --tag-inset-shadow-size: 1.1em;
+    border-radius: 999px !important;
+    margin: 3px;
+    transition: all 0.15s ease;
+}
+
+.tagify__tag > div {
+    border-radius: 999px;
+    padding: 0.25em 0.6em;
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.tagify__tag:hover > div {
+    background: rgba(142, 133, 176, 0.1);
+}
+
+/* 태그 삭제 버튼 */
+.tagify__tag__removeBtn {
+    color: #8e85b0;
+    transition: all 0.15s ease;
+}
+
+.tagify__tag__removeBtn:hover {
+    background: rgba(142, 133, 176, 0.18) !important;
+    color: #6b6290;
+}
+
+.tagify__tag__removeBtn:hover + div > span {
+    opacity: 0.7;
+}
+
+/* 드롭다운 보강 */
+.tagify__dropdown {
+    background: #fdfcfa !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 1px solid #e8e4dd !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06) !important;
+    overflow: hidden;
+}
+
+.tagify__dropdown__wrapper {
+    background: transparent !important;
+    border: none !important;
+}
+
+.tagify__dropdown__item {
+    color: #4a4540 !important;
+    padding: 8px 14px !important;
+    border-radius: 8px;
+    margin: 2px 4px;
+    font-size: 0.88rem;
+    transition: all 0.12s ease;
+}
+
+.tagify__dropdown__item--active,
+.tagify__dropdown__item:hover {
+    background: #4a4540 !important;
+    color: #fff !important;
+}
+
+/* 태그 입력 placeholder */
+.tagify__input::before {
+    color: #b8b2a8 !important;
+    font-size: 0.88rem;
+}
+
+/* 설정 페이지 하단 태그 목록 */
+.badge.bg-primary {
+    background: #8e85b0 !important;
+    border: none;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+/* ============================
+   26. 알림 핑 애니메이션
+   ============================ */
+.noti-ping {
+    position: absolute;
+    top: 6px;
+    right: 2px;
+    width: 9px;
+    height: 9px;
+    background: #c4917e;
+    border-radius: 50%;
+    border: 2px solid #fdfcfa;
+    animation: noti-pulse 2s ease-in-out infinite;
+}
+
+@keyframes noti-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(196, 145, 126, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(196, 145, 126, 0); }
+}
+
+/* ============================
+   27. 섹션 구분선 (단순화)
+   ============================ */
+.section-divider {
+    height: 1px;
+    background: #e8e4dd;
+    margin: 0.5rem 0 2.5rem 0;
+    border-radius: 0;
+}
+
+/* ============================
+   28. 대시보드 모임 링크
+   ============================ */
+
+/* 기존 사이드바 모임 링크 (하위 호환) */
+.sidebar-event-link {
+    border-radius: 4px;
+    padding-left: 4px;
+    padding-right: 4px;
+    transition: background-color 0.15s ease;
+}
+
+.sidebar-event-link:hover {
+    background-color: rgba(142, 133, 176, 0.05);
+}
+
+.sidebar-event-link:hover span:first-of-type {
+    color: #6b6560 !important;
+}
+
+/* v4 대시보드: 스터디 카드 내 모임 행
+   - 카드 내부에 세로로 나열되는 모임 목록 각 행에 적용
+   - hover 시 연한 퍼플 배경으로 인터랙션 피드백
+   - 마지막 행은 하단 구분선 제거 */
+.dashboard-event-row {
+    border-radius: 6px;
+    padding-left: 4px;
+    padding-right: 4px;
+    transition: background-color 0.15s ease;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.035);
+}
+
+.dashboard-event-row:last-child {
+    border-bottom: none;
+}
+
+.dashboard-event-row:hover {
+    background-color: rgba(142, 133, 176, 0.04);
+}
+
+/* ============================
+   29. 에러 페이지 (404, 범용)
+   ============================ */
+.error-code {
+    font-size: 7rem;
+    font-weight: 800;
+    line-height: 1;
+    background: linear-gradient(135deg, #8e85b0, #a099bd, #c4917e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+}
+
+.error-icon {
+    font-size: 5rem;
+    font-weight: 800;
+    line-height: 1;
+    background: linear-gradient(135deg, #c4917e, #bfa473);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+}
+
+/* ============================
+   30. 캘린더 뷰 (FullCalendar.js)
+   ============================ */
+
+/* 캘린더 컨테이너 카드 */
+.calendar-card {
+    background: #fdfcfa;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 1px solid #e8e4dd;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    padding: 1.25rem;
+}
+
+/* FullCalendar 툴바 */
+.calendar-card .fc .fc-toolbar {
+    margin-bottom: 0.75rem;
+    gap: 0.5rem;
+}
+
+.calendar-card .fc .fc-toolbar-title {
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #4a4540;
+}
+
+/* 캘린더 버튼 */
+.calendar-card .fc .fc-button {
+    background: rgba(142, 133, 176, 0.06);
+    border: 1.5px solid rgba(142, 133, 176, 0.15);
+    color: #8e85b0;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.3rem 0.65rem;
+    transition: all 0.15s ease;
+}
+
+.calendar-card .fc .fc-button:hover {
+    background: rgba(142, 133, 176, 0.1);
+    border-color: rgba(142, 133, 176, 0.3);
+    color: #7a7199;
+}
+
+.calendar-card .fc .fc-button-active,
+.calendar-card .fc .fc-button:active {
+    background: #4a4540 !important;
+    border-color: transparent !important;
+    color: #fff !important;
+    box-shadow: none;
+}
+
+.calendar-card .fc .fc-button:focus {
+    box-shadow: 0 0 0 3px rgba(142, 133, 176, 0.1);
+}
+
+/* 요일 헤더 */
+.calendar-card .fc .fc-col-header-cell {
+    background: rgba(142, 133, 176, 0.03);
+    border-color: #f0ede8;
+    padding: 0.4rem 0;
+}
+
+.calendar-card .fc .fc-col-header-cell-cushion {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #9e9689;
+    text-decoration: none;
+}
+
+/* 날짜 셀 */
+.calendar-card .fc .fc-daygrid-day {
+    border-color: #f0ede8;
+    transition: background 0.15s ease;
+}
+
+.calendar-card .fc .fc-daygrid-day:hover {
+    background: rgba(142, 133, 176, 0.02);
+}
+
+.calendar-card .fc .fc-daygrid-day-number {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6b6560;
+    padding: 4px 8px;
+    text-decoration: none;
+}
+
+/* 오늘 표시 */
+.calendar-card .fc .fc-day-today {
+    background: rgba(142, 133, 176, 0.04) !important;
+}
+
+.calendar-card .fc .fc-day-today .fc-daygrid-day-number {
+    background: #4a4540;
+    color: #fff;
+    border-radius: 20px;
+    padding: 2px 8px;
+    display: inline-block;
+    font-weight: 700;
+    line-height: 1.4;
+    margin: 3px;
+}
+
+/* 이벤트 칩 */
+.calendar-card .fc .fc-event {
+    border: none;
+    border-radius: 5px;
+    padding: 1px 4px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.calendar-card .fc .fc-event:hover {
+    opacity: 0.85;
+}
+
+.calendar-card .fc .fc-daygrid-event {
+    margin: 1px 2px;
+}
+
+.calendar-card .fc .fc-day-other .fc-daygrid-event {
+    opacity: 0.35;
+}
+
+.calendar-card .fc .fc-daygrid-more-link {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #8e85b0;
+}
+
+/* 주간 뷰 */
+.calendar-card .fc .fc-timegrid-slot {
+    border-color: #f0ede8;
+    height: 2.5rem;
+}
+
+.calendar-card .fc .fc-timegrid-slot-label-cushion {
+    font-size: 0.68rem;
+    color: #b8b2a8;
+}
+
+/* 테이블 외곽 */
+.calendar-card .fc table {
+    border-color: #f0ede8;
+}
+
+.calendar-card .fc .fc-scrollgrid {
+    border-color: #e8e4dd;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* 캘린더 범례 */
+.calendar-legend {
+    display: flex;
+    gap: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f0ede8;
+    margin-top: 0.75rem;
+}
+
+.calendar-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.7rem;
+    color: #9e9689;
+    font-weight: 500;
+}
+
+.calendar-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* 툴팁 */
+.fc-event-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: #4a4540;
+    backdrop-filter: none;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-width: 200px;
+    line-height: 1.4;
+}
+
+/* ============================
+   31. 반응형
+   ============================ */
+@media (max-width: 768px) {
+    .hero-title { font-size: 2rem; }
+    .hero-subtitle { font-size: 1rem; }
+    .page-orb { display: none; }
+}
+
+@media (max-width: 520px) {
+    .hero-title { font-size: 1.7rem; }
+}

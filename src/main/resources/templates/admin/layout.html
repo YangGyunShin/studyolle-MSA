@@ -1,0 +1,428 @@
+<!-- admin/layout.html — 어드민 공통 레이아웃 fragments -->
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<!-- ============================================================
+     admin-sidebar fragment
+     currentMenu: dashboard | members | studies | statistics | privacy
+     ============================================================ -->
+<aside th:fragment="admin-sidebar(currentMenu)" class="col-auto admin-sidebar">
+  <div class="admin-sidebar-inner">
+
+    <!-- 브랜드 -->
+    <div class="admin-sidebar-brand">
+      <i class="fa-solid fa-shield-halved me-2"></i>
+      <span>관리자</span>
+    </div>
+
+    <!-- 사이드바 메뉴 -->
+    <nav class="admin-sidebar-nav">
+      <a th:href="@{/admin}"
+         th:classappend="${currentMenu == 'dashboard'} ? 'active' : ''"
+         class="admin-nav-item">
+        <i class="fa-solid fa-gauge-high admin-nav-icon"></i>
+        <span>대시보드</span>
+      </a>
+      <a th:href="@{/admin/members}"
+         th:classappend="${currentMenu == 'members'} ? 'active' : ''"
+         class="admin-nav-item">
+        <i class="fa-solid fa-users admin-nav-icon"></i>
+        <span>회원 관리</span>
+      </a>
+      <a th:href="@{/admin/studies}"
+         th:classappend="${currentMenu == 'studies'} ? 'active' : ''"
+         class="admin-nav-item">
+        <i class="fa-solid fa-book-open admin-nav-icon"></i>
+        <span>스터디 관리</span>
+      </a>
+      <div class="admin-nav-divider"></div>
+      <a th:href="@{/admin/statistics}"
+         th:classappend="${currentMenu == 'statistics'} ? 'active' : ''"
+         class="admin-nav-item">
+        <i class="fa-solid fa-chart-line admin-nav-icon"></i>
+        <span>플랫폼 통계</span>
+      </a>
+      <a th:href="@{/admin/privacy}"
+         th:classappend="${currentMenu == 'privacy'} ? 'active' : ''"
+         class="admin-nav-item">
+        <i class="fa-solid fa-shield-check admin-nav-icon"></i>
+        <span>개인정보처리내역</span>
+      </a>
+    </nav>
+
+    <!-- 사이드바 하단: 메인 사이트로 이동 -->
+    <div class="admin-sidebar-footer">
+      <a th:href="@{/}" class="admin-nav-item text-muted">
+        <i class="fa-solid fa-arrow-left admin-nav-icon"></i>
+        <span>메인 사이트</span>
+      </a>
+    </div>
+
+  </div>
+</aside>
+
+<!-- ============================================================
+     admin-style fragment
+     모든 어드민 페이지에 공통으로 삽입되는 인라인 CSS + JS 초기화
+     (인라인: 어드민 전용 스타일을 별도 CSS 파일 없이 관리)
+     ============================================================ -->
+<div th:fragment="admin-style">
+<style>
+/* ======================================================
+   관리자 페이지 전용 스타일 (Warm Flat Minimal 팔레트 준수)
+   섹션 구성:
+     1. 전체 레이아웃
+     2. 사이드바
+     3. 메인 콘텐츠 영역
+     4. 페이지 헤더
+     5. 통계 카드
+     6. 테이블
+     7. 카드 컴포넌트
+     8. 배지 & 버튼
+     9. 아바타
+    10. 빈 상태
+    11. 페이지네이션 오버라이드
+   ====================================================== */
+
+/* 1. 전체 레이아웃 */
+.admin-layout {
+    min-height: calc(100vh - 56px);
+    align-items: stretch;
+}
+
+/* 2. 사이드바 */
+.admin-sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: #fdfcfa;
+    border-right: 1px solid #e8e4dd;
+    flex-shrink: 0;
+}
+
+.admin-sidebar-inner {
+    position: sticky;
+    top: 56px;
+    height: calc(100vh - 56px);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 1.25rem 0.75rem;
+}
+
+.admin-sidebar-brand {
+    display: flex;
+    align-items: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #8e85b0;
+    padding: 0.25rem 0.75rem 1rem;
+    border-bottom: 1px solid #e8e4dd;
+    margin-bottom: 0.75rem;
+}
+
+.admin-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.admin-nav-divider {
+    height: 1px;
+    background: #e8e4dd;
+    margin: 0.5rem 0.75rem;
+}
+
+.admin-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: #6b6560;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+    font-weight: 500;
+}
+
+.admin-nav-item:hover {
+    background: #f0ede8;
+    color: #4a4540;
+}
+
+.admin-nav-item.active {
+    background: rgba(142, 133, 176, 0.12);
+    color: #5c5480;
+    font-weight: 600;
+}
+
+.admin-nav-icon {
+    width: 16px;
+    text-align: center;
+    opacity: 0.75;
+}
+
+.admin-nav-item.active .admin-nav-icon {
+    opacity: 1;
+}
+
+.admin-sidebar-footer {
+    padding-top: 0.75rem;
+    border-top: 1px solid #e8e4dd;
+    margin-top: 0.5rem;
+}
+
+/* 3. 메인 콘텐츠 */
+.admin-main {
+    background: #f5f3ef;
+    min-height: calc(100vh - 56px);
+}
+
+.admin-content-wrap {
+    padding: 2rem;
+    max-width: 1100px;
+}
+
+/* 4. 페이지 헤더 */
+.admin-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1.75rem;
+}
+
+.admin-page-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #4a4540;
+    margin-bottom: 0.2rem;
+}
+
+.admin-page-sub {
+    font-size: 0.85rem;
+    color: #9e9689;
+    margin: 0;
+}
+
+/* 5. 통계 카드 */
+.admin-stat-card {
+    background: #fdfcfa;
+    border: 1px solid #e8e4dd;
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.admin-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.admin-stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #4a4540;
+    line-height: 1;
+    margin-bottom: 0.15rem;
+}
+
+.admin-stat-label {
+    font-size: 0.8rem;
+    color: #9e9689;
+    font-weight: 500;
+}
+
+/* 6. 테이블 */
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.admin-table thead tr {
+    border-bottom: 2px solid #e8e4dd;
+}
+
+.admin-table th {
+    padding: 0.65rem 1rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #9e9689;
+    white-space: nowrap;
+}
+
+.admin-table td {
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid #f0ede8;
+    color: #4a4540;
+    vertical-align: middle;
+}
+
+.admin-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.admin-table tbody tr:hover td {
+    background: #faf9f7;
+}
+
+/* 7. 카드 컴포넌트 */
+.admin-card {
+    background: #fdfcfa;
+    border: 1px solid #e8e4dd;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+
+.admin-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #f0ede8;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #4a4540;
+}
+
+.admin-card-body {
+    padding: 1rem;
+}
+
+/* 8. 배지 & 버튼 */
+.admin-badge-success {
+    background: rgba(127, 172, 142, 0.15);
+    color: #4a7a58;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25em 0.6em;
+    border-radius: 6px;
+}
+
+.admin-badge-warning {
+    background: rgba(191, 164, 115, 0.15);
+    color: #8a7342;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25em 0.6em;
+    border-radius: 6px;
+}
+
+.admin-badge-danger {
+    background: rgba(196, 145, 126, 0.15);
+    color: #8a5b48;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25em 0.6em;
+    border-radius: 6px;
+}
+
+.admin-badge-primary {
+    background: rgba(142, 133, 176, 0.15);
+    color: #5c5480;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25em 0.6em;
+    border-radius: 6px;
+}
+
+.admin-badge-muted {
+    background: rgba(0, 0, 0, 0.05);
+    color: #9e9689;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25em 0.6em;
+    border-radius: 6px;
+}
+
+.btn-xs {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.55rem;
+}
+
+.admin-btn-link {
+    background: transparent;
+    border: 1px solid #e8e4dd;
+    color: #6b6560;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.55rem;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+
+.admin-btn-link:hover {
+    background: #f0ede8;
+    color: #4a4540;
+}
+
+/* 9. 아바타 */
+.admin-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #e8e4dd;
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9e9689;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+/* 10. 빈 상태 */
+.admin-empty-state {
+    text-align: center;
+    color: #c5bfb8;
+    padding: 3rem 1rem;
+}
+
+/* 11. 검색 영역 */
+.admin-search-bar {
+    background: #fdfcfa;
+    border: 1px solid #e8e4dd;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+@media (max-width: 768px) {
+    .admin-sidebar {
+        width: 56px;
+        min-width: 56px;
+    }
+    .admin-sidebar span {
+        display: none;
+    }
+    .admin-sidebar-brand span {
+        display: none;
+    }
+    .admin-content-wrap {
+        padding: 1rem;
+    }
+}
+</style>
+</div>
+
+</html>

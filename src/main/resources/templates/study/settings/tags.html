@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments.html :: head"></head>
+<body>
+<nav th:replace="fragments.html :: main-nav"></nav>
+<div th:replace="fragments.html :: study-banner"></div>
+<div th:replace="fragments.html :: study-info"></div>
+<div th:replace="fragments.html :: study-menu(studyMenu='settings')"></div>
+
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+      <div class="row g-4">
+        <!-- 사이드바 -->
+        <div class="col-md-3">
+          <div th:replace="fragments.html :: study-settings-menu(currentMenu='tags')"></div>
+        </div>
+        <!-- 메인 콘텐츠 -->
+        <div class="col-md-9">
+          <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-header bg-white border-bottom pt-3 pb-2">
+              <h6 class="fw-bold text-dark mb-0">
+                <i class="fa-solid fa-tags text-primary me-2"></i>스터디 주제
+              </h6>
+            </div>
+            <div class="card-body p-4">
+              <div class="alert alert-primary border-0 rounded-3 mb-4" role="alert">
+                <i class="fa-solid fa-circle-info me-2"></i>
+                스터디에서 주로 다루는 주제를 태그로 등록하세요. 태그를 입력하고 콤마(,) 또는 엔터를 입력하세요.
+              </div>
+              <div id="whitelist" th:text="${whitelist}" hidden></div>
+              <input id="tags" type="text" name="tags" th:value="${#strings.listJoin(tags, ',')}"
+                     class="tagify-outside" aria-describedby="tagHelp">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div th:replace="fragments.html :: footer"></div>
+<script th:replace="fragments.html :: ajax-csrf-header"></script>
+<script th:replace="fragments.html :: update-tags(baseUrl='/study/' + ${study.path} + '/settings/tags')"></script>
+</body>
+</html>

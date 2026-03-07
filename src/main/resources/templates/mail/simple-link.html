@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>스터디올래 - 알림</title>
+
+    <!-- ✅ 이메일 클라이언트 호환을 위한 간단한 인라인 스타일 -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 15px;
+            background-color: #f9f9f9;
+            color: #333;
+            padding: 20px;
+        }
+
+        .email-container {
+            background-color: #ffffff;
+            border-radius: 6px;
+            padding: 30px;
+            max-width: 600px;
+            margin: 0 auto;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .link-box {
+            margin-top: 25px;
+            padding: 15px;
+            background-color: #f1f1f1;
+            border-left: 4px solid #8e85b0;
+        }
+
+        a.button-link {
+            display: inline-block;
+            background-color: #8e85b0;
+            color: #fff !important;
+            text-decoration: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            margin-top: 12px;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 12px;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+
+    <!-- ✅ 사용자에게 인사 -->
+    <p>
+        안녕하세요, <strong th:text="${nickname}">사용자 이름</strong>님.
+    </p>
+
+    <!-- ✅ 주요 메시지 강조 -->
+    <h2 th:text="${message}">여기에 주요 알림 메시지가 표시됩니다.</h2>
+
+    <!-- ✅ 링크 및 URL 안내 -->
+    <div class="link-box">
+        <p>
+            아래 버튼을 클릭하여 관련 내용을 확인하세요.
+        </p>
+
+        <!-- ✅ 스터디 상세 페이지로 이동할 수 있는 버튼형 링크 -->
+        <a th:href="${host + link}" th:text="${linkName}" class="button-link">스터디 링크</a>
+
+        <!-- ✅ URL 복사 안내 -->
+        <p style="margin-top:15px; font-size: 14px;">
+            버튼이 동작하지 않으면 아래 URL을 복사하여 브라우저 주소창에 붙여 넣으세요.
+        </p>
+        <small th:text="${host + link}">https://studyolle.com/study/...</small>
+    </div>
+
+</div>
+
+<!-- ✅ 이메일 하단 푸터 -->
+<footer>
+    스터디올래 &copy; 2025 | 이 메일은 자동 발송된 알림입니다.
+</footer>
+</body>
+</html>

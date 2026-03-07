@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments.html :: head"></head>
+<body>
+
+<!-- ✅ 내비게이션 -->
+<nav th:replace="fragments.html :: main-nav"></nav>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+
+        <!-- ✅ 설정 메뉴 -->
+        <div class="col-md-3 mb-4">
+            <div th:replace="fragments.html :: settings-menu(currentMenu='tags')"></div>
+        </div>
+
+        <!-- ✅ 관심 주제 입력 영역 -->
+        <div class="col-md-9">
+            <h2 class="fw-bold mb-4">관심있는 스터디 주제</h2>
+
+            <div class="alert alert-info">
+                참여하고 싶은 스터디 주제를 입력해 주세요.<br>
+                해당 주제의 스터디가 생기면 알림을 받을 수 있습니다.<br>
+                태그를 입력하고 <strong>콤마(,)</strong> 또는 <strong>엔터</strong>를 입력하세요.
+            </div>
+
+            <!-- ✅ 입력 필드 -->
+            <div class="mb-3">
+                <input id="tags"
+                       type="text"
+                       name="tags"
+                       th:value="${#strings.listJoin(tags, ',')}"
+                       class="form-control"
+                       aria-describedby="tagHelp"/>
+                <small id="tagHelp" class="form-text text-muted">
+                    예: Java, Spring Boot, 인공지능
+                </small>
+            </div>
+
+            <!-- ✅ 태그 배지 표시 영역 -->
+            <div id="tag-display" class="mt-3 d-flex flex-wrap gap-2"></div>
+
+            <!-- ✅ 화이트리스트 JSON -->
+            <div id="whitelist" th:text="${whitelist}" hidden></div>
+        </div>
+    </div>
+</div>
+
+<!-- ✅ 푸터 -->
+<footer th:replace="fragments.html :: footer" class="mt-5"></footer>
+
+<!-- ✅ Tagify CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
+
+<!-- ✅ CSRF 토큰 자동 헤더 설정 -->
+<script type="application/javascript" th:inline="javascript">
+    $(function () {
+        var csrfToken = /*[[${_csrf.token}]]*/ null;
+        var csrfHeader = /*[[${_csrf.headerName}]]*/ null;
+        $(document).ajaxSend(function (e, xhr, options) {
+            if (csrfToken && csrfHeader) {
+                xhr.setRequestHeader(csrfHeader, csrfToken);
+            }
+        });
+    });
+</script>
+
+<!-- ✅ Tagify + Ajax 처리 스크립트 -->
+<script type="application/javascript" th:inline="javascript">
+    $(function () {
+        function tagRequest(url, tagTitle) {
+            $.ajax({
+                dataType: "json",
+                contentType: "application/json; charset=utf-8",
+                method: "POST",
+                url: "/settings/tags" + url,
+                data: JSON.stringify({tagTitle: tagTitle})
+            }).done(function (data, status) {
+                console.log("응답 성공:", status);
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                console.error("요청 실패:", textStatus, errorThrown);
+            });
+        }
+
+        function onAdd(e) {
+            tagRequest("/add", e.detail.data.value);
+        }
+
+        function onRemove(e) {
+            tagRequest("/remove", e.detail.data.value);
+        }
+
+        const tagInput = document.querySelector("#tags");
+        const whitelistRaw = document.querySelector("#whitelist")?.textContent?.trim() || "[]";
+        let whitelist = [];
+
+        try {
+            whitelist = JSON.parse(whitelistRaw);
+            if (!Array.isArray(whitelist)) whitelist = [];
+        } catch (e) {
+            console.warn("화이트리스트 파싱 실패:", e);
+            whitelist = [];
+        }
+
+        const tagify = new Tagify(tagInput, {
+            pattern: /^.{0,20}$/,
+            whitelist: whitelist,
+            dropdown: {
+                enabled: 1,
+                maxItems: 10
+            }
+        });
+
+        tagify.on("add", onAdd);
+        tagify.on("remove", onRemove);
+
+        // 초기 렌더링용 배지 영역
+        function updateBadges() {
+            const tagDisplay = document.querySelector("#tag-display");
+            tagDisplay.innerHTML = "";
+            tagify.value.forEach((tag, index) => {
+                const span = document.createElement("span");
+                span.className = "badge bg-primary text-white px-3 py-2 me-2";
+                span.textContent = tag.value;
+
+                span.addEventListener("click", () => {
+                    tagify.removeTag(tag.value);
+                    updateBadges();
+                });
+
+                tagDisplay.appendChild(span);
+            });
+        }
+
+        tagify.on("add", updateBadges);
+        tagify.on("remove", updateBadges);
+
+        updateBadges();
+    });
+</script>
+
+<!-- ✅ 폼 유효성 검사 -->
+<script th:replace="fragments.html :: form-validation"></script>
+
+</body>
+</html>

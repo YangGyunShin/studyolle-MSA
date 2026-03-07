@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments.html :: head"></head>
+<body>
+<div th:replace="fragments.html :: main-nav"></div>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-md-10 col-sm-12">
+
+            <!-- ✅ 헤더 영역 -->
+            <div class="text-center mb-4">
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                     style="width: 72px; height: 72px; background: linear-gradient(135deg, #8e85b0 0%, #a099bd 100%);">
+                    <i class="fa-solid fa-book-open text-white" style="font-size: 1.8rem;"></i>
+                </div>
+                <h2 class="fw-bold mb-1">새 스터디 개설</h2>
+                <p class="text-muted">함께 성장할 스터디를 만들어 보세요</p>
+            </div>
+
+            <!-- ✅ 폼 카드 -->
+            <form class="needs-validation" th:action="@{/new-study}" th:object="${studyForm}" method="post" novalidate>
+
+                <!-- ── 기본 정보 섹션 ── -->
+                <div class="card border-0 shadow-sm rounded-3 mb-4">
+                    <div class="card-header bg-white border-bottom pt-3 pb-2">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fa-solid fa-circle-info text-primary me-2"></i>기본 정보
+                        </h6>
+                    </div>
+                    <div class="card-body p-4">
+
+                        <!-- 스터디 URL -->
+                        <div class="mb-4">
+                            <label for="path" class="form-label fw-semibold">
+                                스터디 URL <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0 text-muted small">studyolle.com/study/</span>
+                                <input id="path" type="text" th:field="*{path}" class="form-control border-start-0"
+                                       placeholder="my-study" aria-describedby="pathHelp"
+                                       required minlength="2" maxlength="20">
+                            </div>
+                            <div id="pathHelp" class="form-text">
+                                <i class="fa-solid fa-circle-question me-1"></i>
+                                공백 없이 문자, 숫자, 대시(-), 언더바(_)만 사용 가능
+                            </div>
+                            <div class="invalid-feedback">스터디 경로를 입력하세요.</div>
+                            <div class="text-danger small" th:if="${#fields.hasErrors('path')}" th:errors="*{path}">Path Error</div>
+                        </div>
+
+                        <!-- 스터디 이름 -->
+                        <div class="mb-4">
+                            <label for="title" class="form-label fw-semibold">
+                                스터디 이름 <span class="text-danger">*</span>
+                            </label>
+                            <input id="title" type="text" th:field="*{title}" class="form-control"
+                                   placeholder="예) Spring Boot 마스터 클래스" aria-describedby="titleHelp"
+                                   required maxlength="50">
+                            <div id="titleHelp" class="form-text">50자 이내로 입력하세요.</div>
+                            <div class="invalid-feedback">스터디 이름을 입력하세요.</div>
+                            <div class="text-danger small" th:if="${#fields.hasErrors('title')}" th:errors="*{title}">Title Error</div>
+                        </div>
+
+                        <!-- 짧은 소개 -->
+                        <div class="mb-0">
+                            <label for="shortDescription" class="form-label fw-semibold">
+                                짧은 소개 <span class="text-danger">*</span>
+                            </label>
+                            <textarea id="shortDescription" th:field="*{shortDescription}" class="form-control"
+                                      placeholder="스터디를 한 문장으로 소개해 주세요." aria-describedby="shortDescriptionHelp"
+                                      required maxlength="100" rows="2"></textarea>
+                            <div id="shortDescriptionHelp" class="form-text">100자 이내로 간단히 소개하세요.</div>
+                            <div class="invalid-feedback">짧은 소개를 입력하세요.</div>
+                            <div class="text-danger small" th:if="${#fields.hasErrors('shortDescription')}" th:errors="*{shortDescription}">ShortDescription Error</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── 상세 소개 섹션 ── -->
+                <div class="card border-0 shadow-sm rounded-3 mb-4">
+                    <div class="card-header bg-white border-bottom pt-3 pb-2">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fa-solid fa-pen-fancy text-warning me-2"></i>상세 소개
+                        </h6>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="mb-0">
+                            <label for="fullDescription" class="form-label fw-semibold">
+                                스터디 상세 설명
+                            </label>
+                            <textarea id="fullDescription" th:field="*{fullDescription}" class="form-control editor"
+                                      placeholder="스터디를 자세히 설명해 주세요." aria-describedby="fullDescriptionHelp"
+                                      required></textarea>
+                            <div id="fullDescriptionHelp" class="form-text">
+                                <i class="fa-solid fa-lightbulb text-warning me-1"></i>
+                                목표, 일정, 방식, 교재, 인터넷 강좌, 모집 스터디원 등 자세히 입력하세요.
+                            </div>
+                            <div class="invalid-feedback">상세 소개를 입력하세요.</div>
+                            <div class="text-danger small" th:if="${#fields.hasErrors('fullDescription')}" th:errors="*{fullDescription}">FullDescription Error</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── 제출 버튼 ── -->
+                <div class="d-flex justify-content-between align-items-center">
+                    <a th:href="@{/}" class="text-muted text-decoration-none">
+                        <i class="fa-solid fa-arrow-left me-1"></i> 돌아가기
+                    </a>
+                    <button class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm" type="submit"
+                            style="background: linear-gradient(135deg, #8e85b0 0%, #a099bd 100%); border: none;">
+                        <i class="fa-solid fa-rocket me-2"></i>스터디 만들기
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="fragments.html :: footer"></div>
+
+<!-- 공통 스크립트 -->
+<script th:replace="fragments.html :: tooltip"></script>
+<script th:replace="fragments.html :: form-validation"></script>
+
+<!-- Summernote 초기화 -->
+<script type="application/javascript">
+    $(document).ready(function () {
+        $('#fullDescription').summernote({
+            height: 300,
+            placeholder: '스터디의 목표, 일정, 방식, 교재, 강좌 등을 입력하세요.',
+            fontNames: ['Arial', 'Comic Sans MS', 'Courier New', 'Noto Sans KR', 'Merriweather'],
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'clear']],
+                ['fontname', ['fontname']],
+                ['fontsize', ['fontsize']],
+                ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['insert', ['link', 'picture', 'video']],
+                ['view', ['fullscreen', 'codeview', 'help']]
+            ]
+        });
+    });
+</script>
+</body>
+</html>

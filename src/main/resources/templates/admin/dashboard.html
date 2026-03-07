@@ -1,0 +1,149 @@
+<!-- admin/dashboard.html -->
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="fragments.html :: head"></head>
+<body>
+<nav th:replace="fragments.html :: main-nav"></nav>
+
+<div class="container-fluid px-0">
+  <div class="row g-0 admin-layout">
+
+    <!-- ===== 관리자 사이드바 ===== -->
+    <div th:replace="admin/layout.html :: admin-sidebar(currentMenu='dashboard')"></div>
+
+    <!-- ===== 메인 콘텐츠 ===== -->
+    <main class="col admin-main">
+      <div class="admin-content-wrap">
+
+        <!-- 페이지 헤더 -->
+        <div class="admin-page-header">
+          <div>
+            <h4 class="admin-page-title">
+              <i class="fa-solid fa-gauge-high me-2"></i>관리자 대시보드
+            </h4>
+            <p class="admin-page-sub">플랫폼 현황을 한눈에 확인하세요.</p>
+          </div>
+        </div>
+
+        <!-- 알림 메시지 -->
+        <div th:if="${message}" class="alert alert-success alert-dismissible border-0 rounded-3 mb-4" role="alert">
+          <i class="fa-solid fa-circle-check me-2"></i>
+          <span th:text="${message}"></span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <!-- 요약 지표 카드 4개 -->
+        <div class="row g-3 mb-4">
+          <div class="col-sm-6 col-xl-3">
+            <div class="admin-stat-card">
+              <div class="admin-stat-icon" style="background: rgba(142,133,176,0.12); color: #8e85b0;">
+                <i class="fa-solid fa-users"></i>
+              </div>
+              <div class="admin-stat-body">
+                <div class="admin-stat-value" th:text="${stats?.totalMembers ?: 0}">0</div>
+                <div class="admin-stat-label">전체 회원</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="admin-stat-card">
+              <div class="admin-stat-icon" style="background: rgba(127,172,142,0.12); color: #7fac8e;">
+                <i class="fa-solid fa-book-open"></i>
+              </div>
+              <div class="admin-stat-body">
+                <div class="admin-stat-value" th:text="${stats?.totalStudies ?: 0}">0</div>
+                <div class="admin-stat-label">전체 스터디</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="admin-stat-card">
+              <div class="admin-stat-icon" style="background: rgba(191,164,115,0.12); color: #bfa473;">
+                <i class="fa-solid fa-calendar-check"></i>
+              </div>
+              <div class="admin-stat-body">
+                <div class="admin-stat-value" th:text="${stats?.totalEvents ?: 0}">0</div>
+                <div class="admin-stat-label">전체 모임</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <div class="admin-stat-card">
+              <div class="admin-stat-icon" style="background: rgba(196,145,126,0.12); color: #c4917e;">
+                <i class="fa-solid fa-user-plus"></i>
+              </div>
+              <div class="admin-stat-body">
+                <div class="admin-stat-value" th:text="${stats?.todaySignups ?: 0}">0</div>
+                <div class="admin-stat-label">오늘 가입자</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 최근 가입 회원 -->
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <span><i class="fa-solid fa-clock-rotate-left me-2 text-muted"></i>최근 가입 회원</span>
+            <a th:href="@{/admin/members}" class="btn btn-sm btn-outline-secondary rounded-pill">
+              전체 보기
+            </a>
+          </div>
+          <div class="admin-card-body p-0">
+            <div th:if="${#lists.isEmpty(recentMembers)}" class="admin-empty-state py-4">
+              <i class="fa-solid fa-user-slash fa-2x mb-2"></i>
+              <p class="mb-0">최근 가입한 회원이 없습니다.</p>
+            </div>
+            <table th:if="${!#lists.isEmpty(recentMembers)}" class="admin-table">
+              <thead>
+                <tr>
+                  <th>닉네임</th>
+                  <th>이메일</th>
+                  <th>이메일 인증</th>
+                  <th>가입일</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="member : ${recentMembers}">
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="admin-avatar" th:style="${!#strings.isEmpty(member.profileImage)} ? 'background-image: url(' + ${member.profileImage} + ')' : ''">
+                        <i th:if="${#strings.isEmpty(member.profileImage)}" class="fa-solid fa-user"></i>
+                      </div>
+                      <span th:text="${member.nickname}" class="fw-medium">닉네임</span>
+                    </div>
+                  </td>
+                  <td class="text-muted small" th:text="${member.email}">email</td>
+                  <td>
+                    <span th:if="${member.emailVerified}" class="badge admin-badge-success">인증 완료</span>
+                    <span th:if="${!member.emailVerified}" class="badge admin-badge-warning">미인증</span>
+                  </td>
+                  <td class="text-muted small"
+                      th:text="${member.joinedAt != null} ? ${#temporals.format(member.joinedAt, 'yyyy-MM-dd')} : '-'">
+                    날짜
+                  </td>
+                  <td>
+                    <a th:href="@{'/admin/members/' + ${member.id}}" class="btn btn-xs admin-btn-link">
+                      상세 <i class="fa-solid fa-chevron-right ms-1"></i>
+                    </a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- /admin-content-wrap -->
+    </main>
+  </div>
+</div>
+
+<!-- 어드민 공통 스타일 -->
+<div th:replace="admin/layout.html :: admin-style"></div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+</body>
+</html>

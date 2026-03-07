@@ -1,0 +1,5 @@
+rootProject.name = 'studyolle-msa'
+
+// infra 하위 모듈 등록
+// Gradle은 'infra:eureka-server' 를 projectDir/infra/eureka-server 경로에서 찾는다.
+include 'infra:eureka-server'

@@ -1,0 +1,219 @@
+<!-- admin/statistics.html -->
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="fragments.html :: head">
+  <!-- Chart.js 추가 -->
+  <link><!-- Chart.js는 body 하단 script 태그에서 로드 --></link>
+</head>
+<body>
+<nav th:replace="fragments.html :: main-nav"></nav>
+
+<div class="container-fluid px-0">
+  <div class="row g-0 admin-layout">
+    <div th:replace="admin/layout.html :: admin-sidebar(currentMenu='statistics')"></div>
+
+    <main class="col admin-main">
+      <div class="admin-content-wrap">
+
+        <!-- 페이지 헤더 -->
+        <div class="admin-page-header">
+          <div>
+            <h4 class="admin-page-title">
+              <i class="fa-solid fa-chart-line me-2"></i>플랫폼 통계
+            </h4>
+            <p class="admin-page-sub">플랫폼 전체 현황을 기간별로 확인합니다.</p>
+          </div>
+          <!-- 기간 토글 -->
+          <div class="btn-group btn-group-sm" role="group">
+            <a th:href="@{/admin/statistics(period='weekly')}"
+               class="btn"
+               th:classappend="${period == 'weekly'} ? 'btn-primary' : 'btn-outline-secondary'"
+               style="border-radius: 8px 0 0 8px;">
+              주간
+            </a>
+            <a th:href="@{/admin/statistics(period='monthly')}"
+               class="btn"
+               th:classappend="${period == 'monthly'} ? 'btn-primary' : 'btn-outline-secondary'"
+               style="border-radius: 0 8px 8px 0;">
+              월간
+            </a>
+          </div>
+        </div>
+
+        <!-- 안내 배너 (통계 데이터가 없을 때) -->
+        <div th:if="${#lists.isEmpty(signupStats) and #lists.isEmpty(studyStats)}"
+             class="alert border-0 rounded-3 mb-4"
+             style="background:rgba(142,133,176,0.08);color:#5c5480;">
+          <i class="fa-solid fa-circle-info me-2"></i>
+          AdminService의 통계 쿼리를 구현하면 차트가 자동으로 표시됩니다.
+          현재는 레이아웃 미리보기 상태입니다.
+        </div>
+
+        <!-- 차트 그리드 -->
+        <div class="row g-3">
+
+          <!-- 가입자 추이 -->
+          <div class="col-lg-6">
+            <div class="admin-card h-100">
+              <div class="admin-card-header">
+                <span><i class="fa-solid fa-user-plus me-2" style="color:#8e85b0;"></i>가입자 추이</span>
+                <span class="text-muted small" th:text="${period == 'weekly'} ? '주간' : '월간'">월간</span>
+              </div>
+              <div class="admin-card-body">
+                <canvas id="signupChart" height="200"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- 스터디 개설 추이 -->
+          <div class="col-lg-6">
+            <div class="admin-card h-100">
+              <div class="admin-card-header">
+                <span><i class="fa-solid fa-book-open me-2" style="color:#7fac8e;"></i>스터디 개설 추이</span>
+                <span class="text-muted small" th:text="${period == 'weekly'} ? '주간' : '월간'">월간</span>
+              </div>
+              <div class="admin-card-body">
+                <canvas id="studyChart" height="200"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- 모임 수 추이 -->
+          <div class="col-lg-6">
+            <div class="admin-card h-100">
+              <div class="admin-card-header">
+                <span><i class="fa-solid fa-calendar-check me-2" style="color:#bfa473;"></i>모임 생성 추이</span>
+                <span class="text-muted small" th:text="${period == 'weekly'} ? '주간' : '월간'">월간</span>
+              </div>
+              <div class="admin-card-body">
+                <canvas id="eventChart" height="200"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- 추후 확장 슬롯 -->
+          <div class="col-lg-6">
+            <div class="admin-card h-100" style="border-style:dashed;">
+              <div class="admin-card-body admin-empty-state" style="padding:3rem 1rem;">
+                <i class="fa-solid fa-plus-circle fa-2x mb-2" style="color:#c5bfb8;"></i>
+                <p class="mb-0 text-muted small">추가 차트를 여기에 배치하세요.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<div th:replace="admin/layout.html :: admin-style"></div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+
+<script th:inline="javascript">
+  /*[# th:if="${!#lists.isEmpty(signupStats)}"]*/
+
+  // ──────────────────────────────────────────────
+  // Chart.js 공통 설정 (Warm Flat Minimal 팔레트)
+  // ──────────────────────────────────────────────
+  Chart.defaults.font.family = "'IBM Plex Sans KR', 'Pretendard Variable', sans-serif";
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = '#9e9689';
+
+  const gridColor = 'rgba(232, 228, 221, 0.6)';
+
+  function buildLineChart(canvasId, label, data, labels, borderColor, bgColor) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: label,
+          data: data,
+          borderColor: borderColor,
+          backgroundColor: bgColor,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          fill: true,
+          tension: 0.35
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: 'index', intersect: false }
+        },
+        scales: {
+          x: { grid: { color: gridColor } },
+          y: {
+            beginAtZero: true,
+            grid: { color: gridColor },
+            ticks: { stepSize: 1, precision: 0 }
+          }
+        }
+      }
+    });
+  }
+
+  // 가입자 추이 차트
+  const signupLabels = /*[[${signupStats.![label]}]]*/ [];
+  const signupData   = /*[[${signupStats.![count]}]]*/ [];
+  buildLineChart('signupChart', '가입자 수', signupData, signupLabels,
+                 '#8e85b0', 'rgba(142,133,176,0.08)');
+
+  // 스터디 개설 추이 차트
+  const studyLabels = /*[[${studyStats.![label]}]]*/ [];
+  const studyData   = /*[[${studyStats.![count]}]]*/ [];
+  buildLineChart('studyChart', '스터디 개설 수', studyData, studyLabels,
+                 '#7fac8e', 'rgba(127,172,142,0.08)');
+
+  // 모임 수 추이 차트
+  const eventLabels = /*[[${eventStats.![label]}]]*/ [];
+  const eventData   = /*[[${eventStats.![count]}]]*/ [];
+  buildLineChart('eventChart', '모임 생성 수', eventData, eventLabels,
+                 '#bfa473', 'rgba(191,164,115,0.08)');
+
+  /*[/]*/
+
+  // 데이터가 없을 때도 빈 차트 렌더링 (레이아웃 확인용)
+  /*[# th:if="${#lists.isEmpty(signupStats)}"]*/
+  (function() {
+    const demoLabels = ['1월', '2월', '3월', '4월', '5월', '6월'];
+    const demoData   = [0, 0, 0, 0, 0, 0];
+    function emptyChart(id, color) {
+      const ctx = document.getElementById(id);
+      if (!ctx) return;
+      Chart.defaults.font.family = "'IBM Plex Sans KR', sans-serif";
+      Chart.defaults.color = '#c5bfb8';
+      new Chart(ctx, {
+        type: 'line',
+        data: { labels: demoLabels, datasets: [{ data: demoData, borderColor: color, fill: false, borderDash: [5,5] }] },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: {
+            x: { grid: { color: 'rgba(232,228,221,0.4)' } },
+            y: { beginAtZero: true, grid: { color: 'rgba(232,228,221,0.4)' }, ticks: { stepSize: 1 } }
+          }
+        }
+      });
+    }
+    emptyChart('signupChart', '#c5bfb8');
+    emptyChart('studyChart',  '#c5bfb8');
+    emptyChart('eventChart',  '#c5bfb8');
+  })();
+  /*[/]*/
+</script>
+
+</body>
+</html>

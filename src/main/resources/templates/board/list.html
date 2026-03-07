@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<!-- ============================================================
+     스터디 게시판 목록 페이지
+
+     [기능]
+     - 카테고리별 필터 탭 (전체 / 공지사항 / 자료 공유 / 자유 게시판 / Q&A)
+     - 페이징 처리 (10개씩)
+     - 새 게시글 작성 버튼 (멤버만)
+     - 빈 상태 패턴 (게시글 없을 때)
+
+     [템플릿 위치]
+     templates/board/list.html
+     → MSA 분리 대비를 위해 study/ 하위가 아닌 독립 디렉토리에 배치
+     → URL(/study/{path}/board)과 템플릿 경로(board/)는 독립적
+     ============================================================ -->
+<head th:replace="fragments.html :: head"></head>
+
+<body>
+<div th:replace="fragments.html :: main-nav"></div>
+<div th:replace="fragments.html :: study-banner"></div>
+<div th:replace="fragments.html :: study-info"></div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+            <!-- ========== 헤더: 제목 + 글쓰기 버튼 ========== -->
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <h5 class="fw-bold mb-0 d-flex align-items-center">
+                    <i class="fa-solid fa-clipboard-list me-2 section-icon"></i> 게시판
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill ms-2 fw-normal"
+                          th:text="${boards.totalElements} + '개'">0개</span>
+                </h5>
+                <!-- 글쓰기 버튼: 로그인 + 멤버/관리자 -->
+                <a sec:authorize="isAuthenticated()"
+                   th:if="${study.isManager(#authentication.principal) || study.isMember(#authentication.principal)}"
+                   class="btn btn-sm btn-primary rounded-pill px-3"
+                   th:href="@{'/study/' + ${study.path} + '/board/new'}">
+                    <i class="fa-solid fa-pen me-1"></i> 글쓰기
+                </a>
+            </div>
+
+            <!-- ========== 카테고리 필터 탭 ========== -->
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                <a class="btn btn-sm rounded-pill px-3"
+                   th:classappend="${category == null} ? 'btn-primary' : 'btn-outline-secondary'"
+                   th:href="@{'/study/' + ${study.path} + '/board'}">
+                    전체
+                </a>
+                <a th:each="cat : ${categories}"
+                   class="btn btn-sm rounded-pill px-3"
+                   th:classappend="${category != null && category.name() == cat.name()} ? 'btn-primary' : 'btn-outline-secondary'"
+                   th:href="@{'/study/' + ${study.path} + '/board'(category=${cat.name()})}"
+                   th:text="${cat.displayName}">카테고리</a>
+            </div>
+
+            <!-- ========== 게시글 목록 ========== -->
+            <div th:if="${boards.totalElements > 0}" class="card border-0 shadow-sm rounded-3">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr style="background: rgba(142,133,176,0.04);">
+                                <th class="ps-4 py-3 text-muted small fw-semibold" style="width: 100px;">카테고리</th>
+                                <th class="py-3 text-muted small fw-semibold">제목</th>
+                                <th class="py-3 text-muted small fw-semibold text-center" style="width: 120px;">작성자</th>
+                                <th class="py-3 text-muted small fw-semibold text-center" style="width: 130px;">작성일</th>
+                                <th class="pe-4 py-3 text-muted small fw-semibold text-center" style="width: 60px;">댓글</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="board : ${boards.content}">
+                                <!-- 카테고리 뱃지 -->
+                                <td class="ps-4">
+                                    <span class="badge rounded-pill px-2 py-1"
+                                          th:style="${board.category.name() == 'NOTICE'}
+                                              ? 'background: rgba(196,145,126,0.22); color: #8a5b48;'
+                                              : (${board.category.name() == 'RESOURCE'}
+                                                  ? 'background: rgba(142,133,176,0.22); color: #5c5480;'
+                                                  : (${board.category.name() == 'QNA'}
+                                                      ? 'background: rgba(191,164,115,0.22); color: #6e5a30;'
+                                                      : 'background: rgba(158,150,137,0.18); color: #4a4540;'))"
+                                          th:text="${board.category.displayName}">카테고리</span>
+                                </td>
+                                <!-- 제목 -->
+                                <td>
+                                    <a th:href="@{'/study/' + ${study.path} + '/board/' + ${board.id}}"
+                                       class="text-decoration-none fw-medium"
+                                       style="color: #4a4540;">
+                                        <span th:text="${board.title}">게시글 제목</span>
+                                    </a>
+                                </td>
+                                <!-- 작성자 -->
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center justify-content-center gap-1">
+                                        <svg th:if="${#strings.isEmpty(board.createdBy?.profileImage)}"
+                                             th:data-jdenticon-value="${board.createdBy.nickname}"
+                                             width="22" height="22" class="rounded-circle"></svg>
+                                        <img th:if="${!#strings.isEmpty(board.createdBy?.profileImage)}"
+                                             th:src="${board.createdBy.profileImage}"
+                                             width="22" height="22" class="rounded-circle" alt="프로필">
+                                        <span class="small text-muted" th:text="${board.createdBy.nickname}">닉네임</span>
+                                    </div>
+                                </td>
+                                <!-- 작성일 -->
+                                <td class="text-center">
+                                    <span class="small text-muted date-time" th:text="${board.createdDateTime}">2025-01-01</span>
+                                </td>
+                                <!-- 댓글 수 -->
+                                <td class="text-center pe-4">
+                                    <span th:if="${board.commentCount > 0}"
+                                          class="badge rounded-pill fw-normal"
+                                          style="background: rgba(142,133,176,0.1); color: #8e85b0;"
+                                          th:text="${board.commentCount}">0</span>
+                                    <span th:if="${board.commentCount == 0}" class="text-muted small">-</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ========== 빈 상태 ========== -->
+            <div th:if="${boards.totalElements == 0}" class="text-center py-5 text-muted">
+                <div class="empty-icon empty-icon-indigo mb-2">
+                    <i class="fa-solid fa-clipboard-list"></i>
+                </div>
+                <p class="mb-1 small">아직 등록된 게시글이 없습니다.</p>
+                <p class="mb-0 small text-muted">첫 번째 게시글을 작성해보세요!</p>
+            </div>
+
+            <!-- ========== 페이징 ========== -->
+            <div th:if="${boards.totalPages > 1}" class="d-flex justify-content-center mt-4">
+                <nav>
+                    <ul class="pagination pagination-sm">
+                        <!-- 이전 -->
+                        <li class="page-item" th:classappend="${boards.first} ? 'disabled'">
+                            <a class="page-link rounded-pill me-1"
+                               th:href="@{'/study/' + ${study.path} + '/board'(page=${boards.number - 1}, category=${category?.name()})}">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </a>
+                        </li>
+                        <!-- 페이지 번호 -->
+                        <li th:each="pageNum : ${#numbers.sequence(0, boards.totalPages - 1)}"
+                            class="page-item"
+                            th:classappend="${pageNum == boards.number} ? 'active'">
+                            <a class="page-link rounded-pill mx-1"
+                               th:href="@{'/study/' + ${study.path} + '/board'(page=${pageNum}, category=${category?.name()})}"
+                               th:text="${pageNum + 1}">1</a>
+                        </li>
+                        <!-- 다음 -->
+                        <li class="page-item" th:classappend="${boards.last} ? 'disabled'">
+                            <a class="page-link rounded-pill ms-1"
+                               th:href="@{'/study/' + ${study.path} + '/board'(page=${boards.number + 1}, category=${category?.name()})}">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="fragments.html :: footer"></div>
+<script th:replace="fragments.html :: date-time"></script>
+<script src="https://cdn.jsdelivr.net/npm/jdenticon@3.2.0/dist/jdenticon.min.js"></script>
+</body>
+</html>

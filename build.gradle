@@ -1,0 +1,106 @@
+// 🔧 사용 중인 Gradle 플러그인 정의 (Java, Spring Boot, Dependency 관리, Node 연동)
+plugins {
+    id 'java' // Java 프로젝트용
+    id 'org.springframework.boot' version '3.4.7' // Spring Boot (3.4.5 → 3.4.7 패치 업데이트)
+    id 'io.spring.dependency-management' version '1.1.7' // 의존성 버전 관리 (최신 유지)
+    id 'com.github.node-gradle.node' version '7.1.0' // Node.js + npm 연동 (3.2.1 → 7.1.0, Gradle 8.x 호환)
+}
+
+group = 'com.studyolle'
+version = '0.0.1-SNAPSHOT'
+
+// ✅ Java 21 Toolchain 설정 (sourceCompatibility 대신 toolchain 사용 권장)
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+// ✅ Groovy에서 변수 선언은 ext {} 사용 (QueryDSL 버전 변수 선언)
+ext {
+    querydslVersion = '5.1.0' // 5.0.0 → 5.1.0 유지보수 업데이트
+}
+
+// 🔍 의존성을 가져올 저장소 정의
+repositories {
+    mavenCentral()
+}
+
+// 📦 프로젝트에서 사용할 라이브러리 및 의존성 정의
+dependencies {
+    // 💡 Spring Boot 핵심 기능
+    // ⚠️ jakarta.persistence-api 명시적 선언 제거 → Spring Boot BOM이 Hibernate와 호환되는 버전을 자동 관리
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa' // JPA
+    implementation 'org.springframework.boot:spring-boot-starter-mail' // 이메일 전송
+    implementation 'org.springframework.boot:spring-boot-starter-security' // Spring Security
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf' // Thymeleaf 템플릿 엔진
+    implementation 'org.springframework.boot:spring-boot-starter-web' // Spring MVC
+    implementation 'org.springframework.boot:spring-boot-starter-validation' // Bean validation
+
+    // 💡 Thymeleaf 보안 확장 (Spring Security와 연동)
+    // ✅ springsecurity6만 사용 (Spring Boot BOM이 버전 자동 관리)
+    // ⚠️ springsecurity5 제거됨 → Spring Boot 3.x는 Jakarta 네임스페이스 + Security 6.x 사용
+    //    springsecurity5는 javax.* 기반이라 네임스페이스 충돌 및 자동 구성 모호성 문제 발생
+    implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+
+    // 💡 ModelMapper (DTO 변환 용도)
+    implementation 'org.modelmapper:modelmapper:3.2.2' // 3.2.0 → 3.2.2 버그 픽스
+
+    // ✅ QueryDSL 설정 (JPA 기반 쿼리 타입 생성용)
+    implementation("com.querydsl:querydsl-jpa:${querydslVersion}:jakarta") // 5.0.0 → 5.1.0
+    annotationProcessor("com.querydsl:querydsl-apt:${querydslVersion}:jakarta") // 5.0.0 → 5.1.0
+    annotationProcessor("jakarta.persistence:jakarta.persistence-api")
+    annotationProcessor("jakarta.annotation:jakarta.annotation-api")
+
+    // 💡 DB 드라이버 (운영용 및 개발용)
+    runtimeOnly 'org.postgresql:postgresql' // PostgreSQL JDBC 드라이버
+    runtimeOnly 'com.mysql:mysql-connector-j' // MySQL 드라이버 (선택적으로 사용)
+
+    // 💡 Lombok (코드 자동 생성) 관련 설정
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    runtimeOnly 'com.h2database:h2'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // 🔧 개발 중 리로딩
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    // ✅ 테스트용 의존성
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+//    testImplementation 'org.testcontainers:junit-jupiter:1.21.1' // Testcontainers JUnit5 연동
+//    testImplementation 'org.testcontainers:postgresql:1.21.1' // PostgreSQL 컨테이너
+    testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.1' // 0.13.1 → 1.4.1 (Java 21 지원 필수)
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher' // JUnit 실행기
+}
+
+// ✅ QueryDSL이 생성하는 Q타입을 빌드 시 컴파일 대상으로 포함
+sourceSets {
+    main {
+        java {
+            // Q클래스를 컴파일 소스에 추가
+            srcDirs = ['src/main/java', 'build/generated/sources/annotationProcessor/java/main']
+        }
+    }
+}
+
+// ✅ JUnit5 테스트 플랫폼 사용 설정
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// ✅ Node.js 설정 (Bootstrap 등 npm 패키지 설치를 위한 환경 구성)
+// ⚠️ Gradle 8.x에서는 project.buildDir이 deprecated → project.layout.buildDirectory 사용
+node {
+    version = '22.16.0' // Node.js 22 LTS (16.20.0은 2023년 9월 EOL, 보안 패치 없음)
+    download = true // 로컬에서 다운로드
+    workDir = file("${project.layout.buildDirectory.get()}/nodejs") // Node.js 저장 디렉토리
+    npmWorkDir = file("${project.layout.buildDirectory.get()}/npm") // npm 저장 디렉토리
+    nodeProjectDir = file("${projectDir}/src/main/resources/static") // npm install 실행 위치
+}
+
+// ✅ 정적 리소스 처리 전에 npm install 선행 실행
+tasks.named('processResources') {
+    dependsOn tasks.named('npmInstall')
+}

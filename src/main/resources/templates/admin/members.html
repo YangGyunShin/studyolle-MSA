@@ -1,0 +1,143 @@
+<!-- admin/members.html -->
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="fragments.html :: head"></head>
+<body>
+<nav th:replace="fragments.html :: main-nav"></nav>
+
+<div class="container-fluid px-0">
+  <div class="row g-0 admin-layout">
+    <div th:replace="admin/layout.html :: admin-sidebar(currentMenu='members')"></div>
+
+    <main class="col admin-main">
+      <div class="admin-content-wrap">
+
+        <!-- 페이지 헤더 -->
+        <div class="admin-page-header">
+          <div>
+            <h4 class="admin-page-title">
+              <i class="fa-solid fa-users me-2"></i>회원 관리
+            </h4>
+            <p class="admin-page-sub">전체 회원을 검색하고 계정을 관리합니다.</p>
+          </div>
+        </div>
+
+        <!-- 알림 메시지 -->
+        <div th:if="${message}" class="alert alert-success alert-dismissible border-0 rounded-3 mb-4" role="alert">
+          <i class="fa-solid fa-circle-check me-2"></i>
+          <span th:text="${message}"></span>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <!-- 검색 바 -->
+        <div class="admin-search-bar">
+          <form th:action="@{/admin/members}" method="get" class="d-flex gap-2 w-100 m-0">
+            <input type="text" name="keyword" th:value="${keyword}"
+                   class="form-control form-control-sm"
+                   placeholder="닉네임 또는 이메일로 검색"
+                   style="max-width: 320px;">
+            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">
+              <i class="fa-solid fa-magnifying-glass me-1"></i>검색
+            </button>
+            <a th:if="${!#strings.isEmpty(keyword)}" th:href="@{/admin/members}"
+               class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+              초기화
+            </a>
+          </form>
+          <span class="ms-auto text-muted small text-nowrap">
+            총 <strong th:text="${memberPage?.totalElements ?: 0}">0</strong>명
+          </span>
+        </div>
+
+        <!-- 회원 테이블 -->
+        <div class="admin-card">
+          <div class="admin-card-body p-0">
+            <div th:if="${memberPage == null or memberPage.isEmpty()}" class="admin-empty-state">
+              <i class="fa-solid fa-user-slash fa-2x mb-2"></i>
+              <p class="mb-0">검색 결과가 없습니다.</p>
+            </div>
+            <table th:if="${memberPage != null and !memberPage.isEmpty()}" class="admin-table">
+              <thead>
+                <tr>
+                  <th>회원</th>
+                  <th>이메일</th>
+                  <th>인증 상태</th>
+                  <th>역할</th>
+                  <th>가입일</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="member : ${memberPage.content}">
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="admin-avatar"
+                           th:style="${!#strings.isEmpty(member.profileImage)} ? 'background-image: url(' + ${member.profileImage} + ')' : ''">
+                        <i th:if="${#strings.isEmpty(member.profileImage)}" class="fa-solid fa-user"></i>
+                      </div>
+                      <span th:text="${member.nickname}" class="fw-medium">닉네임</span>
+                    </div>
+                  </td>
+                  <td class="text-muted small" th:text="${member.email}">email</td>
+                  <td>
+                    <span th:if="${member.emailVerified}" class="badge admin-badge-success">인증 완료</span>
+                    <span th:if="${!member.emailVerified}" class="badge admin-badge-warning">미인증</span>
+                  </td>
+                  <td>
+                    <span th:if="${member.role == 'ROLE_ADMIN'}" class="badge admin-badge-primary">관리자</span>
+                    <span th:if="${member.role != 'ROLE_ADMIN'}" class="badge admin-badge-muted">일반</span>
+                  </td>
+                  <td class="text-muted small"
+                      th:text="${member.joinedAt != null} ? ${#temporals.format(member.joinedAt, 'yyyy-MM-dd')} : '-'">
+                    날짜
+                  </td>
+                  <td>
+                    <a th:href="@{'/admin/members/' + ${member.id}}" class="admin-btn-link">
+                      상세 <i class="fa-solid fa-chevron-right ms-1"></i>
+                    </a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 페이지네이션 -->
+        <div th:if="${memberPage != null and memberPage.totalPages > 1}"
+             class="d-flex justify-content-center mt-3">
+          <nav>
+            <ul class="pagination pagination-sm">
+              <li class="page-item" th:classappend="${memberPage.first} ? 'disabled'">
+                <a class="page-link"
+                   th:href="@{/admin/members(keyword=${keyword}, page=${memberPage.number - 1})}">
+                  <i class="fa-solid fa-chevron-left"></i>
+                </a>
+              </li>
+              <li th:each="i : ${#numbers.sequence(0, memberPage.totalPages - 1)}"
+                  class="page-item"
+                  th:classappend="${i == memberPage.number} ? 'active'">
+                <a class="page-link"
+                   th:href="@{/admin/members(keyword=${keyword}, page=${i})}"
+                   th:text="${i + 1}">1</a>
+              </li>
+              <li class="page-item" th:classappend="${memberPage.last} ? 'disabled'">
+                <a class="page-link"
+                   th:href="@{/admin/members(keyword=${keyword}, page=${memberPage.number + 1})}">
+                  <i class="fa-solid fa-chevron-right"></i>
+                </a>
+              </li>
+            </ul>
+          </nav>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<div th:replace="admin/layout.html :: admin-style"></div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+</body>
+</html>

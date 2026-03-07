@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments.html :: head"></head>
+<body>
+<div th:replace="fragments.html :: main-nav"></div>
+<div th:replace="fragments.html :: study-banner"></div>
+<div th:replace="fragments.html :: study-info"></div>
+
+<!-- ✅ 스터디로 돌아가기 바 -->
+<div class="border-bottom bg-white">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <nav class="nav nav-pills gap-1 py-2">
+                    <a class="nav-link rounded-pill px-3 py-2" th:href="@{'/study/' + ${study.path}}">
+                        <i class="fa-solid fa-arrow-left me-1"></i> 스터디로 돌아가기
+                    </a>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 구성원 목록 -->
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+            <!-- 관리자 섹션 -->
+            <div class="mb-4">
+                <h6 class="fw-bold text-muted mb-3">
+                    <i class="fa-solid fa-crown text-warning me-2"></i>관리자
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill ms-1"
+                          th:text="${study.managers.size()}">1</span>
+                </h6>
+                <div th:replace="fragments.html :: member-list(members=${study.managers},isManager=${true})"></div>
+            </div>
+
+            <!-- 일반 멤버 섹션 -->
+            <div th:if="${study.members.size() > 0}">
+                <h6 class="fw-bold text-muted mb-3">
+                    <i class="fa-solid fa-users text-primary me-2"></i>멤버
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill ms-1"
+                          th:text="${study.members.size()}">0</span>
+                </h6>
+                <div th:replace="fragments.html :: member-list(members=${study.members},isManager=${false})"></div>
+            </div>
+
+            <!-- 멤버 없을 때 -->
+            <div th:if="${study.members.size() == 0}" class="text-center py-5">
+                <div class="empty-icon empty-icon-rose mx-auto mb-2">
+                    <i class="fa-solid fa-user-group"></i>
+                </div>
+                <p class="text-muted small mb-2">아직 가입한 멤버가 없습니다.</p>
+                <p th:if="${study.recruiting}" class="text-muted small mb-0">
+                    첫 번째 멤버가 되어보세요!
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="fragments.html :: footer"></div>
+<script th:replace="fragments.html :: tooltip"></script>
+</body>
+</html>

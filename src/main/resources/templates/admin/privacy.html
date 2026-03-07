@@ -1,0 +1,235 @@
+<!-- admin/privacy.html -->
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="fragments.html :: head"></head>
+<body>
+<nav th:replace="fragments.html :: main-nav"></nav>
+
+<div class="container-fluid px-0">
+  <div class="row g-0 admin-layout">
+    <div th:replace="admin/layout.html :: admin-sidebar(currentMenu='privacy')"></div>
+
+    <main class="col admin-main">
+      <div class="admin-content-wrap">
+
+        <!-- 페이지 헤더 -->
+        <div class="admin-page-header">
+          <div>
+            <h4 class="admin-page-title">
+              <i class="fa-solid fa-shield-check me-2"></i>개인정보처리내역
+            </h4>
+            <p class="admin-page-sub">PIPA(개인정보보호법) 기반 데이터 처리 기록입니다.</p>
+          </div>
+          <span class="badge admin-badge-primary px-3 py-2">
+            <i class="fa-solid fa-clock-rotate-left me-1"></i>최종 갱신: 2026-03-05
+          </span>
+        </div>
+
+        <!-- 처리 방침 요약 -->
+        <div class="admin-card mb-4">
+          <div class="admin-card-header">
+            <span><i class="fa-solid fa-circle-info me-2" style="color:#8e85b0;"></i>처리 방침 개요</span>
+          </div>
+          <div class="admin-card-body">
+            <p class="small text-muted mb-0">
+              StudyOlle은 개인정보보호법(PIPA) 제30조에 따라 수집·이용하는 개인정보를 투명하게 관리합니다.
+              아래 테이블은 항목별 수집 목적, 보유 기간, 처리 방식을 명시합니다.
+            </p>
+          </div>
+        </div>
+
+        <!-- 수집 항목별 처리 내역 테이블 -->
+        <div class="admin-card mb-4">
+          <div class="admin-card-header">
+            <span><i class="fa-solid fa-table me-2 text-muted"></i>수집 항목별 처리 내역</span>
+          </div>
+          <div class="admin-card-body p-0">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>수집 항목</th>
+                  <th>수집 목적</th>
+                  <th>보유 기간</th>
+                  <th>처리 방식</th>
+                  <th>법적 근거</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div class="fw-medium small">이메일 주소</div>
+                    <div class="text-muted" style="font-size:0.75rem;">필수</div>
+                  </td>
+                  <td class="small text-muted">회원 식별, 이메일 인증, 알림 발송</td>
+                  <td class="small text-muted">회원 탈퇴 시 즉시 삭제</td>
+                  <td>
+                    <span class="badge admin-badge-muted">DB 저장</span>
+                    <span class="badge admin-badge-muted ms-1">암호화 전송</span>
+                  </td>
+                  <td class="small text-muted">개인정보보호법 제15조 1항 4호</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="fw-medium small">닉네임</div>
+                    <div class="text-muted" style="font-size:0.75rem;">필수</div>
+                  </td>
+                  <td class="small text-muted">서비스 내 사용자 식별 및 표시</td>
+                  <td class="small text-muted">회원 탈퇴 시 즉시 삭제</td>
+                  <td><span class="badge admin-badge-muted">DB 저장</span></td>
+                  <td class="small text-muted">개인정보보호법 제15조 1항 4호</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="fw-medium small">비밀번호</div>
+                    <div class="text-muted" style="font-size:0.75rem;">필수</div>
+                  </td>
+                  <td class="small text-muted">본인 인증 및 계정 보호</td>
+                  <td class="small text-muted">회원 탈퇴 시 즉시 삭제</td>
+                  <td>
+                    <span class="badge admin-badge-success">BCrypt 해시</span>
+                    <span class="badge admin-badge-muted ms-1">복호화 불가</span>
+                  </td>
+                  <td class="small text-muted">개인정보보호법 제15조 1항 4호</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="fw-medium small">프로필 정보</div>
+                    <div class="text-muted" style="font-size:0.75rem;">선택 (bio, url, 직업, 지역)</div>
+                  </td>
+                  <td class="small text-muted">다른 사용자와의 교류, 스터디 매칭</td>
+                  <td class="small text-muted">회원 탈퇴 시 즉시 삭제</td>
+                  <td><span class="badge admin-badge-muted">DB 저장</span></td>
+                  <td class="small text-muted">개인정보보호법 제15조 1항 4호</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="fw-medium small">프로필 이미지</div>
+                    <div class="text-muted" style="font-size:0.75rem;">선택</div>
+                  </td>
+                  <td class="small text-muted">프로필 화면 표시</td>
+                  <td class="small text-muted">회원 탈퇴 시 즉시 삭제</td>
+                  <td>
+                    <span class="badge admin-badge-muted">DB LOB 저장</span>
+                    <span class="badge admin-badge-warning ms-1">EAGER 로드</span>
+                  </td>
+                  <td class="small text-muted">개인정보보호법 제15조 1항 4호</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="fw-medium small">관심 태그 / 활동 지역</div>
+                    <div class="text-muted" style="font-size:0.75rem;">선택</div>
+                  </td>
+                  <td class="small text-muted">스터디 추천 및 검색 필터링</td>
+                  <td class="small text-muted">회원 탈퇴 시 즉시 삭제</td>
+                  <td><span class="badge admin-badge-muted">DB 저장 (ManyToMany)</span></td>
+                  <td class="small text-muted">개인정보보호법 제15조 1항 4호</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="fw-medium small">자동 로그인 토큰</div>
+                    <div class="text-muted" style="font-size:0.75rem;">기능 사용 시</div>
+                  </td>
+                  <td class="small text-muted">Remember-Me 자동 로그인</td>
+                  <td class="small text-muted">로그아웃 시 즉시 삭제</td>
+                  <td>
+                    <span class="badge admin-badge-muted">DB 저장</span>
+                    <span class="badge admin-badge-muted ms-1">쿠키 전달</span>
+                  </td>
+                  <td class="small text-muted">개인정보보호법 제15조 1항 4호</td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="fw-medium small">이메일 인증 토큰</div>
+                    <div class="text-muted" style="font-size:0.75rem;">시스템 생성</div>
+                  </td>
+                  <td class="small text-muted">이메일 소유 여부 인증</td>
+                  <td class="small text-muted">인증 완료 또는 탈퇴 시 삭제</td>
+                  <td><span class="badge admin-badge-muted">DB 저장 (UUID)</span></td>
+                  <td class="small text-muted">개인정보보호법 제15조 1항 4호</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 시스템 보안 조치 -->
+        <div class="admin-card mb-4">
+          <div class="admin-card-header">
+            <span><i class="fa-solid fa-lock me-2" style="color:#7fac8e;"></i>기술적·관리적 보안 조치</span>
+          </div>
+          <div class="admin-card-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="p-3 rounded-3" style="background:#f5f3ef;">
+                  <div class="fw-medium small mb-2">
+                    <i class="fa-solid fa-key me-2" style="color:#8e85b0;"></i>비밀번호 암호화
+                  </div>
+                  <p class="text-muted mb-0" style="font-size:0.78rem;">
+                    BCrypt 해시 알고리즘 적용. 비밀번호 원문은 저장하지 않으며 복호화가 불가능합니다.
+                  </p>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="p-3 rounded-3" style="background:#f5f3ef;">
+                  <div class="fw-medium small mb-2">
+                    <i class="fa-solid fa-shield-halved me-2" style="color:#7fac8e;"></i>CSRF 방어
+                  </div>
+                  <p class="text-muted mb-0" style="font-size:0.78rem;">
+                    Spring Security CSRF 토큰을 모든 POST 요청에 적용하여 CSRF 공격을 방어합니다.
+                  </p>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="p-3 rounded-3" style="background:#f5f3ef;">
+                  <div class="fw-medium small mb-2">
+                    <i class="fa-solid fa-user-lock me-2" style="color:#bfa473;"></i>접근 제어
+                  </div>
+                  <p class="text-muted mb-0" style="font-size:0.78rem;">
+                    역할 기반 접근 제어(RBAC). 관리자 페이지(/admin/**)는 ROLE_ADMIN 권한 필요.
+                  </p>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="p-3 rounded-3" style="background:#f5f3ef;">
+                  <div class="fw-medium small mb-2">
+                    <i class="fa-solid fa-rotate me-2" style="color:#c4917e;"></i>토큰 갱신
+                  </div>
+                  <p class="text-muted mb-0" style="font-size:0.78rem;">
+                    Remember-Me 토큰은 접속마다 갱신됩니다. 토큰 탈취 감지 시 전체 세션 무효화.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 정보 주체 권리 -->
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <span><i class="fa-solid fa-person-circle-question me-2" style="color:#c4917e;"></i>정보 주체의 권리</span>
+          </div>
+          <div class="admin-card-body">
+            <ul class="mb-0 small text-muted" style="line-height:2;">
+              <li>개인정보 열람 요구권 — 수집된 개인정보를 언제든지 확인할 수 있습니다.</li>
+              <li>개인정보 정정·삭제 요구권 — 설정 페이지에서 직접 수정하거나 탈퇴를 통해 삭제할 수 있습니다.</li>
+              <li>개인정보 처리 정지 요구권 — 서비스 이용 중단 요청이 가능합니다.</li>
+              <li>자동화된 의사결정 거부권 — 현재 자동화된 의사결정에 개인정보를 활용하지 않습니다.</li>
+            </ul>
+            <p class="mt-3 mb-0 small text-muted">
+              <i class="fa-solid fa-envelope me-1"></i>
+              개인정보 관련 문의: 관리자에게 직접 연락하거나 서비스 내 문의 채널을 이용하세요.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<div th:replace="admin/layout.html :: admin-style"></div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments.html :: head"></head>
+<body>
+  <nav th:replace="fragments.html :: main-nav"></nav>
+  <div th:replace="fragments.html :: study-banner"></div>
+  <div th:replace="fragments.html :: study-info"></div>
+  <div th:replace="fragments.html :: study-menu(studyMenu='settings')"></div>
+
+  <div class="container py-4">
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <div class="row g-4">
+          <!-- 사이드바 -->
+          <div class="col-md-3">
+            <div th:replace="fragments.html :: study-settings-menu(currentMenu='image')"></div>
+          </div>
+          <!-- 메인 콘텐츠 -->
+          <div class="col-md-9">
+            <div th:replace="fragments.html :: message"></div>
+
+            <!-- 배너 사용 토글 -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+              <div class="card-header bg-white border-bottom pt-3 pb-2">
+                <h6 class="fw-bold text-dark mb-0">
+                  <i class="fa-solid fa-toggle-on text-primary me-2"></i>배너 이미지 사용
+                </h6>
+              </div>
+              <div class="card-body p-4">
+                <form th:if="${!study.useBanner}" action="#" th:action="@{'/study/' + ${study.getPath()} + '/settings/banner/enable'}" method="post" novalidate>
+                  <div class="alert alert-primary border-0 rounded-3" role="alert">
+                    <i class="fa-solid fa-circle-info me-2"></i>
+                    스터디 메뉴에서 배너 이미지를 사용합니다. 아직 설정하지 않았다면 기본 이미지를 사용합니다.
+                  </div>
+                  <button class="btn btn-outline-primary rounded-pill w-100" type="submit">
+                    <i class="fa-solid fa-eye me-1"></i> 배너 이미지 사용하기
+                  </button>
+                </form>
+                <form th:if="${study.useBanner}" action="#" th:action="@{'/study/' + ${study.getPath()} + '/settings/banner/disable'}" method="post" novalidate>
+                  <div class="alert alert-info border-0 rounded-3" role="alert">
+                    <i class="fa-solid fa-circle-info me-2"></i>
+                    현재 배너 이미지를 사용 중입니다. 비활성화하면 스터디 상세 페이지에서 배너가 숨겨집니다.
+                  </div>
+                  <button class="btn btn-outline-secondary rounded-pill w-100" type="submit">
+                    <i class="fa-solid fa-eye-slash me-1"></i> 배너 이미지 사용하지 않기
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- 배너 이미지 변경 -->
+            <div class="card border-0 shadow-sm rounded-3">
+              <div class="card-header bg-white border-bottom pt-3 pb-2">
+                <h6 class="fw-bold text-dark mb-0">
+                  <i class="fa-solid fa-image text-warning me-2"></i>배너 이미지 변경
+                </h6>
+              </div>
+              <div class="card-body p-4">
+                <form id="imageForm" action="#" th:action="@{'/study/' + ${study.getPath()} + '/settings/banner'}" method="post" novalidate>
+                  <input id="studyImage" type="hidden" name="image" class="form-control" />
+                </form>
+
+                <div id="current-study-image" class="text-center mb-3">
+                  <img class="rounded-3 img-fluid shadow-sm" th:src="${study.image}" style="max-width: 100%;" alt="name" th:alt="${study.title}"/>
+                </div>
+                <div id="new-study-image" class="mb-3"></div>
+
+                <div class="mb-3">
+                  <input type="file" class="form-control" id="study-image-file" accept="image/*">
+                </div>
+
+                <div id="new-study-image-control" class="d-flex flex-wrap gap-2">
+                  <button class="btn btn-outline-primary rounded-pill flex-fill" id="cut-button">
+                    <i class="fa-solid fa-crop-simple me-1"></i> 자르기
+                  </button>
+                  <button class="btn btn-outline-success rounded-pill flex-fill" id="confirm-button">
+                    <i class="fa-solid fa-check me-1"></i> 확인
+                  </button>
+                  <button class="btn btn-primary rounded-pill flex-fill" id="save-button">
+                    <i class="fa-solid fa-floppy-disk me-1"></i> 저장
+                  </button>
+                  <button class="btn btn-outline-warning rounded-pill flex-fill" id="reset-button">
+                    <i class="fa-solid fa-rotate-left me-1"></i> 취소
+                  </button>
+                </div>
+                <div id="cropped-new-study-image" class="mt-3 text-center"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div th:replace="fragments.html :: footer"></div>
+  <script th:replace="fragments.html :: tooltip"></script>
+
+  <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jquery-cropper@1.0.1/dist/jquery-cropper.min.js"></script>
+
+  <script type="application/javascript">
+    $(function() {
+      cropper = '';
+      let $confirmBtn = $("#confirm-button");
+      let $resetBtn = $("#reset-button");
+      let $cutBtn = $("#cut-button");
+      let $saveBtn = $("#save-button");
+      let $newStudyImage = $("#new-study-image");
+      let $currentStudyImage = $("#current-study-image");
+      let $resultImage = $("#cropped-new-study-image");
+      let $studyImage = $("#studyImage");
+
+      $newStudyImage.hide();
+      $cutBtn.hide();
+      $resetBtn.hide();
+      $confirmBtn.hide();
+      $saveBtn.hide();
+
+      $("#study-image-file").change(function(e) {
+        if (e.target.files.length === 1) {
+          const reader = new FileReader();
+          reader.onload = e => {
+            if (e.target.result) {
+              if (!e.target.result.startsWith("data:image")) {
+                alert("이미지 파일을 선택하세요.");
+                return;
+              }
+              let img = document.createElement("img");
+              img.id = 'new-study';
+              img.src = e.target.result;
+              img.setAttribute('width', '100%');
+              $newStudyImage.html(img);
+              $newStudyImage.show();
+              $currentStudyImage.hide();
+              let $newImage = $(img);
+              $newImage.cropper({aspectRatio: 13/2});
+              cropper = $newImage.data('cropper');
+              $cutBtn.show();
+              $confirmBtn.hide();
+              $resetBtn.show();
+            }
+          };
+          reader.readAsDataURL(e.target.files[0]);
+        }
+      });
+
+      $resetBtn.click(function() {
+        $currentStudyImage.show();
+        $newStudyImage.hide();
+        $resultImage.hide();
+        $resetBtn.hide();
+        $cutBtn.hide();
+        $confirmBtn.hide();
+        $saveBtn.hide();
+        $studyImage.val('');
+      });
+
+      $cutBtn.click(function () {
+        let dataUrl = cropper.getCroppedCanvas().toDataURL();
+        if (dataUrl.length > 1000 * 1024) {
+          alert("이미지 파일이 너무 큽니다. 1024000 보다 작은 파일을 사용하세요. 현재 이미지 사이즈 " + dataUrl.length);
+          return;
+        }
+        let newImage = document.createElement("img");
+        newImage.id = "cropped-new-study-image";
+        newImage.src = dataUrl;
+        newImage.width = 640;
+        $resultImage.html(newImage);
+        $resultImage.show();
+        $confirmBtn.show();
+        $confirmBtn.click(function () {
+          $newStudyImage.html(newImage);
+          $cutBtn.hide();
+          $confirmBtn.hide();
+          $studyImage.val(dataUrl);
+          $saveBtn.show();
+        });
+      });
+
+      $saveBtn.click(function() {
+        $("#imageForm").submit();
+      })
+    });
+  </script>
+</body>
+</html>

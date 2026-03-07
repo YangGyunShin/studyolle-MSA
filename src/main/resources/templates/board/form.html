@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<!-- ============================================================
+     새 게시글 작성 페이지
+
+     [템플릿 위치] templates/board/form.html
+     [컨트롤러 return] "board/form"
+     ============================================================ -->
+<head th:replace="fragments.html :: head"></head>
+
+<body>
+<nav th:replace="fragments.html :: main-nav"></nav>
+<div th:replace="fragments.html :: study-banner"></div>
+<div th:replace="fragments.html :: study-info"></div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+            <!-- 뒤로 가기 -->
+            <a th:href="@{'/study/' + ${study.path} + '/board'}"
+               class="text-decoration-none text-muted small mb-3 d-inline-block">
+                <i class="fa-solid fa-arrow-left me-1"></i> 게시판으로 돌아가기
+            </a>
+
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white border-bottom pt-3 pb-2">
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="fa-solid fa-pen text-primary me-2"></i>새 게시글 작성
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <form class="needs-validation"
+                          th:action="@{'/study/' + ${study.path} + '/board/new'}"
+                          th:object="${boardForm}" method="post" novalidate>
+
+                        <!-- 카테고리 선택 -->
+                        <div class="mb-4">
+                            <label for="category" class="form-label fw-semibold">카테고리</label>
+                            <select id="category" th:field="*{category}" class="form-select" required>
+                                <option value="">카테고리를 선택하세요</option>
+                                <option th:each="cat : ${categories}"
+                                        th:value="${cat.name()}"
+                                        th:text="${cat.displayName}"
+                                        th:if="${isManager || cat.name() != 'NOTICE'}">카테고리</option>
+                            </select>
+                            <div th:if="${!isManager}" class="form-text">
+                                <i class="fa-solid fa-circle-info text-muted me-1"></i>
+                                공지사항은 관리자만 작성할 수 있습니다.
+                            </div>
+                            <div class="text-danger small" th:if="${#fields.hasErrors('category')}" th:errors="*{category}">Error</div>
+                        </div>
+
+                        <!-- 제목 -->
+                        <div class="mb-4">
+                            <label for="title" class="form-label fw-semibold">제목</label>
+                            <input id="title" type="text" th:field="*{title}" class="form-control"
+                                   placeholder="게시글 제목을 입력하세요" required maxlength="100">
+                            <div class="form-text">2자 이상 100자 이내로 입력하세요.</div>
+                            <div class="text-danger small" th:if="${#fields.hasErrors('title')}" th:errors="*{title}">Error</div>
+                        </div>
+
+                        <!-- 내용 (에디터) -->
+                        <div class="mb-4">
+                            <label for="content" class="form-label fw-semibold">내용</label>
+                            <textarea id="content" th:field="*{content}" class="editor form-control"
+                                      placeholder="내용을 입력하세요" required></textarea>
+                            <div class="text-danger small" th:if="${#fields.hasErrors('content')}" th:errors="*{content}">Error</div>
+                        </div>
+
+                        <!-- 버튼 -->
+                        <div class="d-flex justify-content-end gap-2">
+                            <a th:href="@{'/study/' + ${study.path} + '/board'}"
+                               class="btn btn-outline-secondary rounded-pill px-4">취소</a>
+                            <button type="submit" class="btn btn-primary rounded-pill px-4">
+                                <i class="fa-solid fa-check me-1"></i> 작성 완료
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="fragments.html :: footer"></div>
+<script th:replace="fragments.html :: form-validation"></script>
+<script th:replace="fragments.html :: editor-script"></script>
+</body>
+</html>

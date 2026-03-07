@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="fragments.html :: head"></head>
+<body>
+<nav th:replace="fragments.html :: main-nav"></nav>
+<div th:replace="fragments.html :: study-banner"></div>
+<div th:replace="fragments.html :: study-info"></div>
+
+<!-- ✅ 스터디로 돌아가기 바 -->
+<div class="border-bottom bg-white">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <nav class="nav nav-pills gap-1 py-2">
+                    <a class="nav-link rounded-pill px-3 py-2" th:href="@{'/study/' + ${study.path}}">
+                        <i class="fa-solid fa-arrow-left me-1"></i> 스터디로 돌아가기
+                    </a>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 모임 목록 -->
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+            <!-- 새 모임 섹션 -->
+            <div class="mb-5">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h6 class="fw-bold text-muted mb-0">
+                        <i class="fa-solid fa-calendar-plus text-success me-2"></i>새 모임
+                        <span class="badge bg-success-subtle text-success-emphasis rounded-pill ms-1"
+                              th:text="${newEvents.size()}">0</span>
+                    </h6>
+                </div>
+
+                <!-- 새 모임 없을 때 -->
+                <div th:if="${newEvents.size() == 0}" class="text-center py-5">
+                    <div class="empty-icon empty-icon-emerald mx-auto mb-2">
+                        <i class="fa-solid fa-calendar-xmark"></i>
+                    </div>
+                    <p class="text-muted small mb-2">예정된 모임이 없습니다.</p>
+                    <a sec:authorize="isAuthenticated()"
+                       th:if="${study.published && !study.closed && study.isManager(#authentication.principal)}"
+                       class="btn btn-sm btn-outline-success rounded-pill px-3"
+                       th:href="@{'/study/' + ${study.path} + '/new-event'}">
+                        <i class="fa-solid fa-plus me-1"></i> 첫 번째 모임 만들기
+                    </a>
+                </div>
+
+                <!-- 새 모임 카드 그리드 -->
+                <div class="row g-3" th:if="${newEvents.size() > 0}">
+                    <div class="col-md-6" th:each="event: ${newEvents}">
+                        <a th:href="@{'/study/' + ${study.path} + '/events/' + ${event.id}}"
+                           class="card border-0 shadow-sm rounded-3 text-decoration-none h-100 hover-lift">
+                            <div class="card-body p-4">
+                                <h6 class="fw-bold text-dark mb-3" th:text="${event.title}">모임 이름</h6>
+                                <div class="d-flex flex-column gap-2">
+                                    <div class="d-flex align-items-center text-muted small">
+                                        <i class="fa-solid fa-calendar-days me-2 text-primary"></i>
+                                        <span class="calendar" th:text="${event.startDateTime}">시작 일시</span>
+                                    </div>
+                                    <div class="d-flex align-items-center text-muted small">
+                                        <i class="fa-solid fa-clock me-2 text-warning"></i>
+                                        <span>모집 마감 <span class="fromNow fw-semibold" th:text="${event.endEnrollmentDateTime}">마감</span></span>
+                                    </div>
+                                    <div th:if="${event.limitOfEnrollments != 0}" class="d-flex align-items-center text-muted small">
+                                        <i class="fa-solid fa-users me-2 text-success"></i>
+                                        <span>
+                                            <span th:text="${event.limitOfEnrollments}">10</span>명 모집
+                                            (<span class="fw-semibold text-success" th:text="${event.numberOfRemainSpots()}">5</span>자리 남음)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-transparent border-top-0 pb-3 px-4">
+                                <span class="text-primary small fw-semibold">자세히 보기 <i class="fa-solid fa-arrow-right ms-1"></i></span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 지난 모임 섹션 -->
+            <div th:if="${oldEvents.size() > 0}" class="mb-4">
+                <h6 class="fw-bold text-muted mb-3">
+                    <i class="fa-solid fa-clock-rotate-left text-secondary me-2"></i>지난 모임
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill ms-1"
+                          th:text="${oldEvents.size()}">0</span>
+                </h6>
+                <div class="card border-0 shadow-sm rounded-3">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-4 py-3">#</th>
+                                    <th class="py-3">모임 이름</th>
+                                    <th class="py-3">종료 일시</th>
+                                    <th class="pe-4 py-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody th:each="event: ${oldEvents}">
+                                <tr>
+                                    <td class="ps-4 text-muted" th:text="${eventStat.count}">1</td>
+                                    <td class="fw-semibold" th:text="${event.title}">모임 이름</td>
+                                    <td class="text-muted small">
+                                        <span class="date-weekday-time" th:text="${event.endDateTime}">종료</span>
+                                    </td>
+                                    <td class="pe-4">
+                                        <a th:href="@{'/study/' + ${study.path} + '/events/' + ${event.id}}"
+                                           class="btn btn-sm btn-outline-secondary rounded-pill px-3">보기</a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="fragments.html :: footer"></div>
+<script th:replace="fragments.html :: tooltip"></script>
+<script th:replace="fragments.html :: date-time"></script>
+</body>
+</html>

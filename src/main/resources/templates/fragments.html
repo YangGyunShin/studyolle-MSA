@@ -1,0 +1,718 @@
+<!-- fragments.html -->
+<!DOCTYPE html>
+<html lang="ko"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<!-- ============================================================
+     head fragment: 페이지 <head> 영역 공통 정의
+
+     [변경사항 - 글래스모피즘 디자인 통일]
+     - 인라인 <style> 블록 -> 외부 CSS (main-style.css) 분리
+       (glassmorphism.css와 동일한 방식: Thymeleaf 버퍼 오버플로우 방지)
+     - Outfit 폰트 추가 (글래스모피즘 타이틀용 영문 폰트)
+     - Noto Sans KR 폰트 웨이트 확장 (600, 700 추가)
+     ============================================================ -->
+<head th:fragment="head">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>StudyOlle</title>
+
+    <!-- ✅ 웹 폰트
+         - IBM Plex Sans KR: 깔끔하면서도 따뜻한 느낌의 한글 폰트
+         - Gowun Batang: 부드러운 세리프체 (서브텍스트, 설명문에 포인트)
+         - Pretendard: 폴백용 한국어 폰트 -->
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+
+    <!-- ✅ Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+
+    <!-- ✅ Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- ✅ FontAwesome 아이콘 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" crossorigin="anonymous" referrerpolicy="no-referrer"/>
+
+    <!-- ✅ Tagify (태그 입력 UI) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css">
+
+    <!-- ✅ Summernote (에디터) -->
+    <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs4.min.css" rel="stylesheet">
+
+    <!-- ✅ 메인 사이트 스타일 (Warm Flat Minimal 디자인) -->
+    <link rel="stylesheet" th:href="@{/css/main-style.css}">
+</head>
+
+<!-- ============================================================
+     메인 네비게이션 바 (Warm Flat)
+
+     [변경사항 - v3 리디자인]
+     - 글래스모피즘 -> 솔리드 라이트 (backdrop-filter 제거)
+     - 웰 톤 배경 + 명확한 보더로 깔끔하게
+     ============================================================ -->
+<nav th:fragment="main-nav" class="navbar navbar-expand-lg navbar-glass sticky-top">
+    <div class="container-fluid px-4">
+        <!-- 로고 -->
+        <a class="navbar-brand d-flex align-items-center me-3" th:href="@{/}">
+            <img src="/images/logo_sm.png" width="30" height="30" alt="로고" class="me-2">
+            <strong>StudyOlle</strong>
+        </a>
+
+        <!-- 모바일 메뉴 토글 -->
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <!-- 메뉴 항목 -->
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <!-- 스터디 검색 폼
+                 고정 w-50 -> nav-search-form (clamp 반응형)
+                 main-style.css 섹션 3 참고 -->
+            <form th:action="@{/search/study}" method="get" class="d-flex me-auto ms-3 nav-search-form">
+                <input class="form-control me-2" name="keyword" type="search" placeholder="스터디 찾기">
+            </form>
+
+            <ul class="navbar-nav align-items-center">
+                <!-- 비로그인 메뉴 -->
+                <li class="nav-item" sec:authorize="!isAuthenticated()">
+                    <a class="nav-link" th:href="@{/login}">로그인</a>
+                </li>
+                <li class="nav-item" sec:authorize="!isAuthenticated()">
+                    <a class="nav-link" th:href="@{/sign-up}">회원가입</a>
+                </li>
+
+                <!-- 알림 아이콘 -->
+                <li class="nav-item" sec:authorize="isAuthenticated()">
+                    <a class="nav-link position-relative" th:href="@{/notifications}">
+                        <i class="fa-regular fa-bell fa-lg"></i>
+                        <span th:if="${hasNotification}" class="noti-ping"></span>
+                    </a>
+                </li>
+
+                <!-- 스터디 개설 버튼 (그라디언트) -->
+                <li class="nav-item d-none d-md-block" sec:authorize="isAuthenticated()">
+                    <a class="btn btn-nav-cta ms-3" th:href="@{/new-study}">+ 스터디 개설</a>
+                </li>
+
+                <!-- 사용자 드롭다운 -->
+                <li class="nav-item dropdown ms-3" sec:authorize="isAuthenticated()">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" data-bs-toggle="dropdown">
+                        <img th:if="${!#strings.isEmpty(account?.profileImage)}" th:src="${account.profileImage}" class="rounded-circle border me-2" width="28" height="28" alt="프로필">
+                        <span sec:authentication="name">닉네임</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end mt-2" aria-labelledby="userDropdown">
+                        <li><h6 class="dropdown-header">안녕하세요 👋</h6></li>
+                        <li><a class="dropdown-item" th:href="@{'/profile/' + ${#authentication.name}}">내 프로필</a></li>
+                        <li><a class="dropdown-item" th:href="@{/my-studies}">내 스터디</a></li>
+                        <li><a class="dropdown-item" th:href="@{/notifications}">알림</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" th:href="@{/settings/profile}">설정</a></li>
+                        <li>
+                            <form th:action="@{/logout}" method="post">
+                                <button type="submit" class="dropdown-item">로그아웃</button>
+                            </form>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+
+<!-- ✅ 푸터 (글래스 스타일) -->
+<div th:fragment="footer">
+    <footer class="footer-glass mt-5 py-4 text-center">
+        <div class="container">
+            <img src="/images/logo_long_kr.jpg" alt="스터디올래 로고" class="img-fluid mb-2 footer-logo" style="max-width: 160px; opacity: 0.8;">
+            <p class="brand-name mb-0">&copy; <span th:text="${T(java.time.Year).now().getValue()}"></span> StudyOlle. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- ✅ jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
+
+    <!-- ✅ Bootstrap Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+
+    <!-- ✅ Summernote -->
+    <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs4.min.js"></script>
+
+    <!-- ✅ Tagify -->
+    <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.min.js"></script>
+
+    <!-- ✅ Jdenticon -->
+    <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.2.0/dist/jdenticon.min.js"></script>
+</div>
+
+<!-- ✅ settings-menu fragment -->
+<div th:fragment="settings-menu (currentMenu)" class="list-group list-group-flush shadow-sm rounded overflow-hidden">
+    <a th:href="@{/settings/profile}"
+       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+       th:classappend="${currentMenu == 'profile'} ? 'active fw-bold'">
+        프로필
+    </a>
+    <a th:href="@{/settings/password}"
+       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+       th:classappend="${currentMenu == 'password'} ? 'active fw-bold'">
+        패스워드
+    </a>
+    <a th:href="@{/settings/notifications}"
+       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+       th:classappend="${currentMenu == 'notifications'} ? 'active fw-bold'">
+        알림
+    </a>
+    <a th:href="@{/settings/tags}"
+       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+       th:classappend="${currentMenu == 'tags'} ? 'active fw-bold'">
+        관심 주제
+    </a>
+    <a th:href="@{/settings/zones}"
+       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+       th:classappend="${currentMenu == 'zones'} ? 'active fw-bold'">
+        활동 지역
+    </a>
+    <a th:href="@{/settings/account}"
+       class="list-group-item list-group-item-action d-flex justify-content-between align-items-center text-danger"
+       th:classappend="${currentMenu == 'account'} ? 'active fw-bold text-white bg-danger border-danger'">
+        계정
+    </a>
+</div>
+
+<script type="application/javascript" th:inline="javascript" th:fragment="ajax-csrf-header">
+    $(function () {
+        var csrfToken = /*[[${_csrf.token}]]*/ null;
+        var csrfHeader = /*[[${_csrf.headerName}]]*/ null;
+        $(document).ajaxSend(function (e, xhr, options) {
+            xhr.setRequestHeader(csrfHeader, csrfToken);
+        });
+    });
+</script>
+
+<!-- ✅ 스터디 배너 이미지 -->
+<div th:fragment="study-banner" th:if="${study.useBanner}" class="study-banner-wrapper">
+    <img th:src="${study.image}" class="w-100" style="max-height: 280px; object-fit: cover;" alt="스터디 배너"/>
+</div>
+
+<!-- ✅ 스터디 정보 헤더 -->
+<div th:fragment="study-info">
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="d-flex flex-wrap align-items-start justify-content-between mb-3">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <a href="#" class="text-decoration-none" th:href="@{'/study/' + ${study.path}}">
+                                <h2 class="fw-bold text-dark mb-0" th:text="${study.title}">스터디 이름</h2>
+                            </a>
+                            <!-- 설정 버튼: 관리자에게만 표시 -->
+                            <a sec:authorize="isAuthenticated()"
+                               th:if="${study.isManager(#authentication.principal)}"
+                               class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+                               th:href="@{'/study/' + ${study.path} + '/settings/description'}"
+                               data-bs-toggle="tooltip" title="스터디 설정">
+                                <i class="fa-solid fa-gear"></i>
+                            </a>
+                        </div>
+                        <p class="text-muted mb-2" th:text="${study.shortDescription}">짧은 소개</p>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <span th:if="${!study.published}" class="badge bg-secondary-subtle rounded-pill px-3 py-2"
+                              data-bs-toggle="tooltip" title="스터디 공개 준비중">
+                            <i class="fa-solid fa-file-pen me-1"></i> 준비중
+                        </span>
+                        <span th:if="${study.closed}" class="badge bg-danger-subtle rounded-pill px-3 py-2"
+                              data-bs-toggle="tooltip" title="스터디 종료됨">
+                            <i class="fa-solid fa-lock me-1"></i> 종료
+                        </span>
+                        <span th:if="${study.recruiting}" class="badge bg-success-subtle rounded-pill px-3 py-2">
+                            <i class="fa-solid fa-user-plus me-1"></i> 모집중
+                        </span>
+                        <span th:if="${study.approvalRequired}" class="badge bg-warning-subtle text-warning-emphasis rounded-pill px-3 py-2"
+                              data-bs-toggle="tooltip" title="관리자 승인 후 가입">
+                            <i class="fa-solid fa-shield-halved me-1"></i> 승인제
+                        </span>
+                        <span th:if="${!study.recruiting && !study.closed}" class="badge bg-warning-subtle rounded-pill px-3 py-2">
+                            <i class="fa-solid fa-pause me-1"></i> 모집 마감
+                        </span>
+                        <!-- 가입 버튼: 스터디의 joinType에 따라 분기 -->
+                        <span sec:authorize="isAuthenticated()" th:if="${study.isJoinable(#authentication.principal)}">
+                            <!-- 승인제: 대기 중인 신청이 있으면 '신청 중' 배지 표시 -->
+                            <span th:if="${study.approvalRequired && hasPendingRequest}">
+                                <button class="btn btn-outline-secondary rounded-pill px-4" disabled>
+                                    <i class="fa-solid fa-hourglass-half me-1"></i> 신청 중
+                                </button>
+                            </span>
+                            <!-- 승인제: '가입 신청' 버튼 -->
+                            <a th:if="${study.approvalRequired && !hasPendingRequest}"
+                               class="btn btn-primary rounded-pill px-4"
+                               th:href="@{'/study/' + ${study.path} + '/join'}">
+                                <i class="fa-solid fa-paper-plane me-1"></i> 가입 신청
+                                <span class="badge bg-white text-primary ms-1" th:text="${study.members.size()}">1</span>
+                            </a>
+                            <!-- 자유 가입: 기존과 동일한 '가입하기' 버튼 -->
+                            <a th:if="${!study.approvalRequired}"
+                               class="btn btn-primary rounded-pill px-4"
+                               th:href="@{'/study/' + ${study.path} + '/join'}">
+                                <i class="fa-solid fa-right-to-bracket me-1"></i> 가입하기
+                                <span class="badge bg-white text-primary ms-1" th:text="${study.members.size()}">1</span>
+                            </a>
+                        </span>
+                        <span sec:authorize="isAuthenticated()" th:if="${!study.closed && study.isMember(#authentication.principal)}">
+                            <a class="btn btn-outline-warning rounded-pill px-4" th:href="@{'/study/' + ${study.path} + '/leave'}">
+                                <i class="fa-solid fa-arrow-right-from-bracket me-1"></i> 탈퇴
+                                <span class="badge bg-warning text-dark ms-1" th:text="${study.members.size()}">1</span>
+                            </a>
+                        </span>
+                        <!-- 게시판 버튼 (멤버/관리자용) -->
+                        <span sec:authorize="isAuthenticated()" th:if="${study.isManager(#authentication.principal) || study.isMember(#authentication.principal)}">
+                            <a class="btn btn-outline-secondary rounded-pill px-3" th:href="@{'/study/' + ${study.path} + '/board'}">
+                                <i class="fa-solid fa-clipboard-list me-1"></i> 게시판
+                            </a>
+                        </span>
+                        <span sec:authorize="isAuthenticated()" th:if="${study.published && !study.closed && study.isManager(#authentication.principal)}">
+                            <a class="btn btn-outline-primary rounded-pill px-3" th:href="@{'/study/' + ${study.path} + '/new-event'}">
+                                <i class="fa-solid fa-plus me-1"></i> 모임 만들기
+                            </a>
+                        </span>
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2" th:if="${study.tags.size() > 0 || study.zones.size() > 0}">
+                    <a th:each="tag: ${study.tags}" th:href="@{'/search/tag/' + ${tag.title}}"
+                       class="badge bg-primary-subtle rounded-pill px-3 py-2 text-decoration-none">
+                        <i class="fa-solid fa-tag me-1"></i> <span th:text="${tag.title}">Tag</span>
+                    </a>
+                    <a th:each="zone: ${study.zones}" th:href="@{'/search/zone/' + ${zone.id}}"
+                       class="badge bg-danger-subtle rounded-pill px-3 py-2 text-decoration-none">
+                        <i class="fa-solid fa-map-pin me-1"></i> <span th:text="${zone.localNameOfCity}">City</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ✅ 스터디 설정 사이드바 메뉴 -->
+<div th:fragment="study-settings-menu (currentMenu)" class="list-group list-group-flush shadow-sm rounded-3 overflow-hidden">
+    <a class="list-group-item list-group-item-action d-flex align-items-center py-3"
+       th:classappend="${currentMenu == 'description'}? 'active fw-bold'"
+       th:href="@{'/study/' + ${study.path} + '/settings/description'}">
+        <i class="fa-solid fa-pen-to-square me-2"></i> 소개
+    </a>
+    <a class="list-group-item list-group-item-action d-flex align-items-center py-3"
+       th:classappend="${currentMenu == 'image'}? 'active fw-bold'"
+       th:href="@{'/study/' + ${study.path} + '/settings/banner'}">
+        <i class="fa-solid fa-image me-2"></i> 배너 이미지
+    </a>
+    <a class="list-group-item list-group-item-action d-flex align-items-center py-3"
+       th:classappend="${currentMenu == 'tags'}? 'active fw-bold'"
+       th:href="@{'/study/' + ${study.path} + '/settings/tags'}">
+        <i class="fa-solid fa-tags me-2"></i> 스터디 주제
+    </a>
+    <a class="list-group-item list-group-item-action d-flex align-items-center py-3"
+       th:classappend="${currentMenu == 'zones'}? 'active fw-bold'"
+       th:href="@{'/study/' + ${study.path} + '/settings/zones'}">
+        <i class="fa-solid fa-map-location-dot me-2"></i> 활동 지역
+    </a>
+    <a class="list-group-item list-group-item-action d-flex align-items-center py-3"
+       th:classappend="${currentMenu == 'join-requests'}? 'active fw-bold'"
+       th:href="@{'/study/' + ${study.path} + '/settings/join-requests'}">
+        <i class="fa-solid fa-user-check me-2"></i> 가입 관리
+    </a>
+    <a class="list-group-item list-group-item-action d-flex align-items-center py-3 text-danger"
+       th:classappend="${currentMenu == 'study'}? 'active fw-bold text-white bg-danger border-danger'"
+       th:href="@{'/study/' + ${study.path} + '/settings/study'}">
+        <i class="fa-solid fa-shield-halved me-2"></i> 스터디
+    </a>
+</div>
+
+<!-- ✅ 스터디 설정 상단 네비게이션 (설정 페이지 전용)
+     [리팩터링] 기존 4개 탭(소개/구성원/모임/설정)을 통합 뷰로 변경하면서,
+     설정 페이지에서만 '스터디로 돌아가기' + '설정' 탭을 표시 -->
+<div th:fragment="study-menu (studyMenu)" class="border-bottom bg-white">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <nav class="nav nav-pills gap-1 py-2">
+                    <a class="nav-link rounded-pill px-3 py-2"
+                       th:href="@{'/study/' + ${study.path}}">
+                        <i class="fa-solid fa-arrow-left me-1"></i> 스터디로 돌아가기
+                    </a>
+                    <a sec:authorize="isAuthenticated()" th:if="${study.isManager(#authentication.principal)}"
+                       class="nav-link rounded-pill px-3 py-2 active"
+                       th:href="@{'/study/' + ${study.path} + '/settings/description'}">
+                        <i class="fa-solid fa-gear me-1"></i> 설정
+                    </a>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ✅ 구성원 목록 -->
+<div th:fragment="member-list (members, isManager)">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="row g-3">
+                    <div class="col-md-6 col-lg-4" th:each="member: ${members}">
+                        <div class="card border-0 shadow-sm rounded-3 h-100">
+                            <div class="card-body d-flex align-items-center p-3">
+                                <svg th:if="${#strings.isEmpty(member?.profileImage)}"
+                                     th:data-jdenticon-value="${member.nickname}"
+                                     width="56" height="56" class="rounded-circle border bg-light flex-shrink-0 me-3"></svg>
+                                <img th:if="${!#strings.isEmpty(member?.profileImage)}"
+                                     th:src="${member?.profileImage}"
+                                     width="56" height="56" class="rounded-circle border object-fit-cover flex-shrink-0 me-3"/>
+                                <div class="min-width-0">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <a th:href="@{'/profile/' + ${member.nickname}}" class="fw-semibold text-dark text-decoration-none"
+                                           th:text="${member.nickname}">닉네임</a>
+                                        <span th:if="${isManager}" class="badge badge-admin rounded-pill px-2 py-1">
+                                            <i class="fa-solid fa-crown me-1"></i>관리자
+                                        </span>
+                                    </div>
+                                    <p class="text-muted small mb-0 text-truncate" th:text="${member.bio ?: '소개가 없습니다'}">소개</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:fragment="tooltip" type="application/javascript">
+    $(function () {
+        $('[data-toggle="tooltip"]').tooltip()
+    })
+</script>
+
+<!-- ✅ update-tags -->
+<div th:fragment="update-tags (baseUrl)">
+    <script type="application/javascript">
+        $(function () {
+            function tagRequest(url, tagTitle) {
+                $.ajax({
+                    dataType: "json",
+                    contentType: "application/json; charset=utf-8",
+                    method: "POST",
+                    url: "[(${baseUrl})]" + url,
+                    data: JSON.stringify({ 'tagTitle': tagTitle })
+                }).done(function (data, status) {
+                    console.log("Tag " + url + ": " + data + " (" + status + ")");
+                }).fail(function (jqXHR, textStatus, errorThrown) {
+                    console.error("Tag request failed:", textStatus, errorThrown);
+                });
+            }
+            function onAdd(e) { tagRequest("/add", e.detail.data.value); }
+            function onRemove(e) { tagRequest("/remove", e.detail.data.value); }
+
+            var tagInput = document.querySelector("#tags");
+            var whitelistEl = document.querySelector("#whitelist");
+            var whitelist = [];
+            if (whitelistEl) {
+                try {
+                    whitelist = JSON.parse(whitelistEl.textContent.trim());
+                    if (!Array.isArray(whitelist)) whitelist = [];
+                } catch (e) { whitelist = []; }
+            }
+            var tagify = new Tagify(tagInput, {
+                pattern: /^.{0,20}$/,
+                whitelist: whitelist,
+                dropdown: { enabled: 1, maxItems: 10 }
+            });
+            tagify.on("add", onAdd);
+            tagify.on("remove", onRemove);
+            tagify.DOM.input.classList.add('form-control');
+        });
+    </script>
+</div>
+
+<!-- ✅ update-zones -->
+<div th:fragment="update-zones (baseUrl)">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css">
+    <style>
+        .tagify__dropdown { background: #fff !important; border: 1px solid #dee2e6 !important; border-radius: 0.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; min-width: 300px !important; max-width: 600px !important; }
+        .tagify__dropdown__wrapper { background: #fff !important; }
+        .tagify__dropdown__item { color: #333 !important; padding: 8px 12px !important; font-size: 14px !important; }
+        .tagify__dropdown__item--active, .tagify__dropdown__item:hover { background: #8e85b0 !important; color: #fff !important; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.min.js"></script>
+    <script type="application/javascript">
+        $(function () {
+            function tagRequest(url, zoneName) {
+                $.ajax({
+                    dataType: "json",
+                    contentType: "application/json; charset=utf-8",
+                    method: "POST",
+                    url: "[(${baseUrl})]" + url,
+                    data: JSON.stringify({ 'zoneName': zoneName })
+                }).done(function (data, status) {
+                    console.log(`${data} and status is ${status}`);
+                });
+            }
+            function onAdd(e) { tagRequest("/add", e.detail.data.value); }
+            function onRemove(e) { tagRequest("/remove", e.detail.data.value); }
+
+            var tagInput = document.querySelector("#zones");
+            var allZones = JSON.parse(document.querySelector("#whitelist").textContent);
+            var tagify = new Tagify(tagInput, {
+                enforceWhitelist: true,
+                whitelist: allZones,
+                dropdown: { enabled: 1, maxItems: 20 }
+            });
+            tagify.on('input', function(e) {
+                var value = e.detail.value.toLowerCase();
+                var filtered = allZones.filter(function(item) {
+                    return item.toLowerCase().indexOf(value) > -1;
+                });
+                tagify.whitelist = filtered;
+                tagify.dropdown.show(value);
+                setTimeout(function() {
+                    var dropdown = document.querySelector('.tagify__dropdown');
+                    if (dropdown) {
+                        var scopeWidth = tagify.DOM.scope.getBoundingClientRect().width;
+                        dropdown.style.minWidth = Math.max(scopeWidth, 300) + 'px';
+                        dropdown.style.maxWidth = Math.max(scopeWidth, 600) + 'px';
+                    }
+                }, 0);
+            });
+            tagify.on("add", onAdd);
+            tagify.on("remove", onRemove);
+            tagify.DOM.input.classList.add('form-control');
+        });
+    </script>
+</div>
+
+<!-- ✅ 날짜/시간 포맷 -->
+<div th:fragment="date-time">
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.30.1/min/moment-with-locales.min.js"></script>
+    <script type="application/javascript">
+        $(function () {
+            moment.locale('ko');
+            var fmt = "YYYY-MM-DDTHH:mm";
+            $(".date-time").text((i, dt) => moment(dt, fmt).format('LLL'));
+            $(".date").text((i, dt) => moment(dt, fmt).format('LL'));
+            $(".weekday").text((i, dt) => moment(dt, fmt).format('dddd'));
+            $(".time").text((i, dt) => moment(dt, fmt).format('LT'));
+            $(".calendar").text((i, dt) => moment(dt, fmt).calendar());
+            $(".fromNow").text((i, dt) => moment(dt, fmt).fromNow());
+            $(".date-weekday-time").text((i, dt) => moment(dt, fmt).format('LLLL'));
+        });
+    </script>
+</div>
+
+<div th:fragment="editor-script">
+    <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs4.min.js"></script>
+    <script type="application/javascript">
+        $(function () {
+            $('.editor').summernote({
+                fontNames: ['Arial', 'Arial Black', 'Comic Sans MS', 'Courier New', 'Noto Sans KR', 'Merriweather'],
+                placeholder: '스터디의 목표, 일정, 진행 방식, 사용할 교재 또는 인터넷 강좌 그리고 모집중인 스터디원 등 스터디에 대해 자세히 적어 주세요.',
+                tabsize: 2,
+                height: 300
+            });
+        });
+    </script>
+</div>
+
+<div th:fragment="message" th:if="${message}" class="alert alert-info alert-dismissible fade show mt-3" role="alert">
+    <span th:text="${message}">완료</span>
+    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+    </button>
+</div>
+
+<!-- ✅ 모임 폼 (글래스모피즘 디자인) -->
+<div th:fragment="event-form (mode, action)">
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="event-form-glass">
+                    <!-- 폼 헤더 -->
+                    <div class="event-form-header">
+                        <p class="text-muted small mb-1">
+                            <a class="study-link" th:href="@{'/study/' + ${study.path}}" th:text="${study.title}">스터디</a>
+                        </p>
+                        <h2>
+                            <span th:if="${mode == 'edit'}">모임 수정</span>
+                            <span th:if="${mode == 'new'}">새 모임 만들기</span>
+                        </h2>
+                    </div>
+
+                    <form class="needs-validation" th:action="@{${action}}" th:object="${eventForm}" method="post" novalidate>
+                        <!-- 모임 이름 -->
+                        <div class="form-group">
+                            <label for="title"><i class="fa-solid fa-pen me-1 section-icon"></i> 모임 이름</label>
+                            <input id="title" type="text" th:field="*{title}" class="form-control" placeholder="모임 이름을 입력하세요" required>
+                            <small class="form-text">모임 이름을 50자 이내로 입력하세요.</small>
+                            <small class="invalid-feedback">모임 이름을 입력하세요.</small>
+                            <small class="form-text text-danger" th:if="${#fields.hasErrors('title')}" th:errors="*{title}">Error</small>
+                        </div>
+
+                        <!-- 모집 방법 -->
+                        <div class="form-group" th:if="${mode == 'new'}">
+                            <label for="eventType"><i class="fa-solid fa-list-check me-1 section-icon"></i> 모집 방법</label>
+                            <select th:field="*{eventType}" class="form-control" id="eventType">
+                                <option th:value="FCFS">선착순</option>
+                                <option th:value="CONFIRMATIVE">관리자 확인</option>
+                            </select>
+                            <small class="form-text">
+                                <strong>선착순</strong> — 인원 이내 접수는 자동 확정, 초과 신청은 대기<br/>
+                                <strong>관리자 확인</strong> — 관리자가 직접 신청을 승인/거절
+                            </small>
+                        </div>
+
+                        <!-- 모집 인원 -->
+                        <div class="form-group">
+                            <label for="limitOfEnrollments"><i class="fa-solid fa-users me-1 section-icon"></i> 모집 인원</label>
+                            <input id="limitOfEnrollments" type="number" th:field="*{limitOfEnrollments}" class="form-control" placeholder="2" style="max-width: 200px;">
+                            <small class="form-text">최소 2인 이상. 최대 수용 가능한 인원을 설정하세요.</small>
+                            <small class="form-text text-danger" th:if="${#fields.hasErrors('limitOfEnrollments')}" th:errors="*{limitOfEnrollments}">Error</small>
+                        </div>
+
+                        <!-- 일시 그리드 -->
+                        <div class="event-form-grid">
+                            <div class="form-group">
+                                <label for="endEnrollmentDateTime"><i class="fa-solid fa-clock me-1 section-icon"></i> 등록 마감</label>
+                                <input id="endEnrollmentDateTime" type="datetime-local" th:field="*{endEnrollmentDateTime}" class="form-control" required>
+                                <small class="form-text">마감 이전에만 참가 신청 가능</small>
+                                <small class="invalid-feedback">마감 일시를 입력하세요.</small>
+                                <small class="form-text text-danger" th:if="${#fields.hasErrors('endEnrollmentDateTime')}" th:errors="*{endEnrollmentDateTime}">Error</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="startDateTime"><i class="fa-solid fa-calendar-day me-1 section-icon"></i> 모임 시작</label>
+                                <input id="startDateTime" type="datetime-local" th:field="*{startDateTime}" class="form-control" required>
+                                <small class="form-text">모임 시작 일시</small>
+                                <small class="invalid-feedback">시작 일시를 입력하세요.</small>
+                                <small class="form-text text-danger" th:if="${#fields.hasErrors('startDateTime')}" th:errors="*{startDateTime}">Error</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="endDateTime"><i class="fa-solid fa-calendar-check me-1 section-icon"></i> 모임 종료</label>
+                                <input id="endDateTime" type="datetime-local" th:field="*{endDateTime}" class="form-control" required>
+                                <small class="form-text">종료 일시 후 자동 종료 상태로 변경</small>
+                                <small class="invalid-feedback">종료 일시를 입력하세요.</small>
+                                <small class="form-text text-danger" th:if="${#fields.hasErrors('endDateTime')}" th:errors="*{endDateTime}">Error</small>
+                            </div>
+                        </div>
+
+                        <!-- 모임 설명 -->
+                        <div class="form-group">
+                            <label for="description"><i class="fa-solid fa-align-left me-1 section-icon"></i> 모임 설명</label>
+                            <textarea id="description" type="textarea" th:field="*{description}" class="editor form-control" placeholder="모임을 자세히 설명해 주세요." required></textarea>
+                            <small class="form-text">주제, 장소, 진행 방식 등을 적어주세요.</small>
+                            <small class="invalid-feedback">모임 설명을 입력하세요.</small>
+                            <small class="form-text text-danger" th:if="${#fields.hasErrors('description')}" th:errors="*{description}">Error</small>
+                        </div>
+
+                        <!-- 제출 버튼 -->
+                        <div class="form-group text-center mt-4">
+                            <button class="btn btn-primary btn-lg px-5" type="submit"
+                                    th:text="${mode == 'edit' ? '모임 수정' : '모임 만들기'}">모임 만들기</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ul th:fragment="notification-list (notifications)" class="list-group list-group-flush">
+    <a href="#" th:href="@{${noti.link}}" th:each="noti: ${notifications}"
+       class="list-group-item list-group-item-action">
+        <div class="d-flex w-100 justify-content-between">
+            <small class="text-muted" th:text="${noti.title}">Noti title</small>
+            <small class="fromNow text-muted" th:text="${noti.createdDateTime}">3 days ago</small>
+        </div>
+        <p th:text="${noti.message}" class="text-left mb-0 mt-1">message</p>
+    </a>
+</ul>
+
+<!-- ✅ 스터디 리스트 fragment
+     [디자인 개선]
+     - 콤팩트한 카드 레이아웃 (이미지 높이 축소, 태그 인라인 표시)
+     - 태그/지역 최대 3개까지만 표시하여 카드 높이 일정하게 유지
+     - 상태 배지 + 멤버 수 + 공개일을 콊하단에 배치
+-->
+<div th:fragment="study-list (studyList)" class="col-sm-12">
+    <div class="row">
+        <div class="col-md-4" th:each="study: ${studyList}">
+            <a th:href="@{'/study/' + ${study.path}}" class="text-decoration-none">
+                <div class="card mb-4 shadow-sm h-100 hover-lift">
+                    <!-- 이미지 영역 (상태 배지 포함) -->
+                    <div class="position-relative">
+                        <img th:if="${!#strings.isEmpty(study.image)}" th:src="${study.image}"
+                             class="card-img-top" th:alt="${study.title}">
+                        <div th:if="${#strings.isEmpty(study.image)}" class="card-img-top d-flex align-items-center justify-content-center"
+                             style="background: linear-gradient(135deg, #f5f3ef 0%, #ede9e3 100%);">
+                            <svg th:data-jdenticon-value="${study.path}" width="64" height="64"></svg>
+                        </div>
+                        <!-- 상태 배지 -->
+                        <div class="position-absolute top-0 start-0 p-2 d-flex gap-1">
+                            <span th:if="${study.closed}" class="badge rounded-pill px-2 py-1" style="font-size: 0.68rem; background: rgba(196,145,126,0.22); color: #8a5b48;">
+                                <i class="fa-solid fa-lock me-1"></i>종료
+                            </span>
+                            <span th:if="${study.recruiting && !study.closed}" class="badge rounded-pill px-2 py-1" style="font-size: 0.68rem; background: rgba(127,172,142,0.22); color: #3d6b4a;">
+                                <i class="fa-solid fa-user-plus me-1"></i>모집중
+                            </span>
+                            <span th:if="${!study.published && !study.closed}" class="badge rounded-pill px-2 py-1" style="font-size: 0.68rem; background: rgba(158,150,137,0.18); color: #4a4540;">
+                                <i class="fa-solid fa-file-pen me-1"></i>준비중
+                            </span>
+                        </div>
+                    </div>
+                    <!-- 카드 본문 -->
+                    <div class="card-body d-flex flex-column p-3">
+                        <h6 class="card-title fw-bold mb-1" style="color: #4a4540;" th:text="${study.title}"></h6>
+                        <p class="card-text text-muted mb-2" style="font-size: 0.8rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;"
+                           th:text="${study.shortDescription}">Short description</p>
+                        <!-- 태그/지역 (인라인, 최대 3개) -->
+                        <div class="mb-2 d-flex flex-wrap gap-1" th:if="${study.tags.size() > 0 || study.zones.size() > 0}">
+                            <span th:each="tag, stat : ${study.tags}" th:if="${stat.index < 2}"
+                                  class="badge bg-primary-subtle text-primary-emphasis rounded-pill" style="font-size: 0.7rem;">
+                                <i class="fa-solid fa-tag"></i> <span th:text="${tag.title}">Tag</span>
+                            </span>
+                            <span th:each="zone, stat : ${study.zones}" th:if="${stat.index < 1}"
+                                  class="badge bg-danger-subtle text-danger-emphasis rounded-pill" style="font-size: 0.7rem;">
+                                <i class="fa-solid fa-map-pin"></i> <span th:text="${zone.localNameOfCity}">City</span>
+                            </span>
+                            <span th:if="${study.tags.size() + study.zones.size() > 3}"
+                                  class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill" style="font-size: 0.7rem;"
+                                  th:text="'+' + (${study.tags.size() + study.zones.size() - 3})">+2</span>
+                        </div>
+                        <!-- 하단: 멤버 수 + 공개일 -->
+                        <div class="d-flex justify-content-between align-items-center mt-auto pt-2" style="border-top: 1px solid rgba(0,0,0,0.04);">
+                            <small class="text-muted" style="font-size: 0.75rem;">
+                                <i class="fa-solid fa-users me-1"></i>
+                                <span th:text="${study.memberCount}"></span>명
+                            </small>
+                            <small class="text-muted" style="font-size: 0.75rem;" th:if="${study.publishedDateTime != null}"
+                                   th:text="${#temporals.format(study.publishedDateTime, 'M월 d일')}"></small>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ✅ 유효성 검사 스크립트 -->
+<script type="application/javascript" th:fragment="form-validation">
+    (() => {
+        'use strict';
+        const forms = document.querySelectorAll('.needs-validation');
+        Array.from(forms).forEach(form => {
+            form.addEventListener('submit', event => {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    })();
+</script>
+
+</html>

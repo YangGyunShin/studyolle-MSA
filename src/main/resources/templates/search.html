@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<!-- ============================================================
+     스터디 검색 결과 페이지
+
+     [기능]
+     - 키워드 기반 검색 (스터디명, 태그, 지역)
+     - 필터: 모집 중 / 진행 중만 보기
+     - 정렬: 공개일순 / 멤버수순
+     - 페이지네이션 + mark.js 키워드 하이라이트
+
+     [Thymeleaf URL 빌드 전략]
+     @{...} 링크 표현식 안에서 삼항 연산자 + 문자열 연결은
+     파라미터 파서가 혼동하므로, th:href에 |...| 리터럴 치환을 사용합니다.
+     ============================================================ -->
+<head th:replace="~{fragments.html :: head}"></head>
+<body>
+
+<!-- ✅ 내비게이션 바 -->
+<div th:replace="~{fragments.html :: main-nav}"></div>
+
+<div class="container">
+
+    <!-- ======================================== -->
+    <!-- ✅ 키워드 없이 접속한 경우: 검색 안내 빈 상태 UI   -->
+    <!-- ======================================== -->
+    <div th:if="${#strings.isEmpty(keyword)}" class="py-5 text-center">
+        <div class="mb-4">
+            <i class="fa-solid fa-magnifying-glass" style="font-size: 3rem; color: #c4bfb6;"></i>
+        </div>
+        <h5 class="fw-semibold mb-2" style="color: #4a4540;">관심 있는 스터디를 검색해보세요</h5>
+        <p class="text-muted small mb-4">스터디 이름, 관심 주제, 활동 지역 등으로 검색할 수 있어요</p>
+        <div class="d-flex justify-content-center flex-wrap gap-2">
+            <span class="badge bg-primary-subtle text-primary-emphasis rounded-pill px-3 py-2">
+                <i class="fa-solid fa-hashtag me-1"></i> Spring Boot
+            </span>
+            <span class="badge bg-danger-subtle text-danger-emphasis rounded-pill px-3 py-2">
+                <i class="fa-solid fa-hashtag me-1"></i> 알고리즘
+            </span>
+            <span class="badge bg-success-subtle text-success-emphasis rounded-pill px-3 py-2">
+                <i class="fa-solid fa-hashtag me-1"></i> 토익
+            </span>
+            <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill px-3 py-2">
+                <i class="fa-solid fa-map-pin me-1"></i> 강남
+            </span>
+        </div>
+    </div>
+
+    <!-- ======================================== -->
+    <!-- ✅ 키워드가 있는 경우: 검색 결과 표시               -->
+    <!-- ======================================== -->
+    <div th:unless="${#strings.isEmpty(keyword)}">
+
+        <!-- 검색 결과 안내 -->
+        <div class="py-4 text-center">
+            <div th:if="${studyPage.totalElements == 0}" class="text-center py-5">
+                <div class="empty-icon empty-icon-slate mx-auto mb-2">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </div>
+                <p class="fw-medium mb-1" style="color: #4a4540;">
+                    <strong th:text="${keyword}" id="keyword" class="context"></strong>에 해당하는 스터디가 없습니다.
+                </p>
+                <p class="text-muted small mb-3">다른 키워드로 검색하거나 직접 스터디를 만들어보세요</p>
+                <a sec:authorize="isAuthenticated()" th:href="@{/new-study}"
+                   class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                    <i class="fa-solid fa-plus me-1"></i> 스터디 만들기
+                </a>
+            </div>
+            <p class="lead" th:if="${studyPage.totalElements > 0}">
+                <strong th:text="${keyword}" id="keyword" class="context"></strong>에 해당하는 스터디를
+                <span th:text="${studyPage.totalElements}"></span>개 찾았습니다.
+            </p>
+        </div>
+
+        <!-- ✅ 필터 + 정렬 바 -->
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+            <!-- 필터 토글 버튼 -->
+            <div class="d-flex flex-wrap gap-2">
+                <!-- 모집 중만 보기 -->
+                <a class="btn btn-sm rounded-pill px-3"
+                   th:classappend="${recruiting} ? 'btn-success' : 'btn-outline-secondary'"
+                   th:href="${recruiting}
+                       ? '/search/study?keyword=' + ${keyword} + '&amp;sort=' + ${sortProperty} + ',desc'
+                       : '/search/study?keyword=' + ${keyword} + '&amp;sort=' + ${sortProperty} + ',desc&amp;recruiting=true'">
+                    <i class="fa-solid fa-user-plus me-1"></i> 모집 중
+                </a>
+                <!-- 진행 중만 보기 (종료 제외) -->
+                <a class="btn btn-sm rounded-pill px-3"
+                   th:classappend="${open} ? 'btn-primary' : 'btn-outline-secondary'"
+                   th:href="${open}
+                       ? '/search/study?keyword=' + ${keyword} + '&amp;sort=' + ${sortProperty} + ',desc'
+                       : '/search/study?keyword=' + ${keyword} + '&amp;sort=' + ${sortProperty} + ',desc&amp;open=true'">
+                    <i class="fa-solid fa-circle-play me-1"></i> 진행 중
+                </a>
+                <!-- 필터 초기화 -->
+                <a th:if="${recruiting || open}" class="btn btn-sm btn-outline-danger rounded-pill px-3"
+                   th:href="'/search/study?keyword=' + ${keyword} + '&amp;sort=' + ${sortProperty} + ',desc'">
+                    <i class="fa-solid fa-xmark me-1"></i> 필터 해제
+                </a>
+            </div>
+
+            <!-- 정렬 드롭다운 -->
+            <div class="dropdown">
+                <button class="btn btn-sm btn-light dropdown-toggle rounded-pill px-3" type="button"
+                        id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fa-solid fa-arrow-down-wide-short me-1"></i>
+                    <span th:if="${sortProperty == 'publishedDateTime'}">공개일순</span>
+                    <span th:if="${sortProperty == 'memberCount'}">멤버수순</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton">
+                    <li>
+                        <a class="dropdown-item" th:classappend="${sortProperty == 'publishedDateTime'} ? 'active'"
+                           th:href="'/search/study?sort=publishedDateTime,desc&amp;keyword=' + ${keyword} + (${recruiting} ? '&amp;recruiting=true' : '') + (${open} ? '&amp;open=true' : '')">
+                            <i class="fa-solid fa-calendar me-1"></i> 공개일순
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" th:classappend="${sortProperty == 'memberCount'} ? 'active'"
+                           th:href="'/search/study?sort=memberCount,desc&amp;keyword=' + ${keyword} + (${recruiting} ? '&amp;recruiting=true' : '') + (${open} ? '&amp;open=true' : '')">
+                            <i class="fa-solid fa-users me-1"></i> 멤버수순
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ✅ 검색된 스터디 목록 -->
+        <div class="row justify-content-center">
+            <div th:replace="~{fragments.html :: study-list (studyList=${studyPage.content})}"></div>
+        </div>
+
+        <!-- ✅ 페이지네이션 -->
+        <div class="row justify-content-center" th:if="${studyPage.totalPages > 1}">
+            <div class="col-sm-10">
+                <nav>
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item" th:classappend="${!studyPage.hasPrevious()} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="'/search/study?keyword=' + ${keyword} + '&amp;sort=' + ${sortProperty} + ',desc&amp;page=' + (${studyPage.number} - 1) + (${recruiting} ? '&amp;recruiting=true' : '') + (${open} ? '&amp;open=true' : '')">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item" th:each="i : ${#numbers.sequence(0, studyPage.totalPages - 1)}" th:classappend="${i == studyPage.number} ? 'active'">
+                            <a class="page-link"
+                               th:href="'/search/study?keyword=' + ${keyword} + '&amp;sort=' + ${sortProperty} + ',desc&amp;page=' + ${i} + (${recruiting} ? '&amp;recruiting=true' : '') + (${open} ? '&amp;open=true' : '')"
+                               th:text="${i + 1}">1</a>
+                        </li>
+                        <li class="page-item" th:classappend="${!studyPage.hasNext()} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="'/search/study?keyword=' + ${keyword} + '&amp;sort=' + ${sortProperty} + ',desc&amp;page=' + (${studyPage.number} + 1) + (${recruiting} ? '&amp;recruiting=true' : '') + (${open} ? '&amp;open=true' : '')">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ✅ 푸터 -->
+<div th:replace="~{fragments.html :: footer}"></div>
+
+<!-- ✅ 키워드 하이라이트 -->
+<script src="https://cdn.jsdelivr.net/npm/mark.js/dist/jquery.mark.min.js"></script>
+<script type="application/javascript">
+    $(function(){
+        var keyword = $("#keyword").text();
+        if (keyword) {
+            var options = {
+                "each": function(element) {
+                    setTimeout(function() { $(element).addClass("animate"); }, 150);
+                }
+            };
+            $(".context").unmark({
+                done: function() { $(".context").mark(keyword, options); }
+            });
+        }
+    });
+</script>
+
+</body>
+</html>

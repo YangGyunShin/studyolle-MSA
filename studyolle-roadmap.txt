@@ -1,0 +1,117 @@
+================================================
+StudyOlle 남은 작업 로드맵
+================================================
+
+프로젝트 경로: /Users/shinyanggyun/Library/Mobile Documents/com~apple~CloudDocs/Spring/study/studyolle/
+
+
+================================================
+완료된 작업 (1~4단계)
+================================================
+
+✅ 1단계 — UI 일관성 & 퀵윈 (#8 빈 상태 패턴, #6 알림 개선, 스터디 카드 리뉴얼, NotificationController 분리)
+✅ 2단계 — 이메일 인증 & 프로필 (#9 이메일 인증, #13 프로필 완성도)
+✅ 3단계 — 가입 승인 시스템 (#11 가입 신청/승인)
+✅ 커스텀 에러 페이지 (404.html + error.html v2 개선)
+✅ #7 캘린더 뷰 (FullCalendar.js, 월간/주간 뷰, 색상 구분, 툴팁, 클릭 이동)
+   · CalendarController + CalendarService (modules/main/)
+   · CalendarEventResponse DTO
+   · EventRepository 날짜 범위 조회 추가
+   · index-after-login.html 캘린더 위젯
+   · main-style.css 섹션 30 캘린더 스타일
+
+✅ #10 스터디 내 게시판 (Board 모듈)
+   · 패키지: modules/board/ (MSA 분리 대비 독립 구조, Post → Board 네이밍)
+   · 엔티티: Board, BoardComment, BoardCategory(Enum: NOTICE/RESOURCE/FREE/QNA)
+   · DTO: BoardForm, BoardCommentForm
+   · Repository: BoardRepository (@EntityGraph 인라인 + Named 전략), BoardCommentRepository
+   · Service: BoardService (게시글/댓글 CRUD, 권한 검증, 이벤트 발행)
+   · Controller: BoardController (10개 엔드포인트, @RequestMapping 기반)
+   · Event: BoardCreatedEvent → StudyEventListener.handleBoardCreatedEvent()
+   · 알림: NotificationType.STUDY_NEW_BOARD 추가
+   · NotificationService.categorize() 4분류 확장
+   · NotificationController.putCategorizedNotifications() — newBoardNotifications 모델 바인딩
+   · notification/list.html — 새 게시글 알림 카드 섹션 추가
+   · 템플릿: board/list.html, board/form.html, board/view.html, board/edit-form.html
+   · fragments.html :: study-info — 게시판 버튼 추가 (멤버/관리자용)
+   · PackageDependencyTests — board 패키지 접근 허용 추가
+   · N+1 방지: 목록(인라인 createdBy), 상세(Named Board.withComments + subgraph)
+   · commentCount 비정규화 필드로 목록 성능 최적화
+   · Thymeleaf URL 파라미터 문법 수정 (카테고리 필터 + 페이징)
+
+
+================================================
+남은 작업
+================================================
+
+
+--- #12 스터디 통계 대시보드 (난이도: ⭐⭐) ---
+
+[현재 문제]
+- 관리자가 스터디 활성도를 수치로 파악할 수 없음
+- 모임 참석률, 멤버 추이 등 데이터가 있지만 시각화되지 않음
+
+[구현 방향]
+1. Chart.js 라이브러리 도입
+2. 스터디 설정 페이지에 "통계" 탭 추가
+3. 표시할 통계:
+   - 멤버 수 추이 (가입/탈퇴 시계열)
+   - 모임별 참석률 (막대 그래프)
+   - 최근 활동 빈도 (주간/월간)
+4. 관리자(managers)만 접근 가능
+
+[예상 변경 파일]
+- StudySettingsController (통계 엔드포인트)
+- EnrollmentRepository (참석률 집계 쿼리)
+- 새 템플릿: study/settings/statistics.html
+
+
+--- 실시간 채팅 (난이도: ⭐⭐⭐⭐) ---
+
+[구현 방향]
+1. WebSocket + STOMP 프로토콜
+2. SockJS fallback (WebSocket 미지원 환경)
+3. 스터디별 채팅방 (topic: /topic/study/{studyPath})
+4. 채팅 메시지 영속화 (ChatMessage 엔티티)
+
+[인프라 변경]
+- spring-boot-starter-websocket 의존성 추가
+- WebSocketConfig 신규 생성
+- STOMP 브로커 설정
+- 프론트엔드: SockJS + STOMP 클라이언트
+
+[주의사항]
+- 세션 관리 복잡도 높음
+- 메모리 사용량 증가 (연결당 소켓 유지)
+- 배포 시 로드밸런서 sticky session 또는 Redis pub/sub 필요
+→ 게시판 완성 후 사용자 피드백에 따라 채팅 도입 결정 권장
+
+
+================================================
+추가 개선 아이디어 (우선순위 낮음)
+================================================
+
+- 스터디 설정 페이지 UX 개선: 글래스모피즘 디자인 패턴 적용
+- 반응형 모바일 대응: 카드/레이아웃 모바일 깨짐 수정
+- 다크 모드: 글래스모피즘 디자인과 궁합 좋음
+
+
+================================================
+추천 구현 순서
+================================================
+
+1. #12 통계 대시보드 ← 다음 작업 추천
+2. 실시간 채팅
+
+
+================================================
+아키텍처 원칙 (일관되게 유지)
+================================================
+
+- 계층 분리: Controller → Service → Repository (직접 접근 금지)
+- Service 분리: 컨트롤러 책임 기준 (StudyService / StudySettingsService 패턴)
+- JPA: N+1 방지 (FETCH JOIN, IN 절, @EntityGraph 인라인/Named 전략), Cascade/OrphanRemoval 주의
+- 주석: 설계 의도와 변경 이력 포함 (구현 디테일보다 "왜" 중심)
+- 프론트엔드: 통일된 빈 상태 패턴, 글래스모피즘 스타일, 한국어 날짜 포맷
+- Thymeleaf: URL 파라미터는 @{...} 바깥 괄호 문법 사용, fragment는 ~{} 완전 구문 권장
+- 테스트: PackageDependencyTests에 새 모듈 추가 시 접근 규칙 업데이트 필수

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<!-- ============================================================
+     범용 에러 페이지 (error.html)
+
+     404를 제외한 모든 에러에 대한 폴백 페이지입니다.
+     Spring Boot의 BasicErrorController가 상태 코드별 전용 템플릿을
+     찾지 못하면 이 파일로 폴백합니다.
+
+     [v2 개선사항]
+     - 인라인 style → main-style.css 클래스(.error-icon) 분리
+     - 배경 오브 3개로 통일 (404 페이지, 랜딩 페이지와 일관성)
+     - 뒤로가기 <a onclick> → <button> 태그 (접근성 개선)
+     - 스터디 검색 폼 추가 (404 페이지와 동일한 UX 제공)
+     ============================================================ -->
+<head th:replace="fragments.html :: head"></head>
+<body class="page-main">
+
+<div th:replace="fragments.html :: main-nav"></div>
+
+<!-- ✅ 배경 장식 오브 (3개로 통일) -->
+<!-- page-orb 제거 (v4 Warm Flat Minimal) -->
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+
+            <!-- 에러 아이콘 (인라인 style → .error-icon 클래스) -->
+            <div class="error-icon">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+
+            <h2 class="fw-bold mb-3">스터디올래</h2>
+            <p class="text-muted mb-4">
+                요청을 처리하는 중 문제가 발생했습니다.<br/>
+                잠시 후 다시 시도해주세요.
+            </p>
+
+            <!-- ✅ 스터디 검색 (404 페이지와 동일한 UX 제공) -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-body p-4">
+                    <p class="text-muted small mb-3">
+                        <i class="fa-solid fa-magnifying-glass me-1"></i>
+                        스터디를 검색해보세요
+                    </p>
+                    <form th:action="@{/search/study}" method="get" class="d-flex gap-2">
+                        <input class="form-control" name="keyword" type="search"
+                               placeholder="스터디 이름, 태그, 지역으로 검색">
+                        <button class="btn btn-primary rounded-pill px-4" type="submit">검색</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 네비게이션 링크 (접근성: <a onclick> → <button>) -->
+            <div class="d-flex justify-content-center gap-3">
+                <a th:href="@{/}" class="btn btn-outline-primary rounded-pill px-4">
+                    <i class="fa-solid fa-house me-1"></i> 홈으로
+                </a>
+                <button type="button" onclick="history.back()" class="btn btn-outline-secondary rounded-pill px-4">
+                    <i class="fa-solid fa-arrow-left me-1"></i> 이전 페이지
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="fragments.html :: footer"></div>
+
+</body>
+</html>
