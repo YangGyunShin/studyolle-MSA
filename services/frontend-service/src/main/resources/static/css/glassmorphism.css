@@ -1,0 +1,238 @@
+/* ============================================================
+   glassmorphism.css  (MSA 버전)
+   - 로그인 / 회원가입 / 이메일 인증 페이지 공용 스타일 (Warm Flat Minimal)
+   - 모노리틱에서 복사. CSS 자체는 Thymeleaf 의존성이 없으므로 내용 동일.
+   - MSA 추가: .result-card, .glass-alert-success, .btn-glass:disabled 등
+   ============================================================ */
+
+/* 1. 기본 리셋 & 레이아웃 */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body.glass-page {
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', -apple-system, sans-serif;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    overflow-x: hidden; position: relative; background: #f5f3ef;
+}
+
+/* 2. 배경 */
+.bg-animated {
+    position: fixed; inset: 0; z-index: -2;
+    background:
+        radial-gradient(ellipse at 20% 0%, rgba(142, 133, 176, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(191, 164, 115, 0.06) 0%, transparent 50%),
+        #f5f3ef;
+}
+
+/* 3. 장식 구체 숨김 */
+.orb, .orb-1, .orb-2, .orb-3 { display: none !important; }
+
+/* 4. 카드 */
+.glass-card {
+    background: #fdfcfa; border: 1px solid #e8e4dd; border-radius: 20px;
+    padding: 48px 40px; width: 100%; max-width: 460px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    animation: cardEntry 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0; transform: translateY(30px);
+}
+@keyframes cardEntry { to { opacity: 1; transform: translateY(0); } }
+
+/* 5. 타이포그래피 */
+.brand-label {
+    font-size: 0.85rem; font-weight: 500; color: #b8b2a8;
+    text-align: center; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;
+}
+.page-title {
+    font-size: 2rem; font-weight: 700; color: #4a4540;
+    text-align: center; margin-bottom: 36px; letter-spacing: -0.5px;
+}
+.page-subtitle {
+    font-size: 0.9rem; color: #b8b2a8; text-align: center;
+    margin-bottom: 36px; font-family: 'Gowun Batang', serif;
+}
+
+/* 6. 입력 필드 */
+.form-group { position: relative; margin-bottom: 24px; }
+.form-group label {
+    display: block; font-size: 0.8rem; font-weight: 600;
+    color: #6b6560; margin-bottom: 8px; letter-spacing: 0.3px;
+}
+.input-wrapper { position: relative; }
+.input-wrapper .input-icon {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    color: #b8b2a8; font-size: 1.1rem; transition: color 0.3s ease; pointer-events: none;
+}
+.input-wrapper .check-icon {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%) scale(0);
+    width: 24px; height: 24px; border-radius: 50%; background: #7fac8e;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+}
+.input-wrapper .check-icon i { color: #fff; font-size: 0.75rem; font-weight: bold; }
+.input-wrapper.is-valid .check-icon { transform: translateY(-50%) scale(1); opacity: 1; }
+.input-wrapper.is-valid input {
+    border-color: rgba(127, 172, 142, 0.5); background: rgba(236, 244, 238, 0.5); padding-right: 50px;
+}
+.input-wrapper.is-valid .input-icon { color: #7fac8e; }
+.input-wrapper input {
+    width: 100%; padding: 14px 16px 14px 48px; background: #fdfcfa;
+    border: 1.5px solid #e8e4dd; border-radius: 12px; color: #4a4540; font-size: 0.95rem;
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', sans-serif;
+    transition: all 0.3s ease; outline: none;
+}
+.input-wrapper input::placeholder { color: #c4bfb6; }
+.input-wrapper input:focus { background: #fff; border-color: #a099bd; box-shadow: 0 0 0 3px rgba(142, 133, 176, 0.1); }
+.input-wrapper input:focus ~ .input-icon { color: #8e85b0; }
+.input-wrapper.is-valid input:focus { border-color: rgba(127, 172, 142, 0.6); box-shadow: 0 0 0 3px rgba(127, 172, 142, 0.1); }
+.input-wrapper.is-valid input:focus ~ .input-icon { color: #7fac8e; }
+.form-hint { font-size: 0.75rem; color: #b8b2a8; margin-top: 6px; padding-left: 4px; }
+.form-hint a { color: #8e85b0; text-decoration: none; font-weight: 500; transition: color 0.2s; }
+.form-hint a:hover { color: #7a7199; }
+.field-error { font-size: 0.78rem; color: #c4917e; margin-top: 6px; padding-left: 4px; }
+
+/* 7. 커스텀 체크박스 */
+.custom-check { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; cursor: pointer; }
+.custom-check input[type="checkbox"] {
+    appearance: none; -webkit-appearance: none; width: 20px; height: 20px;
+    border: 1.5px solid #e8e4dd; border-radius: 6px; background: #fdfcfa;
+    cursor: pointer; position: relative; transition: all 0.2s ease; flex-shrink: 0;
+}
+.custom-check input[type="checkbox"]:checked { background: #8e85b0; border-color: transparent; }
+.custom-check input[type="checkbox"]:checked::after {
+    content: ''; position: absolute; left: 6px; top: 3px;
+    width: 5px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.custom-check span { font-size: 0.85rem; color: #9e9689; }
+
+/* 8. 버튼 */
+.btn-glass {
+    width: 100%; padding: 16px; border: none; border-radius: 12px;
+    font-size: 1.05rem; font-weight: 600;
+    font-family: 'IBM Plex Sans KR', 'Pretendard Variable', sans-serif;
+    color: #fff; cursor: pointer; overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+.btn-glass:hover { transform: translateY(-2px); }
+.btn-glass:active { transform: translateY(0); }
+.btn-glass:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.btn-glass::after { display: none; }
+.btn-login { background: #4a4540; }
+.btn-login:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); }
+.btn-signup { background: #8e85b0; margin-top: 8px; }
+.btn-signup:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(142, 133, 176, 0.2); }
+
+/* 9. 알림 박스 */
+.glass-alert {
+    background: rgba(196, 145, 126, 0.08); border: 1px solid rgba(196, 145, 126, 0.2);
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 24px;
+    color: #a06850; font-size: 0.85rem; line-height: 1.5; animation: alertShake 0.4s ease;
+}
+.glass-alert a { color: #a06850; font-weight: 600; text-decoration: underline; }
+.glass-alert-warn {
+    background: rgba(191, 164, 115, 0.08); border: 1px solid rgba(191, 164, 115, 0.2);
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 24px;
+    color: #8a7342; font-size: 0.85rem; line-height: 1.5; animation: alertShake 0.4s ease;
+}
+.glass-alert-success {
+    background: rgba(127, 172, 142, 0.08); border: 1px solid rgba(127, 172, 142, 0.2);
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 24px;
+    color: #3d6b4a; font-size: 0.85rem; line-height: 1.5;
+}
+@keyframes alertShake {
+    0%, 100% { transform: translateX(0); } 20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
+}
+
+/* 10. 하단 링크 & 푸터 */
+.signup-link, .terms-text { text-align: center; margin-top: 24px; font-size: 0.85rem; color: #b8b2a8; }
+.terms-text { font-size: 0.8rem; margin-top: 20px; }
+.signup-link a, .terms-text a { color: #8e85b0; text-decoration: none; font-weight: 600; transition: color 0.2s; }
+.signup-link a:hover, .terms-text a:hover { color: #7a7199; }
+.back-link {
+    position: fixed; top: 28px; left: 32px; color: #9e9689; text-decoration: none;
+    font-size: 0.85rem; display: flex; align-items: center; gap: 6px; transition: color 0.2s;
+    animation: fadeIn 0.8s ease 0.3s forwards; opacity: 0;
+}
+.back-link:hover { color: #4a4540; }
+.footer-area {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    text-align: center; animation: fadeIn 1s ease 0.6s forwards; opacity: 0;
+}
+.footer-area .brand-name { font-size: 0.85rem; font-weight: 500; color: #b8b2a8; letter-spacing: 1px; }
+@keyframes fadeIn { to { opacity: 1; } }
+
+/* 11. 순차 등장 애니메이션 */
+.stagger-1 { animation: fieldFade 0.5s ease 0.3s forwards; opacity: 0; }
+.stagger-2 { animation: fieldFade 0.5s ease 0.4s forwards; opacity: 0; }
+.stagger-3 { animation: fieldFade 0.5s ease 0.5s forwards; opacity: 0; }
+.stagger-4 { animation: fieldFade 0.5s ease 0.6s forwards; opacity: 0; }
+.stagger-5 { animation: fieldFade 0.5s ease 0.7s forwards; opacity: 0; }
+.stagger-6 { animation: fieldFade 0.5s ease 0.8s forwards; opacity: 0; }
+@keyframes fieldFade {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 12. 반응형 */
+@media (max-width: 520px) {
+    .glass-card { margin: 16px; padding: 36px 24px; border-radius: 16px; }
+    .page-title { font-size: 1.6rem; }
+}
+
+/* 13. 결과 카드 - 이메일 인증 결과, check-email 안내 페이지용 */
+.result-card {
+    background: #fdfcfa; border: 1px solid #e8e4dd; border-radius: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    padding: 3rem 2.5rem; max-width: 520px; width: 100%; text-align: center;
+    animation: cardEntrance 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    opacity: 0; transform: translateY(30px) scale(0.95);
+}
+@keyframes cardEntrance { to { opacity: 1; transform: translateY(0) scale(1); } }
+.result-card.error-state { border-color: rgba(196, 145, 126, 0.3); }
+
+.mail-icon, .success-icon, .error-icon {
+    width: 90px; height: 90px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.5rem; font-size: 2.2rem; color: #fff;
+    animation: iconBounce 0.6s 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.mail-icon { background: #8e85b0; }
+.success-icon { background: #7fac8e; }
+.error-icon { background: #c4917e; }
+@keyframes iconBounce { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+.result-title {
+    font-weight: 800; font-size: 1.6rem; color: #4a4540;
+    margin-bottom: 0.5rem; letter-spacing: -0.5px;
+    animation: textFadeIn 0.5s 0.6s ease both;
+}
+.result-subtitle { font-size: 0.95rem; color: #6b6560; margin-bottom: 2rem; animation: textFadeIn 0.5s 0.7s ease both; }
+.result-subtitle strong { color: #8e85b0; font-weight: 700; }
+.result-email { font-weight: 700; color: #8e85b0; font-size: 1.05rem; margin-bottom: 1.5rem; animation: textFadeIn 0.5s 0.8s ease both; }
+@keyframes textFadeIn { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+
+.btn-resend, .btn-home {
+    background: #4a4540; color: #fff; border: none; border-radius: 12px;
+    padding: 0.85rem 2.5rem; font-weight: 700; font-size: 1rem;
+    transition: all 0.3s ease; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 8px;
+    animation: textFadeIn 0.5s 0.9s ease both; cursor: pointer;
+}
+.btn-resend:hover, .btn-home:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); color: #fff; }
+.btn-resend:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+.page-logo {
+    position: fixed; top: 24px; left: 32px;
+    display: flex; align-items: center; gap: 8px; text-decoration: none; z-index: 10;
+    animation: textFadeIn 0.5s 0.2s ease both;
+}
+.page-logo img { width: 32px; height: 32px; }
+.page-logo span { font-weight: 800; font-size: 1.1rem; color: #4a4540; }
+
+.confetti {
+    position: absolute; width: 8px; height: 8px; border-radius: 50%;
+    animation: confettiFall 2s ease-out forwards; opacity: 0;
+}
+@keyframes confettiFall {
+    0% { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+    100% { opacity: 0; transform: translateY(200px) rotate(720deg) scale(0.3); }
+}

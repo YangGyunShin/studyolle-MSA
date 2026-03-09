@@ -1,0 +1,58 @@
+// ============================================================
+// frontend-service/build.gradle
+//
+// 역할: HTML 페이지를 서빙하는 프론트엔드 서비스
+//
+// 핵심 원칙:
+//   - DB 없음 (JPA, 데이터소스 의존성 없음)
+//   - 비즈니스 로직 없음 (Thymeleaf 템플릿 서빙만)
+//   - Spring Security 없음 (페이지 접근 자체를 막을 필요 없음)
+//   - JWT 처리 없음 (브라우저 localStorage + JS 에서 직접 처리)
+//   - Eureka 클라이언트 포함 (서비스 디스커버리 등록)
+// ============================================================
+plugins {
+    id 'java'
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+}
+
+group = 'com.studyolle'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    set('springCloudVersion', "2024.0.1")
+}
+
+dependencies {
+    // Thymeleaf - 서버사이드 HTML 렌더링 (웹 페이지 서빙용)
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+
+    // Web - 내장 Tomcat + Spring MVC 컨트롤러
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // Eureka Client - 서비스 디스커버리 등록
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
