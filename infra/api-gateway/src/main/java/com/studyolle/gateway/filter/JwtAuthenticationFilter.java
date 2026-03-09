@@ -96,3 +96,68 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
     // 예: private boolean requireHttps; → yml에서 args로 값 전달 가능
     public static class Config {}
 }
+
+/*
+ * ============================================================
+ * [1] 왜 Claims를 거쳐서 accountId, nickname을 추출하는가
+ * ============================================================
+ *
+ * 클라이언트가 API Gateway에 전송하는 것은 오직 토큰 문자열 하나뿐이다.
+ *   Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMiLCJuaWNrbmFtZSI6InlhbmdneXVuIn0.서명값
+ *
+ * accountId와 nickname은 이 토큰 문자열 안에 인코딩되어 있다.
+ * exchange 객체에는 이 토큰 문자열만 존재하며, accountId와 nickname이 별도로 존재하지 않는다.
+ * 따라서 exchange에서 accountId와 nickname을 바로 꺼내는 것은 불가능하다.
+ *
+ * 토큰 문자열에서 값을 꺼내려면 반드시 파싱 과정이 필요하고,
+ * 파싱 결과로 생성된 객체가 바로 Claims이다.
+ *
+ *   exchange가 가진 것  →  "eyJhbGci..." (인코딩된 문자열)
+ *                                  ↓ 파싱 (Claims 생성)
+ *   Claims가 가진 것    →  { sub: "123", nickname: "양균", role: "ROLE_USER" }
+ *                                  ↓ 꺼내기
+ *   최종 추출           →  accountId = "123", nickname = "양균"
+ *
+ *
+ * ============================================================
+ * [2] Claims 생성 과정
+ * ============================================================
+ *
+ * JWT 토큰의 구조:
+ *   eyJhbGciOiJIUzI1NiJ9          (헤더 - Base64 인코딩)
+ *   .eyJzdWIiOiIxMjMiLCJuaWNrbmFtZSI6InlhbmdneXVuIn0  (페이로드 - Base64 인코딩)
+ *   .서명값                         (헤더+페이로드를 secret으로 서명한 값)
+ *
+ * parseSignedClaims(token) 호출 시 내부적으로 아래 세 단계가 순서대로 실행된다.
+ *
+ *   단계 1. 토큰을 헤더 / 페이로드 / 서명 세 부분으로 분리
+ *
+ *   단계 2. 서명 검증
+ *           헤더+페이로드를 jwt.secret으로 다시 서명한 값과 토큰의 서명값을 비교
+ *           일치하지 않으면 SignatureException 발생 → catch에서 401 반환
+ *           (토큰이 위변조된 경우 이 단계에서 걸림)
+ *
+ *   단계 3. 만료 검증
+ *           페이로드의 exp 값(만료 시각)과 현재 시각을 비교
+ *           만료된 경우 ExpiredJwtException 발생 → catch에서 401 반환
+ *
+ *   세 단계를 모두 통과하면 페이로드를 Map 형태로 꺼낼 수 있는 Claims 객체가 반환된다.
+ *
+ *
+ * ============================================================
+ * [3] 기존 exchange는 전달되는가
+ * ============================================================
+ *
+ * 전달되지 않는다. 기존 exchange는 버리고 새로 만든 modifiedExchange만 전달한다.
+ *
+ * ServerWebExchange는 불변 객체(immutable)이기 때문에
+ * 한 번 생성된 요청 객체의 헤더를 직접 추가하거나 수정할 수 없다.
+ *
+ * 따라서 mutate()로 기존 exchange의 모든 내용(URL, body, 기존 헤더 등)을 복사한 후
+ * X-Account-Id, X-Account-Nickname 헤더만 추가한 새 객체(modifiedExchange)를 생성해서 전달한다.
+ *
+ *   exchange          →  원본 요청 (Authorization 헤더만 있음)
+ *   modifiedExchange  →  원본 요청 복사 + X-Account-Id, X-Account-Nickname 헤더 추가
+ *
+ *   chain.filter(modifiedExchange) 호출 이후 기존 exchange는 사용되지 않는다.
+ */
