@@ -1,8 +1,15 @@
 /* ============================================================
-   glassmorphism.css  (MSA 버전)
-   - 로그인 / 회원가입 / 이메일 인증 페이지 공용 스타일 (Warm Flat Minimal)
-   - 모노리틱에서 복사. CSS 자체는 Thymeleaf 의존성이 없으므로 내용 동일.
-   - MSA 추가: .result-card, .glass-alert-success, .btn-glass:disabled 등
+   auth-style.css
+   Warm Flat Minimal 디자인 - 인증 페이지 공용 스타일
+
+   적용 페이지: login, sign-up, check-email, check-email-token, email-login
+
+   핵심 디자인 원칙:
+   - 배경: 단색 웜 그레이(#f5f3ef) - 눈에 편안한 따뜻한 톤
+   - 카드:  완전 불투명 크림 화이트(#fdfcfa) + 얇은 보더
+   - 포인트 컬러: 차분한 퍼플(#8e85b0), 웜 그린(#7fac8e), 웜 코랄(#c4917e)
+   - backdrop-filter 없음 - 블러/반투명 효과 일절 사용하지 않음
+   - 애니메이션은 입장 효과(등장, 바운스)만 유지 - 장식적 움직임 없음
    ============================================================ */
 
 /* 1. 기본 리셋 & 레이아웃 */
@@ -13,7 +20,7 @@ body.glass-page {
     overflow-x: hidden; position: relative; background: #f5f3ef;
 }
 
-/* 2. 배경 */
+/* 2. 배경 - 미세한 그라디언트만 (블러/오브 없음) */
 .bg-animated {
     position: fixed; inset: 0; z-index: -2;
     background:
@@ -22,10 +29,10 @@ body.glass-page {
         #f5f3ef;
 }
 
-/* 3. 장식 구체 숨김 */
+/* 3. 장식 구체 완전 숨김 */
 .orb, .orb-1, .orb-2, .orb-3 { display: none !important; }
 
-/* 4. 카드 */
+/* 4. 카드 - 솔리드 웜 */
 .glass-card {
     background: #fdfcfa; border: 1px solid #e8e4dd; border-radius: 20px;
     padding: 48px 40px; width: 100%; max-width: 460px;
@@ -178,7 +185,7 @@ body.glass-page {
     .page-title { font-size: 1.6rem; }
 }
 
-/* 13. 결과 카드 - 이메일 인증 결과, check-email 안내 페이지용 */
+/* 13. 결과 카드 - check-email, check-email-token 페이지용 */
 .result-card {
     background: #fdfcfa; border: 1px solid #e8e4dd; border-radius: 20px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);

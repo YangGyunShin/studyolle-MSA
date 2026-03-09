@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<!--
+    account/email-login.html  (MSA 버전)
+
+    [모노리틱 원본과의 구조적 차이]
+    - 모노리틱: fragments.html :: head / main-nav 를 가져와 일반 Bootstrap 레이아웃.
+                th:action="@{/email-login}" method="post" 폼 제출로 서버가 이메일 발송.
+                성공/실패를 서버가 ${message}, ${error} 모델로 담아 페이지를 다시 렌더링.
+
+    - MSA:      다른 인증 페이지들과 동일하게 auth-style.css (Warm Flat Minimal) 스타일 적용.
+                fragments.html 의존성 완전 제거.
+                버튼 클릭 시 JS 가 fetch(POST /api/auth/email-login) 직접 호출.
+                성공 시 "이메일을 발송했습니다" 안내 UI 로 DOM 전환 (페이지 리로드 없음).
+                실패 시 에러 메시지를 DOM 에 직접 표시.
+
+    [이 페이지의 역할]
+    비밀번호 없이 로그인하고 싶은 사용자가 이메일을 입력하면,
+    account-service 가 로그인 링크가 담긴 이메일을 발송한다.
+    사용자가 그 링크를 클릭하면 check-email-token.html 로 이동해 JWT 를 발급받는다.
+    즉, 회원가입 후 이메일 인증을 아직 안 한 사용자도 이 방식으로 로그인 가능하다.
+
+    [두 개의 화면 상태]
+    1. #inputCard  - 초기 표시. 이메일 입력 폼.
+    2. #sentCard   - 발송 성공 후 표시. 링크를 담은 확인 안내.
+    JS 가 두 카드 사이를 display 전환으로 전환하며, 전체 페이지 리로드는 없다.
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>이메일로 로그인 - StudyOlle</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" th:href="@{/css/auth-style.css}">
+</head>
+
+<body class="glass-page">
+
+    <div class="bg-animated"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <!-- 로그인 페이지로 돌아가기 -->
+    <a href="/login" class="back-link">
+        <i class="bi bi-arrow-left"></i> 로그인으로
+    </a>
+
+    <!-- =============================================================
+         화면 1: 이메일 입력 카드 (초기 표시)
+
+         [모노리틱과의 차이]
+         모노리틱: th:if="${error}" 와 th:if="${message}" 로 서버가
+                   성공/실패 알림을 렌더링했다.
+         MSA:      #errorBox 를 display:none 으로 숨겨두고,
+                   API 실패 시 JS 가 메시지를 삽입하고 보여준다.
+                   성공 시에는 이 카드 전체를 숨기고 #sentCard 를 표시한다.
+    ============================================================= -->
+    <div id="inputCard" class="glass-card">
+
+        <div class="brand-label stagger-1">StudyOlle</div>
+        <h1 class="page-title stagger-1">이메일로 로그인</h1>
+        <p class="page-subtitle stagger-1">비밀번호 없이 로그인 링크를 받아보세요</p>
+
+        <!-- 에러 메시지 박스 (초기 숨김) -->
+        <div id="errorBox" class="glass-alert stagger-1" style="display:none;">
+            <span id="errorMsg"></span>
+        </div>
+
+        <div>
+            <!-- 이메일 입력 -->
+            <div class="form-group stagger-2">
+                <label for="email">가입할 때 사용한 이메일</label>
+                <div class="input-wrapper">
+                    <i class="bi bi-envelope input-icon"></i>
+                    <input type="email" id="email"
+                           placeholder="your@email.com"
+                           data-validate="email"
+                           autocomplete="email">
+                    <div class="check-icon"><i class="bi bi-check2"></i></div>
+                </div>
+                <div class="form-hint">가입할 때 사용한 이메일을 입력하세요</div>
+            </div>
+
+            <!-- 발송 버튼 -->
+            <div class="stagger-3">
+                <button type="button" id="sendBtn" class="btn-glass btn-login">
+                    로그인 링크 보내기
+                </button>
+            </div>
+
+            <!-- 회원가입 / 비밀번호 로그인 안내 -->
+            <div class="signup-link stagger-4">
+                <a href="/login">비밀번호로 로그인</a>
+                &nbsp;·&nbsp;
+                스터디올래가 처음이라면 <a href="/sign-up">계정 만들기</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============================================================
+         화면 2: 발송 완료 안내 카드 (초기 숨김)
+
+         [모노리틱과의 차이]
+         모노리틱: 발송 성공 시 서버가 페이지를 다시 렌더링하고
+                   th:if="${message}" 알림을 표시했다 (전체 페이지 리로드).
+         MSA:      페이지 이동 없이 JS 가 #inputCard 를 숨기고
+                   이 카드를 보여주는 방식으로 전환한다.
+                   사용자가 입력한 이메일을 #sentEmail span 에 표시한다.
+    ============================================================= -->
+    <div id="sentCard" class="result-card" style="display:none;">
+
+        <div class="mail-icon">
+            <i class="fa-solid fa-paper-plane"></i>
+        </div>
+
+        <h1 class="result-title">이메일을 확인해주세요</h1>
+        <p class="result-subtitle">아래 주소로 로그인 링크를 발송했습니다</p>
+
+        <!-- JS 가 사용자가 입력한 이메일 주소를 여기에 삽입 -->
+        <p class="result-email" id="sentEmail"></p>
+
+        <p class="result-subtitle" style="font-size: 0.85rem; margin-bottom: 1.5rem;">
+            링크는 30분간 유효합니다.<br>
+            메일이 오지 않으면 스팸함을 확인해주세요.
+        </p>
+
+        <!-- 재발송 버튼: 5초 쿨다운으로 중복 발송 방지 -->
+        <button type="button" id="resendBtn" class="btn-resend">
+            <i class="fa-solid fa-rotate-right"></i> 다시 보내기
+        </button>
+
+        <!-- 재발송 결과 피드백 -->
+        <p id="resendMsg" style="margin-top: 1rem; font-size: 0.85rem; display:none;"></p>
+    </div>
+
+    <div class="footer-area">
+        <span class="brand-name">&copy; 2025 StudyOlle</span>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script th:src="@{/js/glass-validation.js}"></script>
+
+    <!-- API_BASE 주입 -->
+    <script th:inline="javascript">
+        const API_BASE = [[${apiBase}]];
+    </script>
+
+    <script>
+        // ---------------------------------------------------------------
+        // 이메일 로그인 링크 발송
+        //
+        // [전체 흐름]
+        // 1. 사용자가 이메일 입력 후 버튼 클릭
+        // 2. fetch(POST /api/auth/email-login, { email }) 호출
+        // 3. 성공(200): #inputCard 숨김 → #sentCard 표시 (이메일 주소 삽입)
+        //    실패(404): "가입되지 않은 이메일" 에러 표시
+        //    실패(400): 형식 오류 에러 표시
+        //
+        // [account-service 요청 구조]
+        //   POST /api/auth/email-login
+        //   Body: { email: "user@example.com" }
+        //
+        // [account-service 처리 흐름]
+        //   1. 이메일로 계정 조회
+        //   2. 새 emailCheckToken 생성 및 저장
+        //   3. frontend-service(:8090)/check-email-token?token=...&email=... 링크 발송
+        //   4. 200 OK 반환
+        //
+        // [재발송 흐름]
+        // sentCard 의 재발송 버튼이 동일한 이메일로 API 를 다시 호출한다.
+        // 5초 쿨다운으로 스팸 방지.
+        // ---------------------------------------------------------------
+
+        const sendBtn   = document.getElementById('sendBtn');
+        const resendBtn = document.getElementById('resendBtn');
+        const errorBox  = document.getElementById('errorBox');
+        const errorMsg  = document.getElementById('errorMsg');
+
+        // 마지막으로 발송에 성공한 이메일 주소 (재발송에 재사용)
+        let lastEmail = '';
+
+        // --- 최초 발송 ---
+        sendBtn.addEventListener('click', async function () {
+            clearError();
+
+            const email = document.getElementById('email').value.trim();
+
+            if (!email) {
+                showError('이메일을 입력해주세요.');
+                return;
+            }
+
+            sendBtn.disabled = true;
+            sendBtn.textContent = '발송 중...';
+
+            try {
+                const response = await fetch(API_BASE + '/api/auth/email-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                if (response.ok) {
+                    // 성공: sentCard 로 전환
+                    lastEmail = email;
+                    document.getElementById('sentEmail').textContent = email;
+                    document.getElementById('inputCard').style.display = 'none';
+                    document.getElementById('sentCard').style.display  = 'block';
+
+                } else {
+                    const result = await response.json();
+                    const code   = result.errorCode || '';
+                    const msg    = result.message   || '이메일 발송에 실패했습니다.';
+
+                    if (code === 'ACCOUNT_NOT_FOUND') {
+                        showError('가입되지 않은 이메일입니다. 회원가입을 먼저 진행해주세요.');
+                    } else {
+                        showError(msg);
+                    }
+                }
+
+            } catch (e) {
+                showError('서버와 연결할 수 없습니다. 잠시 후 다시 시도해주세요.');
+                console.error('이메일 로그인 링크 발송 실패:', e);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = '로그인 링크 보내기';
+            }
+        });
+
+        // --- 재발송 ---
+        let cooldown = false;
+
+        resendBtn.addEventListener('click', async function () {
+            if (cooldown || !lastEmail) return;
+
+            cooldown = true;
+            resendBtn.disabled = true;
+            resendBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 발송 중...';
+
+            const resendMsg = document.getElementById('resendMsg');
+            resendMsg.style.display = 'none';
+
+            try {
+                const response = await fetch(API_BASE + '/api/auth/email-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: lastEmail })
+                });
+
+                if (response.ok) {
+                    resendMsg.textContent    = '로그인 링크를 다시 발송했습니다. 메일함을 확인해주세요.';
+                    resendMsg.style.color    = '#3d6b4a';
+                    resendMsg.style.display  = 'block';
+                } else {
+                    resendMsg.textContent    = '재발송에 실패했습니다. 잠시 후 다시 시도해주세요.';
+                    resendMsg.style.color    = '#a06850';
+                    resendMsg.style.display  = 'block';
+                }
+
+            } catch (e) {
+                resendMsg.textContent   = '서버와 연결할 수 없습니다.';
+                resendMsg.style.color   = '#a06850';
+                resendMsg.style.display = 'block';
+                console.error('재발송 실패:', e);
+            } finally {
+                resendBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> 다시 보내기';
+
+                // 5초 쿨다운
+                setTimeout(function () {
+                    resendBtn.disabled = false;
+                    cooldown = false;
+                }, 5000);
+            }
+        });
+
+        // --- 헬퍼 ---
+        function showError(msg) {
+            errorMsg.textContent      = msg;
+            errorBox.style.display    = 'block';
+        }
+
+        function clearError() {
+            errorMsg.textContent      = '';
+            errorBox.style.display    = 'none';
+        }
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<!--
+    login.html  (MSA 버전)
+
+    [모노리틱과의 차이]
+    - 모노리틱: th:action="@{/login}" 으로 Spring Security 폼 로그인 처리.
+                로그인 실패 시 서버가 /login?error 또는 /login?disabled 로 리다이렉트.
+                Thymeleaf 가 ${param.error}, ${param.disabled} 로 에러 메시지를 렌더링.
+                CSRF 토큰을 hidden input 으로 자동 포함.
+
+    - MSA:      폼은 submit 하지 않는다.
+                버튼 클릭 시 JavaScript 가 fetch() 로 POST /api/auth/login 직접 호출.
+                성공 시 JWT 를 localStorage 에 저장하고 홈으로 이동.
+                실패 시 API 응답 errorCode 를 보고 JS 가 DOM 에 에러 메시지 표시.
+                CSRF 토큰 불필요 (JWT 기반 Stateless API).
+
+    [apiBase 주입 방식]
+    AuthPageController 가 Model 에 ${apiBase} 를 주입한다.
+    <script th:inline="javascript"> 블록에서
+        const API_BASE = [[${apiBase}]];
+    로 JS 전역 변수에 삽입된다.
+    이 덕분에 운영 배포 시 application.yml 의 app.api-base-url 만 바꾸면 되고
+    HTML 파일을 수정할 필요가 없다.
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>StudyOlle 로그인</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/auth-style.css}">
+</head>
+
+<body class="glass-page">
+
+    <div class="bg-animated"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <!-- 홈으로 돌아가기 -->
+    <a href="/" class="back-link">
+        <i class="bi bi-arrow-left"></i> 홈으로
+    </a>
+
+    <div class="glass-card">
+
+        <div class="brand-label stagger-1">StudyOlle</div>
+        <h1 class="page-title stagger-1">로그인</h1>
+
+        <!--
+            [모노리틱 제거]
+            th:if="${param.disabled}" / th:if="${param.error}" 서버 렌더링 에러 박스 제거.
+
+            [MSA 대체]
+            JS 가 API 응답의 errorCode 를 보고 아래 두 div 중 하나를 보여준다.
+              - errorCode == "EMAIL_NOT_VERIFIED" → #errorDisabled 표시
+              - 그 외 인증 실패                  → #errorBadCredentials 표시
+            초기 상태는 display:none.
+        -->
+        <div id="errorDisabled" class="glass-alert-warn stagger-1" style="display:none;">
+            <p style="margin-bottom: 4px; font-weight: 600;">이메일 인증이 필요합니다.</p>
+            <p style="margin: 0;">
+                가입 시 입력한 이메일에서 인증 링크를 클릭해주세요.
+                이메일 인증을 완료해야 로그인할 수 있습니다.
+            </p>
+        </div>
+
+        <div id="errorBadCredentials" class="glass-alert stagger-1" style="display:none;">
+            <p style="margin-bottom: 4px;">이메일(또는 닉네임)과 패스워드가 정확하지 않습니다.</p>
+            <p style="margin: 0;">
+                확인 후 다시 입력하거나
+                <a href="/email-login">패스워드 없이 로그인하기</a>를 이용하세요.
+            </p>
+        </div>
+
+        <!--
+            [모노리틱 제거] th:action, method="post", CSRF hidden input
+            [MSA]          form 태그는 레이아웃 컨테이너 역할만 한다.
+                           submit 은 발생하지 않는다.
+        -->
+        <div>
+
+            <!-- 이메일 또는 닉네임 -->
+            <div class="form-group stagger-2">
+                <label for="username">이메일 또는 닉네임</label>
+                <div class="input-wrapper">
+                    <i class="bi bi-person input-icon"></i>
+                    <input type="text" id="username" name="username"
+                           placeholder="your@email.com"
+                           data-validate="username"
+                           autocomplete="username">
+                    <div class="check-icon"><i class="bi bi-check2"></i></div>
+                </div>
+                <div class="form-hint">가입할 때 사용한 이메일 또는 닉네임을 입력하세요</div>
+            </div>
+
+            <!-- 패스워드 -->
+            <div class="form-group stagger-3">
+                <label for="password">패스워드</label>
+                <div class="input-wrapper">
+                    <i class="bi bi-lock input-icon"></i>
+                    <input type="password" id="password" name="password"
+                           data-validate="password"
+                           autocomplete="current-password">
+                    <div class="check-icon"><i class="bi bi-check2"></i></div>
+                </div>
+                <div class="form-hint">
+                    패스워드가 기억나지 않는다면
+                    <a href="/email-login">패스워드 없이 로그인하기</a>
+                </div>
+            </div>
+
+            <!-- 로그인 유지 (UI 유지 - 현재는 프론트 전용, 향후 refresh token TTL 연동 예정) -->
+            <label class="custom-check stagger-4">
+                <input type="checkbox" id="rememberMe" checked>
+                <span>로그인 유지</span>
+            </label>
+
+            <!--
+                [MSA] type="button" 으로 변경 (type="submit" 이면 form submit 이 트리거됨).
+                      onclick 대신 JS 에서 addEventListener 로 연결한다.
+            -->
+            <div class="stagger-5">
+                <button type="button" id="loginBtn" class="btn-glass btn-login">로그인</button>
+            </div>
+
+            <div class="signup-link stagger-6">
+                스터디올래에 처음 오셨나요?
+                <a href="/sign-up">계정을 먼저 만드세요</a>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="footer-area">
+        <span class="brand-name">&copy; 2025 StudyOlle</span>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- 실시간 유효성 검사 (glass-validation.js) -->
+    <script th:src="@{/js/glass-validation.js}"></script>
+
+    <!--
+        API_BASE 주입:
+        Thymeleaf th:inline="javascript" 를 사용해 서버에서 apiBase 값을 삽입한다.
+        이 블록만 Thymeleaf 표현식을 사용하고, 나머지 JS 로직은 순수 JS 로 작성한다.
+    -->
+    <script th:inline="javascript">
+        const API_BASE = [[${apiBase}]];
+    </script>
+
+    <script>
+        // ---------------------------------------------------------------
+        // 로그인 처리
+        //
+        // [모노리틱과의 차이]
+        // 모노리틱: form submit → Spring Security UsernamePasswordAuthenticationFilter
+        //           → 성공 시 세션 생성 + 홈 리다이렉트
+        //           → 실패 시 /login?error 리다이렉트 → Thymeleaf 가 에러 표시
+        //
+        // MSA:      버튼 클릭 → fetch(POST /api/auth/login)
+        //           → 성공 시 JWT 를 localStorage 에 저장 + 홈 이동
+        //           → 실패 시 errorCode 에 따라 에러 div 표시
+        //
+        // [에러 처리 패턴]
+        // account-service 의 GlobalExceptionHandler 가 반환하는 ErrorResponse 구조:
+        //   { errorCode: "EMAIL_NOT_VERIFIED" | "BAD_CREDENTIALS" | ..., message: "..." }
+        // errorCode 값에 따라 미인증 경고(주황)와 일반 실패 오류(빨강)를 구분해서 보여준다.
+        // ---------------------------------------------------------------
+
+        const loginBtn = document.getElementById('loginBtn');
+
+        loginBtn.addEventListener('click', async function () {
+            // 에러 메시지 초기화
+            hideErrors();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+
+            // 클라이언트 사이드 기본 검증 (빈 값 체크)
+            if (!username || !password) {
+                showError('errorBadCredentials');
+                return;
+            }
+
+            // 버튼 비활성화 (중복 제출 방지)
+            loginBtn.disabled = true;
+            loginBtn.textContent = '로그인 중...';
+
+            try {
+                const response = await fetch(API_BASE + '/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // account-service LoginRequest: { emailOrNickname, password }
+                    body: JSON.stringify({ emailOrNickname: username, password: password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // -------------------------------------------------------
+                    // 로그인 성공
+                    // result.data = { accessToken, refreshToken }
+                    //
+                    // [모노리틱과의 차이]
+                    // 모노리틱: 서버가 세션을 만들고 JSESSIONID 쿠키를 내려줌.
+                    //           이후 모든 요청은 쿠키로 인증.
+                    //
+                    // MSA:      JWT 를 localStorage 에 저장.
+                    //           이후 인증 필요 API 호출 시 JS 가 직접
+                    //           Authorization: Bearer {accessToken} 헤더를 붙인다.
+                    // -------------------------------------------------------
+                    localStorage.setItem('accessToken', result.data.accessToken);
+                    localStorage.setItem('refreshToken', result.data.refreshToken);
+
+                    // 홈으로 이동
+                    window.location.href = '/';
+
+                } else {
+                    // -------------------------------------------------------
+                    // 로그인 실패 - errorCode 에 따라 다른 메시지 표시
+                    //
+                    // EMAIL_NOT_VERIFIED: 가입은 됐지만 이메일 인증 미완료
+                    //                    → 주황색 경고 박스 (glass-alert-warn)
+                    // 그 외 (BAD_CREDENTIALS 등): 이메일/닉네임 또는 패스워드 불일치
+                    //                    → 빨간색 에러 박스 (glass-alert)
+                    // -------------------------------------------------------
+                    const errorCode = result.errorCode || '';
+                    if (errorCode === 'EMAIL_NOT_VERIFIED') {
+                        showError('errorDisabled');
+                    } else {
+                        showError('errorBadCredentials');
+                    }
+                }
+
+            } catch (e) {
+                // 네트워크 오류 등 fetch 자체가 실패한 경우
+                showError('errorBadCredentials');
+                console.error('로그인 요청 실패:', e);
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = '로그인';
+            }
+        });
+
+        // Enter 키로도 로그인 가능하도록
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') loginBtn.click();
+        });
+
+        function showError(id) {
+            document.getElementById(id).style.display = 'block';
+        }
+
+        function hideErrors() {
+            document.getElementById('errorDisabled').style.display = 'none';
+            document.getElementById('errorBadCredentials').style.display = 'none';
+        }
+    </script>
+
+</body>
+</html>

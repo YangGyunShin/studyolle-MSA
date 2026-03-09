@@ -29,4 +29,4 @@ jwt:
   refresh-token-expiration: 604800000 # 7일
 
 app:
-  host: http://localhost:8081
+  host: http://localhost:8090  # frontend-service 주소 - 이메일 인증 링크의 호스트
