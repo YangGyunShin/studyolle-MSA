@@ -1,7 +1,6 @@
 package com.studyolle.modules.event.controller;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.CurrentUser;
 import com.studyolle.modules.event.dto.EventForm;
 import com.studyolle.modules.event.entity.Event;
 import com.studyolle.modules.event.repository.EventRepository;
@@ -96,7 +95,7 @@ public class EventController {
      *  -> event/form.html 렌더링
      */
     @GetMapping("/new-event")
-    public String newEventForm(@CurrentUser Account account,
+    public String newEventForm(Account account,
                                @PathVariable String path, Model model) {
 
         // 권한 확인 및 Study 조회 (운영자만 이벤트 생성 가능)
@@ -128,7 +127,7 @@ public class EventController {
      *  -> 이벤트 상세 URL로 리다이렉트 (PRG 패턴)
      */
     @PostMapping("/new-event")
-    public String newEventSubmit(@CurrentUser Account account,
+    public String newEventSubmit(Account account,
                                  @PathVariable String path,
                                  @Valid EventForm eventForm,
                                  Errors errors,
@@ -161,7 +160,7 @@ public class EventController {
      *   id 값으로 EventRepository.findById() 자동 호출하여 엔티티 주입
      */
     @GetMapping("/events/{id}")
-    public String getEvent(@CurrentUser Account account,
+    public String getEvent(Account account,
                            @PathVariable String path,
                            @PathVariable("id") Event event,
                            Model model) {
@@ -190,7 +189,7 @@ public class EventController {
      *  -> study/events.html 렌더링
      */
     @GetMapping("/events")
-    public String viewStudyEvents(@CurrentUser Account account,
+    public String viewStudyEvents(Account account,
                                   @PathVariable String path,
                                   Model model) {
 
@@ -228,7 +227,7 @@ public class EventController {
      * - 기존 Event -> EventForm 변환하여 폼 초기값으로 바인딩
      */
     @GetMapping("/events/{id}/edit")
-    public String updateEventForm(@CurrentUser Account account,
+    public String updateEventForm(Account account,
                                   @PathVariable String path,
                                   @PathVariable("id") Event event,
                                   Model model) {
@@ -262,7 +261,7 @@ public class EventController {
      *  -> 상세 페이지로 리다이렉트
      */
     @PostMapping("/events/{id}/edit")
-    public String updateEventSubmit(@CurrentUser Account account,
+    public String updateEventSubmit(Account account,
                                     @PathVariable String path,
                                     @PathVariable("id") Event event,
                                     @Valid EventForm eventForm,
@@ -306,7 +305,7 @@ public class EventController {
      *  -> 이벤트 목록 페이지로 리다이렉트
      */
     @DeleteMapping("/events/{id}")
-    public String cancelEvent(@CurrentUser Account account,
+    public String cancelEvent(Account account,
                               @PathVariable String path,
                               @PathVariable("id") Event event) {
 

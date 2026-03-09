@@ -1,7 +1,6 @@
 package com.studyolle.modules.notification;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -50,7 +49,7 @@ public class NotificationController {
      *   → "모두 읽음 처리" 버튼으로 일괄 처리도 가능
      */
     @GetMapping("/notifications")
-    public String getNotifications(@CurrentUser Account account, Model model) {
+    public String getNotifications(Account account, Model model) {
         List<Notification> notifications = notificationService.getNewNotifications(account);
         long numberOfChecked = notificationService.countByChecked(account, true);
 
@@ -61,7 +60,7 @@ public class NotificationController {
     }
 
     @GetMapping("/notifications/{id}/read")
-    public String readNotification(@CurrentUser Account account, @PathVariable Long id) {
+    public String readNotification(Account account, @PathVariable Long id) {
         Notification notification = notificationService.markAsReadAndGet(account, id);
         return "redirect:" + notification.getLink();
     }
@@ -70,7 +69,7 @@ public class NotificationController {
      * 새 알림 모두 읽음 처리 (명시적 사용자 액션)
      */
     @PostMapping("/notifications/mark-all-read")
-    public String markAllAsRead(@CurrentUser Account account) {
+    public String markAllAsRead(Account account) {
         List<Notification> newNotifications = notificationService.getNewNotifications(account);
         notificationService.markAsRead(newNotifications);
         return "redirect:/notifications";
@@ -82,7 +81,7 @@ public class NotificationController {
      * - 알림 목록 하단에서 '과거 알림 보기'를 선택하면 호출됨
      */
     @GetMapping("/notifications/old")
-    public String getOldNotifications(@CurrentUser Account account, Model model) {
+    public String getOldNotifications(Account account, Model model) {
         List<Notification> notifications = notificationService.getOldNotifications(account);
         long numberOfNotChecked = notificationService.countByChecked(account, false);
 
@@ -99,7 +98,7 @@ public class NotificationController {
      * - 삭제 후 새 알림 목록 페이지로 리다이렉트
      */
     @DeleteMapping("/notifications")
-    public String deleteNotifications(@CurrentUser Account account) {
+    public String deleteNotifications(Account account) {
         notificationService.deleteOldNotifications(account);
         return "redirect:/notifications";
     }

@@ -1,7 +1,6 @@
 package com.studyolle.modules.event.controller;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.CurrentUser;
 import com.studyolle.modules.event.entity.Enrollment;
 import com.studyolle.modules.event.entity.Event;
 import com.studyolle.modules.event.service.EnrollmentService;
@@ -69,7 +68,7 @@ public class EnrollmentManageController {
      *  -> 이벤트 상세 화면으로 리다이렉트
      */
     @GetMapping("/events/{eventId}/enrollments/{enrollmentId}/accept")
-    public String acceptEnrollment(@CurrentUser Account account,
+    public String acceptEnrollment(Account account,
                                    @PathVariable String path,
                                    @PathVariable("enrollmentId") Enrollment enrollment,
                                    @PathVariable("eventId") Event event) {
@@ -97,7 +96,7 @@ public class EnrollmentManageController {
      *  -> 이벤트 상세 화면으로 리다이렉트
      */
     @GetMapping("/events/{eventId}/enrollments/{enrollmentId}/reject")
-    public String rejectEnrollment(@CurrentUser Account account,
+    public String rejectEnrollment(Account account,
                                    @PathVariable String path,
                                    @PathVariable("enrollmentId") Enrollment enrollment,
                                    @PathVariable("eventId") Event event) {
@@ -116,7 +115,7 @@ public class EnrollmentManageController {
      * - JPA dirty checking으로 자동 update 쿼리 실행
      */
     @GetMapping("/events/{eventId}/enrollments/{enrollmentId}/checkin")
-    public String checkInEnrollment(@CurrentUser Account account,
+    public String checkInEnrollment(Account account,
                                     @PathVariable String path,
                                     @PathVariable("enrollmentId") Enrollment enrollment,
                                     @PathVariable("eventId") Event event) {
@@ -134,7 +133,7 @@ public class EnrollmentManageController {
      * - 운영자가 실수로 출석 처리한 경우 다시 취소
      */
     @GetMapping("/events/{eventId}/enrollments/{enrollmentId}/cancel-checkin")
-    public String cancelCheckInEnrollment(@CurrentUser Account account,
+    public String cancelCheckInEnrollment(Account account,
                                           @PathVariable String path,
                                           @PathVariable("enrollmentId") Enrollment enrollment,
                                           @PathVariable("eventId") Event event) {

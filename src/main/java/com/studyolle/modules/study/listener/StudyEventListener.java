@@ -4,7 +4,6 @@ import com.studyolle.infra.config.AppProperties;
 import com.studyolle.infra.mail.EmailMessage;
 import com.studyolle.infra.mail.EmailService;
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.repository.AccountPredicates;
 import com.studyolle.modules.account.repository.AccountRepository;
 import com.studyolle.modules.board.entity.Board;
 import com.studyolle.modules.board.event.BoardCreatedEvent;

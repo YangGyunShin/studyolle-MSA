@@ -1,7 +1,6 @@
 package com.studyolle.modules.admin.controller;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.CurrentUser;
 import com.studyolle.modules.admin.service.AdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -39,7 +38,7 @@ public class AdminController {
     // ──────────────────────────────────────────────
 
     @GetMapping
-    public String dashboard(@CurrentUser Account account, Model model) {
+    public String dashboard(Account account, Model model) {
         model.addAttribute("stats", adminService.getDashboardStats());
         model.addAttribute("recentMembers", adminService.getRecentMembers(5));
         return "admin/dashboard";

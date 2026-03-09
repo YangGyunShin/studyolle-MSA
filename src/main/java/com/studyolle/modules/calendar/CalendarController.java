@@ -1,7 +1,6 @@
 package com.studyolle.modules.calendar;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -58,7 +57,7 @@ public class CalendarController {
      */
     @GetMapping("/api/calendar/events")
     private List<CalendarEventResponse> calendarEvents(
-            @CurrentUser Account account,
+            Account account,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
         if (account == null) {

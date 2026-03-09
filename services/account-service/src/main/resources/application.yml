@@ -13,14 +13,20 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+  # 개발용 콘솔 메일 (실제 SMTP 설정 전까지 콘솔에 출력)
+  mail:
+    host: localhost
+    port: 25
 
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
 
-# JWT 설정
 jwt:
   secret: studyolle-msa-secret-key-must-be-at-least-256-bits-long
-  access-token-expiration: 1800000   # 30분
+  access-token-expiration: 1800000    # 30분
   refresh-token-expiration: 604800000 # 7일
+
+app:
+  host: http://localhost:8081

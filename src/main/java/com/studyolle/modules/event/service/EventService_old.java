@@ -1,6 +1,6 @@
 //package com.studyolle.modules.event.service;
 //
-//import com.studyolle.modules.account.entity.Account;
+//import com.studyolle.account.entity.Account;
 //import com.studyolle.modules.event.entity.Enrollment;
 //import com.studyolle.modules.event.entity.Event;
 //import com.studyolle.modules.event.event.EnrollmentAcceptedEvent;

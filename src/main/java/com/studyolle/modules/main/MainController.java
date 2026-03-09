@@ -2,7 +2,6 @@ package com.studyolle.modules.main;
 
 import com.studyolle.modules.account.entity.Account;
 import com.studyolle.modules.account.repository.AccountRepository;
-import com.studyolle.modules.account.security.CurrentUser;
 import com.studyolle.modules.event.entity.Event;
 import com.studyolle.modules.event.repository.EnrollmentRepository;
 import com.studyolle.modules.event.repository.EventRepository;
@@ -131,7 +130,7 @@ public class MainController {
      * @return 로그인 시 "index-after-login", 비로그인 시 "index"
      */
     @GetMapping("/")
-    public String home(@CurrentUser Account account, Model model) {
+    public String home(Account account, Model model) {
         if (account != null) {
             // 로그인 상태: 태그/지역을 포함한 Account를 별도로 로딩
             // -> 파라미터의 account는 SecurityContext에서 가져온 것으로
@@ -300,7 +299,7 @@ public class MainController {
      * - EmailVerificationInterceptor에서 리다이렉트되는 목적지
      */
     @GetMapping("/email-verification-required")
-    public String emailVerificationRequired(@CurrentUser Account account, Model model) {
+    public String emailVerificationRequired(Account account, Model model) {
         model.addAttribute("account", account);
         return "account/email-verification-required";
     }

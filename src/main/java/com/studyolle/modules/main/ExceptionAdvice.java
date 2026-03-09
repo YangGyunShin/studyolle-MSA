@@ -1,7 +1,6 @@
 package com.studyolle.modules.main;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.UserAccount;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;

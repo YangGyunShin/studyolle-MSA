@@ -1,7 +1,6 @@
 package com.studyolle.modules.board.controller;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.CurrentUser;
 import com.studyolle.modules.board.dto.BoardCommentForm;
 import com.studyolle.modules.board.dto.BoardForm;
 import com.studyolle.modules.board.entity.Board;
@@ -55,7 +54,7 @@ public class BoardController {
     // ============================
 
     @GetMapping
-    public String listBoards(@CurrentUser Account account,
+    public String listBoards(Account account,
                              @PathVariable String path,
                              @RequestParam(required = false) BoardCategory category,
                              @PageableDefault(size = 10) Pageable pageable,
@@ -78,7 +77,7 @@ public class BoardController {
     // ============================
 
     @GetMapping("/new")
-    public String newBoardForm(@CurrentUser Account account,
+    public String newBoardForm(Account account,
                                @PathVariable String path,
                                Model model) {
 
@@ -93,7 +92,7 @@ public class BoardController {
     }
 
     @PostMapping("/new")
-    public String createBoard(@CurrentUser Account account,
+    public String createBoard(Account account,
                               @PathVariable String path,
                               @Valid BoardForm boardForm,
                               Errors errors,
@@ -121,7 +120,7 @@ public class BoardController {
     // ============================
 
     @GetMapping("/{boardId}")
-    public String viewBoard(@CurrentUser Account account,
+    public String viewBoard(Account account,
                             @PathVariable String path,
                             @PathVariable Long boardId,
                             Model model) {
@@ -142,7 +141,7 @@ public class BoardController {
     // ============================
 
     @GetMapping("/{boardId}/edit")
-    public String editBoardForm(@CurrentUser Account account,
+    public String editBoardForm(Account account,
                                 @PathVariable String path,
                                 @PathVariable Long boardId,
                                 Model model) {
@@ -161,7 +160,7 @@ public class BoardController {
     }
 
     @PostMapping("/{boardId}/edit")
-    public String updateBoard(@CurrentUser Account account,
+    public String updateBoard(Account account,
                               @PathVariable String path,
                               @PathVariable Long boardId,
                               @Valid BoardForm boardForm,
@@ -192,7 +191,7 @@ public class BoardController {
     // ============================
 
     @DeleteMapping("/{boardId}")
-    public String deleteBoard(@CurrentUser Account account,
+    public String deleteBoard(Account account,
                               @PathVariable String path,
                               @PathVariable Long boardId,
                               RedirectAttributes redirectAttributes) {
@@ -211,7 +210,7 @@ public class BoardController {
     // ============================
 
     @PostMapping("/{boardId}/comments")
-    public String addComment(@CurrentUser Account account,
+    public String addComment(Account account,
                              @PathVariable String path,
                              @PathVariable Long boardId,
                              @Valid BoardCommentForm commentForm,
@@ -236,7 +235,7 @@ public class BoardController {
     // ============================
 
     @DeleteMapping("/{boardId}/comments/{commentId}")
-    public String deleteComment(@CurrentUser Account account,
+    public String deleteComment(Account account,
                                 @PathVariable String path,
                                 @PathVariable Long boardId,
                                 @PathVariable Long commentId,

@@ -4,7 +4,6 @@ import com.studyolle.modules.account.entity.Account;
 import com.studyolle.modules.study.entity.JoinRequest;
 import com.studyolle.modules.study.entity.JoinRequestStatus;
 import com.studyolle.modules.study.entity.Study;
-import com.studyolle.modules.study.event.StudyCreatedEvent;
 import com.studyolle.modules.study.event.StudyUpdateEvent;
 import com.studyolle.modules.study.repository.JoinRequestRepository;
 import com.studyolle.modules.study.repository.StudyRepository;

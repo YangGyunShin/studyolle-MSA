@@ -1,7 +1,6 @@
 package com.studyolle.modules.notification;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.UserAccount;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;

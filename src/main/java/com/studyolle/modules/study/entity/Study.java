@@ -1,7 +1,6 @@
 package com.studyolle.modules.study.entity;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.UserAccount;
 import com.studyolle.modules.tag.Tag;
 import com.studyolle.modules.zone.Zone;
 import jakarta.persistence.*;

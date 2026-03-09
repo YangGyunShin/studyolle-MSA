@@ -1,7 +1,6 @@
 package com.studyolle.modules.study.controller;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.CurrentUser;
 import com.studyolle.modules.study.entity.Study;
 import com.studyolle.modules.study.dto.StudyForm;
 import com.studyolle.modules.study.service.StudyService;
@@ -112,7 +111,7 @@ public class StudyController {
      * @return study/form 뷰 이름
      */
     @GetMapping("/new-study")
-    public String newStudyForm(@CurrentUser Account account, Model model) {
+    public String newStudyForm(Account account, Model model) {
         model.addAttribute("account", account);
         model.addAttribute(new StudyForm());
         return "study/form";
@@ -134,7 +133,7 @@ public class StudyController {
      * @return 성공 시 리다이렉트 URL, 실패 시 study/form 뷰 이름
      */
     @PostMapping("/new-study")
-    public String newStudySubmit(@CurrentUser Account account, @Valid StudyForm studyForm, Errors errors, Model model) {
+    public String newStudySubmit(Account account, @Valid StudyForm studyForm, Errors errors, Model model) {
         if (errors.hasErrors()) {
             model.addAttribute("account", account);
             return "study/form";
@@ -170,7 +169,7 @@ public class StudyController {
      * 비로그인 사용자는 신청 자체가 불가능하므로 조회할 필요가 없습니다.
      */
     @GetMapping("/study/{path}")
-    public String viewStudy(@CurrentUser Account account, @PathVariable String path, Model model) {
+    public String viewStudy(Account account, @PathVariable String path, Model model) {
         Study study = studyService.getStudy(path);
         model.addAttribute("account", account);
         model.addAttribute(study);
@@ -201,7 +200,7 @@ public class StudyController {
      * [GET] 스터디 멤버 목록 페이지를 렌더링합니다.
      */
     @GetMapping("/study/{path}/members")
-    public String viewStudyMembers(@CurrentUser Account account, @PathVariable String path, Model model) {
+    public String viewStudyMembers(Account account, @PathVariable String path, Model model) {
         Study study = studyService.getStudy(path);
         model.addAttribute("account", account);
         model.addAttribute(study);
@@ -230,7 +229,7 @@ public class StudyController {
      * @return 스터디 상세 페이지로 리다이렉트
      */
     @GetMapping("/study/{path}/join")
-    public String joinStudy(@CurrentUser Account account,
+    public String joinStudy(Account account,
                             @PathVariable String path,
                             RedirectAttributes redirectAttributes) {
         Study study = studyService.getStudyWithMembersByPath(path);
@@ -256,7 +255,7 @@ public class StudyController {
      * [GET] 스터디 탈퇴 요청을 처리합니다.
      */
     @GetMapping("/study/{path}/leave")
-    public String leaveStudy(@CurrentUser Account account, @PathVariable String path) {
+    public String leaveStudy(Account account, @PathVariable String path) {
         Study study = studyService.getStudyWithMembersByPath(path);
         studyService.removeMember(study, account);
         return "redirect:/study/" + study.getEncodedPath();

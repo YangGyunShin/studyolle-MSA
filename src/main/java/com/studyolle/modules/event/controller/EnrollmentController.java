@@ -1,7 +1,6 @@
 package com.studyolle.modules.event.controller;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.CurrentUser;
 import com.studyolle.modules.event.entity.Event;
 import com.studyolle.modules.event.service.EnrollmentService;
 import com.studyolle.modules.study.entity.Study;
@@ -67,7 +66,7 @@ public class EnrollmentController {
      *  -> 이벤트 상세페이지로 리다이렉트 (PRG 패턴)
      */
     @PostMapping("/events/{id}/enroll")
-    public String newEnrollment(@CurrentUser Account account,
+    public String newEnrollment(Account account,
                                 @PathVariable String path,
                                 @PathVariable("id") Event event) {
 
@@ -96,7 +95,7 @@ public class EnrollmentController {
      *  -> 이벤트 상세페이지로 리다이렉트
      */
     @PostMapping("/events/{id}/disenroll")
-    public String cancelEnrollment(@CurrentUser Account account,
+    public String cancelEnrollment(Account account,
                                    @PathVariable String path,
                                    @PathVariable("id") Event event) {
 

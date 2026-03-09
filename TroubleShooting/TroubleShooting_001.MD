@@ -15,7 +15,7 @@
 java.lang.IllegalStateException: 
   Could not resolve parameter [0] in public java.lang.String 
   com.studyolle.modules.main.ExceptionAdvice.handleRuntimeException(
-    com.studyolle.modules.account.entity.Account,
+    com.studyolle.account.entity.Account,
     jakarta.servlet.http.HttpServletRequest,
     java.lang.RuntimeException
   ): No suitable resolver

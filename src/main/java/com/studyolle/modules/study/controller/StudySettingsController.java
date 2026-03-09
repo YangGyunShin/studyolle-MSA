@@ -3,7 +3,6 @@ package com.studyolle.modules.study.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.account.security.CurrentUser;
 import com.studyolle.modules.study.entity.JoinType;
 import com.studyolle.modules.study.entity.Study;
 import com.studyolle.modules.study.dto.StudyDescriptionForm;
@@ -123,7 +122,7 @@ public class StudySettingsController {
      * ModelMapper가 Study -> StudyDescriptionForm으로 필드명 기반 자동 매핑을 수행합니다.
      */
     @GetMapping("/description")
-    public String viewStudySettings(@CurrentUser Account account,
+    public String viewStudySettings(Account account,
                                     @PathVariable String path,
                                     Model model) {
         Study study = studySettingsService.getStudyToUpdate(account, path);
@@ -139,7 +138,7 @@ public class StudySettingsController {
      * 성공 시 DB에 저장 후 flash 메시지와 함께 리다이렉트합니다.
      */
     @PostMapping("/description")
-    public String updateStudyInfo(@CurrentUser Account account,
+    public String updateStudyInfo(Account account,
                                   @PathVariable String path,
                                   @Valid StudyDescriptionForm studyDescriptionForm,
                                   Errors errors,
@@ -165,7 +164,7 @@ public class StudySettingsController {
      * [GET] 배너 설정 화면을 렌더링합니다.
      */
     @GetMapping("/banner")
-    public String studyImageForm(@CurrentUser Account account,
+    public String studyImageForm(Account account,
                                  @PathVariable String path,
                                  Model model) {
         Study study = studySettingsService.getStudyToUpdate(account, path);
@@ -178,7 +177,7 @@ public class StudySettingsController {
      * 클라이언트에서 Base64로 인코딩된 이미지 데이터를 받아 저장합니다.
      */
     @PostMapping("/banner")
-    public String studyImageSubmit(@CurrentUser Account account,
+    public String studyImageSubmit(Account account,
                                    @PathVariable String path,
                                    String image,
                                    RedirectAttributes redirectAttributes) {
@@ -192,7 +191,7 @@ public class StudySettingsController {
      * [POST] 배너 이미지 표시를 활성화합니다.
      */
     @PostMapping("/banner/enable")
-    public String enableStudyBanner(@CurrentUser Account account,
+    public String enableStudyBanner(Account account,
                                     @PathVariable String path) {
         Study study = studySettingsService.getStudyToUpdate(account, path);
         studySettingsService.enableStudyBanner(study);
@@ -203,7 +202,7 @@ public class StudySettingsController {
      * [POST] 배너 이미지 표시를 비활성화합니다.
      */
     @PostMapping("/banner/disable")
-    public String disableStudyBanner(@CurrentUser Account account,
+    public String disableStudyBanner(Account account,
                                      @PathVariable String path) {
         Study study = studySettingsService.getStudyToUpdate(account, path);
         studySettingsService.disableStudyBanner(study);
@@ -224,7 +223,7 @@ public class StudySettingsController {
      * TagService.getAllTagTitles()를 통해 Tag -> String 변환을 서비스 계층에서 처리합니다.
      */
     @GetMapping("/tags")
-    public String studyTagsForm(@CurrentUser Account account,
+    public String studyTagsForm(Account account,
                                 @PathVariable String path, Model model) throws JsonProcessingException {
         Study study = studySettingsService.getStudyToUpdate(account, path);
         addCommonAttributes(model, account, study);
@@ -252,7 +251,7 @@ public class StudySettingsController {
      */
     @PostMapping("/tags/add")
     @ResponseBody
-    public ResponseEntity addTag(@CurrentUser Account account,
+    public ResponseEntity addTag(Account account,
                                  @PathVariable String path,
                                  @RequestBody TagForm tagForm) {
         Study study = studySettingsService.getStudyToUpdateTag(account, path);
@@ -268,7 +267,7 @@ public class StudySettingsController {
      */
     @PostMapping("/tags/remove")
     @ResponseBody
-    public ResponseEntity removeTag(@CurrentUser Account account,
+    public ResponseEntity removeTag(Account account,
                                     @PathVariable String path,
                                     @RequestBody TagForm tagForm) {
         Study study = studySettingsService.getStudyToUpdateTag(account, path);
@@ -291,7 +290,7 @@ public class StudySettingsController {
      * ZoneService.getAllZoneNames()를 통해 Zone -> String 변환을 서비스 계층에서 처리합니다.
      */
     @GetMapping("/zones")
-    public String studyZonesForm(@CurrentUser Account account,
+    public String studyZonesForm(Account account,
                                  @PathVariable String path, Model model) throws JsonProcessingException {
         Study study = studySettingsService.getStudyToUpdate(account, path);
         addCommonAttributes(model, account, study);
@@ -320,7 +319,7 @@ public class StudySettingsController {
     @PostMapping("/zones/add")
     @ResponseBody
     public ResponseEntity addZone(
-            @CurrentUser Account account,
+            Account account,
             @RequestBody ZoneForm zoneForm,
             @PathVariable String path
     ) {
@@ -339,7 +338,7 @@ public class StudySettingsController {
     @PostMapping("/zones/remove")
     @ResponseBody
     public ResponseEntity removeZone(
-            @CurrentUser Account account,
+            Account account,
             @PathVariable String path,
             @RequestBody ZoneForm zoneForm
     ) {
@@ -367,7 +366,7 @@ public class StudySettingsController {
      */
     @GetMapping("/study")
     public String studySettingForm(
-            @CurrentUser Account account,
+            Account account,
             @PathVariable String path,
             Model model
     ) {
@@ -384,7 +383,7 @@ public class StudySettingsController {
      */
     @PostMapping("/study/publish")
     public String publishStudy(
-            @CurrentUser Account account,
+            Account account,
             @PathVariable String path,
             RedirectAttributes redirectAttributes
     ) {
@@ -399,7 +398,7 @@ public class StudySettingsController {
      */
     @PostMapping("/study/close")
     public String closeStudy(
-            @CurrentUser Account account,
+            Account account,
             @PathVariable String path,
             RedirectAttributes redirectAttributes
     ) {
@@ -427,7 +426,7 @@ public class StudySettingsController {
      */
     @PostMapping("/recruit/start")
     public String startRecruit(
-            @CurrentUser Account account,
+            Account account,
             Model model,
             @PathVariable String path,
             RedirectAttributes redirectAttributes
@@ -449,7 +448,7 @@ public class StudySettingsController {
      */
     @PostMapping("/recruit/stop")
     public String stopRecruit(
-            @CurrentUser Account account,
+            Account account,
             @PathVariable String path,
             Model model,
             RedirectAttributes redirectAttributes
@@ -480,7 +479,7 @@ public class StudySettingsController {
      */
     @PostMapping("/study/path")
     public String updateStudyPath(
-            @CurrentUser Account account,
+            Account account,
             @PathVariable String path,
             String newPath,
             Model model,
@@ -505,7 +504,7 @@ public class StudySettingsController {
      */
     @PostMapping("/study/title")
     public String updateStudyTitle(
-            @CurrentUser Account account,
+            Account account,
             @PathVariable String path,
             String newTitle,
             Model model,
@@ -538,7 +537,7 @@ public class StudySettingsController {
      */
     @PostMapping("/study/remove")
     public String removeStudy(
-            @CurrentUser Account account,
+            Account account,
             @PathVariable String path,
             Model model
     ) {
@@ -563,7 +562,7 @@ public class StudySettingsController {
      * - 관리자 권한 검증이 내부에서 수행됨
      */
     @GetMapping("/join-requests")
-    public String joinRequestsForm(@CurrentUser Account account,
+    public String joinRequestsForm(Account account,
                                    @PathVariable String path,
                                    Model model) {
         Study study = studySettingsService.getStudyToUpdate(account, path);
@@ -589,7 +588,7 @@ public class StudySettingsController {
      * - findByPath()는 모든 연관 엔티티(members 포함)를 fetch join
      */
     @PostMapping("/join-requests/{requestId}/approve")
-    public String approveJoinRequest(@CurrentUser Account account,
+    public String approveJoinRequest(Account account,
                                      @PathVariable String path,
                                      @PathVariable Long requestId,
                                      RedirectAttributes redirectAttributes) {
@@ -606,7 +605,7 @@ public class StudySettingsController {
      * JoinRequest.reject()로 상태만 REJECTED로 변경합니다.
      */
     @PostMapping("/join-requests/{requestId}/reject")
-    public String rejectJoinRequest(@CurrentUser Account account,
+    public String rejectJoinRequest(Account account,
                                     @PathVariable String path,
                                     @PathVariable Long requestId,
                                     RedirectAttributes redirectAttributes) {
@@ -625,7 +624,7 @@ public class StudySettingsController {
      * - 기존 publish/close/recruit 패턴과 동일한 레벨의 설정 변경
      */
     @PostMapping("/join-type")
-    public String updateJoinType(@CurrentUser Account account,
+    public String updateJoinType(Account account,
                                  @PathVariable String path,
                                  @RequestParam JoinType joinType,
                                  RedirectAttributes redirectAttributes) {
