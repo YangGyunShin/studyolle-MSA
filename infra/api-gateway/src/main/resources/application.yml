@@ -7,12 +7,32 @@ spring:
   cloud:
     gateway:
       routes:
-        - id: account-service
+        # 인증 불필요 - account-service 공개 API
+        - id: account-service-public
           uri: lb://ACCOUNT-SERVICE
           predicates:
             - Path=/api/auth/**
+
+        # 인증 필요 - account-service 보호 API
+        - id: account-service-private
+          uri: lb://ACCOUNT-SERVICE
+          predicates:
+            - Path=/api/accounts/**
+          filters:
+            - JwtAuthenticationFilter
+
+        # 추후 추가
+        # - id: study-service
+        #   uri: lb://STUDY-SERVICE
+        #   predicates:
+        #     - Path=/api/studies/**
+        #   filters:
+        #     - JwtAuthenticationFilter
 
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+
+jwt:
+  secret: studyolle-msa-secret-key-must-be-at-least-256-bits-long

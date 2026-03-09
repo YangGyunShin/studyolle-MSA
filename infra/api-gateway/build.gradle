@@ -22,13 +22,22 @@ ext {
 }
 
 dependencies {
+    // Spring Cloud Gateway는 WebFlux(Reactor Netty) 기반
+    // spring-boot-starter-web(Tomcat)과 함께 사용하면 충돌 발생
     implementation 'org.springframework.cloud:spring-cloud-starter-gateway'
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
-    // JWT 검증용
+
+    // JWT 검증 (API Gateway가 모든 요청의 JWT를 중앙에서 검증)
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
