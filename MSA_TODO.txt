@@ -1,0 +1,283 @@
+================================================
+StudyOlle MSA 전환 — TODO 리스트
+================================================
+
+작성일: 2026-03-10
+기준: frontend-service 인증 페이지 완성 시점
+
+
+================================================
+완료된 작업
+================================================
+
+[Phase 1] 인프라 서비스 — ✅ 완료
+  - infra/eureka-server   :8761  서비스 디스커버리
+  - infra/config-server   :8888  중앙 설정 관리
+  - infra/api-gateway     :8080  JWT 검증 / 라우팅 / 필터
+
+[Phase 2] account-service — ✅ 소스코드 완성
+  - 포트: 8081
+  - 회원가입, 로그인, 토큰 재발급, 이메일 인증, 이메일 로그인
+  - JWT 발급 (검증은 api-gateway 전담)
+  - ConsoleEmailService (local), HtmlEmailService (dev)
+  - app.host = http://localhost:8090 설정 완료
+
+[Phase 3] frontend-service — ✅ 인증 페이지 완성
+  - 포트: 8090
+  - FrontendServiceApplication.java
+  - AuthPageController.java (GET 전용, apiBase 주입)
+  - templates/login.html
+  - templates/account/sign-up.html
+  - templates/account/check-email.html
+  - templates/account/check-email-token.html
+  - templates/account/email-login.html
+  - static/css/auth-style.css (Warm Flat Minimal)
+  - static/js/glass-validation.js
+  - MSA_MIGRATION.md (모노리틱 → MSA 변경 사항 문서)
+
+
+================================================
+즉시 해야 할 작업 (다음 세션 우선순위)
+================================================
+
+[ ] 통합 테스트 — 5개 서비스 기동 후 인증 흐름 전체 확인
+    기동 순서: eureka-server → config-server → api-gateway
+                → account-service → frontend-service
+    확인 항목:
+      1. http://localhost:8090/sign-up 접속
+      2. 회원가입 → 콘솔에 인증 이메일 링크 출력 확인
+      3. 링크 클릭 → check-email-token.html 에서 성공 카드 표시 확인
+      4. http://localhost:8090/login 에서 로그인
+      5. 개발자 도구 → localStorage 에 accessToken 저장 확인
+      6. http://localhost:8090/email-login 에서 이메일 로그인 링크 발송 확인
+
+
+================================================
+Phase 4 — study-service + event-service
+================================================
+
+  NOTE: Java 소스코드는 직접 작성. Claude는 frontend-service 템플릿 담당.
+
+--- study-service ---
+
+[ ] 모듈 생성
+    - services/study-service/
+    - 포트: 8083
+    - settings.gradle 에 include 'services:study-service' 추가
+
+[ ] build.gradle
+    - spring-boot-starter-web
+    - spring-boot-starter-data-jpa
+    - spring-cloud-starter-netflix-eureka-client
+    - postgresql driver
+    - JWT 라이브러리 추가하지 않기 (X-Account-Id 헤더만 사용)
+
+[ ] application.yml
+    - port: 8083
+    - datasource: jdbc:postgresql://localhost:5434/study_db  (별도 DB)
+    - eureka 등록
+
+[ ] api-gateway application.yml 라우팅 추가
+    - /api/studies/**  → lb://STUDY-SERVICE  (JwtAuthenticationFilter 적용)
+    - /api/tags/**     → lb://STUDY-SERVICE  (JwtAuthenticationFilter 적용)
+
+[ ] 엔티티 설계
+    - Study (path, title, shortDescription, fullDescription, image,
+             recruiting, published, closed, memberCount, publishedDateTime 등)
+    - StudyMember (study, account, role: MANAGER/MEMBER)
+    - StudyTag (study, tag)
+    - StudyZone (study, zone)
+    - Tag
+    - Zone
+
+[ ] InternalRequestFilter 적용
+    - /internal/** 경로에 X-Internal-Service 헤더 검증
+
+[ ] 주요 API 엔드포인트
+    POST   /api/studies                         스터디 생성
+    GET    /api/studies/{path}                  스터디 상세
+    GET    /api/studies                         스터디 목록 (검색/태그/지역 필터)
+    PUT    /api/studies/{path}/settings/...     스터디 설정 변경
+    POST   /api/studies/{path}/join             스터디 가입
+    POST   /api/studies/{path}/leave            스터디 탈퇴
+    GET    /internal/studies/{path}             내부 전용 조회
+
+--- event-service ---
+
+[ ] 모듈 생성
+    - services/event-service/
+    - 포트: 8084
+
+[ ] application.yml
+    - port: 8084
+    - datasource: jdbc:postgresql://localhost:5435/event_db  (별도 DB)
+
+[ ] api-gateway 라우팅 추가
+    - /api/events/**  → lb://EVENT-SERVICE  (JwtAuthenticationFilter 적용)
+
+[ ] 엔티티 설계
+    - Event (title, description, eventType: FCFS/CONFIRMATIVE,
+              limitOfEnrollments, startDateTime, endDateTime, study_id)
+    - Enrollment (event, accountId, accepted, attended, enrolledAt)
+
+[ ] 주요 API 엔드포인트
+    POST   /api/studies/{path}/events               모임 생성
+    GET    /api/studies/{path}/events               모임 목록
+    GET    /api/studies/{path}/events/{id}          모임 상세
+    POST   /api/studies/{path}/events/{id}/enroll   모임 신청
+    POST   /api/studies/{path}/events/{id}/leave    모임 취소
+    PUT    /api/studies/{path}/events/{id}/...      모임 설정
+
+[ ] event-service → study-service 내부 호출
+    - StudyFeignClient (/internal/studies/{path})
+    - X-Internal-Service: event-service 헤더 포함
+
+
+================================================
+Phase 4 — frontend-service 스터디 페이지 추가
+================================================
+
+  NOTE: Claude가 직접 작성하는 영역.
+
+[ ] 컨트롤러 추가
+    - StudyPageController.java
+      GET /studies/form           → study/form.html
+      GET /studies/{path}         → study/view.html
+      GET /studies/{path}/events  → study/events.html
+      GET /studies/{path}/settings/... → study/settings/*.html
+
+[ ] 홈 페이지
+    - HomePageController.java
+      GET /   → index.html (비로그인) / index-after-login.html (로그인)
+      로그인 여부는 JS 가 localStorage 에서 accessToken 확인 후 결정
+
+[ ] 공통 레이아웃 (fragments.html 대체)
+    - templates/fragments/nav.html  (네비게이션 바)
+      로그인 상태는 JS 가 localStorage 확인 후 렌더링
+    - templates/fragments/footer.html
+
+[ ] 스터디 페이지들
+    - templates/study/form.html              스터디 생성 폼
+    - templates/study/view.html              스터디 홈
+    - templates/study/members.html           멤버 목록
+    - templates/study/settings/info.html     스터디 정보 설정
+    - templates/study/settings/tags.html     태그 설정
+    - templates/study/settings/zones.html    지역 설정
+    - templates/study/settings/status.html   공개/모집 설정
+    - templates/study/settings/danger.html   위험 구역
+
+[ ] 모임 페이지들
+    - templates/event/form.html              모임 생성 폼
+    - templates/event/view.html              모임 상세
+
+[ ] 계정 설정 페이지들
+    - templates/settings/profile.html        프로필 수정
+    - templates/settings/password.html       비밀번호 변경
+    - templates/settings/notifications.html  알림 설정
+    - templates/settings/tags.html           관심 태그
+    - templates/settings/zones.html          활동 지역
+
+[ ] 공통 에러 페이지
+    - templates/error/404.html
+    - templates/error/error.html
+
+
+================================================
+Phase 5 — notification-service
+================================================
+
+[ ] 모듈 생성
+    - services/notification-service/
+    - 포트: 8085 (또는 미정)
+
+[ ] 기술 스택
+    - MongoDB (알림 데이터 저장 — 비정형, 대량 쌓임)
+    - RabbitMQ (다른 서비스에서 이벤트 수신)
+
+[ ] 역할
+    - study-service / event-service 가 RabbitMQ 로 이벤트 발행
+    - notification-service 가 이벤트 소비 후 알림 저장
+    - GET /api/notifications      읽지 않은 알림 목록
+    - PATCH /api/notifications     알림 읽음 처리
+
+[ ] api-gateway 라우팅 추가
+    - /api/notifications/**  → lb://NOTIFICATION-SERVICE
+
+
+================================================
+Phase 6 — admin-service
+================================================
+
+[ ] 모듈 생성
+    - services/admin-service/
+    - 포트: 8082
+
+[ ] 역할
+    - 플랫폼 관리자 전용 기능
+    - Feign Client 로 각 서비스의 /internal/** 호출
+
+[ ] api-gateway AdminRoleFilter 적용
+    - /api/admin/**  →  JwtAuthenticationFilter + AdminRoleFilter
+
+[ ] 주요 기능
+    - 회원 목록 / 상태 변경
+    - 스터디 목록 / 관리
+    - 태그 / 지역 관리
+
+[ ] frontend-service 관리자 페이지 추가
+    - templates/admin/dashboard.html
+    - templates/admin/members.html
+    - templates/admin/studies.html
+    - templates/admin/tags.html
+    - templates/admin/zones.html
+
+
+================================================
+추후 고려 사항
+================================================
+
+[ ] 통합 테스트 자동화
+    - 각 서비스별 Spring Boot Test
+    - api-gateway 필터 테스트
+
+[ ] Docker Compose 구성
+    - 모든 서비스 + PostgreSQL(각 DB) + MongoDB + RabbitMQ + Eureka + Config Server
+    - 개발 환경 원클릭 기동
+
+[ ] 운영 배포 준비
+    - 각 서비스 application-prod.yml
+    - JWT secret 환경변수 분리
+    - HTTPS 설정
+
+[ ] 모노리틱 기능 중 MSA 미반영 항목 확인
+    - #12 스터디 통계 대시보드 (Chart.js)
+    - 게시판 (Board 모듈) → study-service 또는 별도 board-service
+
+
+================================================
+역할 분담 원칙 (계속 유지)
+================================================
+
+- Java 소스코드 (Controller, Service, Repository, Entity, DTO 등): 직접 작성
+- frontend-service HTML 템플릿 작성 및 수정: Claude 담당
+- application.yml 수정: Claude 담당
+- 설계 결정 및 문서화: 협업
+
+================================================
+서비스 포트 정리
+================================================
+
+:8080  api-gateway
+:8081  account-service
+:8082  admin-service
+:8083  study-service
+:8084  event-service
+:8085  notification-service (예정)
+:8090  frontend-service
+:8761  eureka-server
+:8888  config-server
+
+:5432  PostgreSQL (기존 모노리틱용)
+:5433  PostgreSQL account_db
+:5434  PostgreSQL study_db       (Phase 4 신규)
+:5435  PostgreSQL event_db       (Phase 4 신규)
