@@ -3,7 +3,6 @@ package com.studyolle.modules.admin.service;
 import com.studyolle.modules.account.entity.Account;
 import com.studyolle.modules.account.repository.AccountRepository;
 import com.studyolle.modules.admin.dto.*;
-import com.studyolle.modules.study.entity.Study;
 import com.studyolle.modules.study.repository.StudyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;

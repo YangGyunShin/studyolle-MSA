@@ -9,7 +9,6 @@ import com.studyolle.modules.board.entity.BoardComment;
 import com.studyolle.modules.board.event.BoardCreatedEvent;
 import com.studyolle.modules.board.repository.BoardCommentRepository;
 import com.studyolle.modules.board.repository.BoardRepository;
-import com.studyolle.modules.study.entity.Study;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;

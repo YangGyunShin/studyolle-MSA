@@ -2,7 +2,6 @@ package com.studyolle.modules.board.repository;
 
 import com.studyolle.modules.board.entity.Board;
 import com.studyolle.modules.board.entity.BoardCategory;
-import com.studyolle.modules.study.entity.Study;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;

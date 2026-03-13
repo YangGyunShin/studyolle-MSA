@@ -10,7 +10,6 @@ import com.studyolle.modules.board.event.BoardCreatedEvent;
 import com.studyolle.modules.notification.Notification;
 import com.studyolle.modules.notification.NotificationRepository;
 import com.studyolle.modules.notification.NotificationType;
-import com.studyolle.modules.study.entity.Study;
 import com.studyolle.modules.study.event.StudyCreatedEvent;
 import com.studyolle.modules.study.event.StudyUpdateEvent;
 import com.studyolle.modules.study.repository.StudyRepository;

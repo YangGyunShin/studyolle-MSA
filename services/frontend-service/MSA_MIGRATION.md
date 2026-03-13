@@ -6,6 +6,174 @@
 
 ---
 
+## 이 문서를 읽기 전에 — 반드시 이해해야 할 핵심 개념
+
+이 섹션은 MSA 전환 과정에서 가장 자주 혼동되는 개념들을 정확하게 정리한다. 나머지 섹션들을 제대로 이해하려면 이 개념들이 먼저 머릿속에 자리잡혀 있어야 한다.
+
+---
+
+### 1. 모노리틱과 MSA의 가장 근본적인 차이 — 누가 화면을 만드는가
+
+모노리틱과 MSA의 차이를 한 문장으로 표현하면 이렇다. **모노리틱은 서버가 완성된 화면을 만들어서 브라우저에 전달하고, MSA는 서버가 데이터만 주고 브라우저가 그 데이터를 받아 화면을 만든다.**
+
+**모노리틱에서는 서버가 모든 것의 중심이었다.** 사용자가 버튼을 누르면, 브라우저가 서버에 요청을 보낸다. 서버는 DB에서 데이터를 가져오고, 그 데이터를 Thymeleaf 템플릿에 주입해서 완성된 HTML을 만든다. 이 HTML에는 이미 닉네임, 스터디 목록 같은 실제 데이터가 들어있다. 브라우저는 이 완성된 HTML을 받아서 표시하기만 했다. 브라우저의 역할은 수동적이었다.
+
+```
+[모노리틱]
+브라우저 → 요청 → 서버
+                   서버가: DB 조회 + Thymeleaf 렌더링 + HTML 생성 모두 처리
+브라우저 ← 완성된 HTML ← 서버
+브라우저는 받은 걸 표시하기만 함
+```
+
+**MSA에서는 이 역할이 분리됐다.** 서버(백엔드)는 데이터 처리에만 집중하고, 처리 결과를 JSON으로 돌려준다. HTML을 만들거나 화면을 어떻게 구성할지는 전혀 신경 쓰지 않는다. 화면을 어떻게 구성할지는 브라우저에서 실행되는 JavaScript가 담당한다.
+
+```
+[MSA]
+브라우저 → GET /sign-up → frontend-service
+frontend-service: HTML + JS 코드를 브라우저에 전달 (데이터 없음, 껍데기만)
+브라우저: HTML 표시 + JS 실행 시작
+
+브라우저(JS) → POST /api/auth/signup (JSON) → api-gateway → account-service
+account-service: DB 저장 후 결과를 JSON으로 반환
+브라우저(JS) ← JSON 응답 ← api-gateway
+브라우저(JS): JSON을 받아서 DOM을 직접 조작해 화면 업데이트
+```
+
+---
+
+### 2. JavaScript는 브라우저에서 실행된다 — 서버가 아니다
+
+이것이 MSA 프론트엔드를 이해하는 가장 중요한 전제다.
+
+Thymeleaf 코드(`th:text="${nickname}"`)는 **서버 컴퓨터 안**에서 실행된다. 서버가 DB에서 닉네임을 꺼내서 HTML 안에 집어넣고, 완성된 HTML을 브라우저에 전달한다. 이 시점에 브라우저는 아직 아무것도 받지 못한 상태다.
+
+JavaScript 코드(`fetch()`, `document.getElementById()` 등)는 **사용자의 컴퓨터에 있는 브라우저 안**에서 실행된다. 서버가 HTML을 브라우저에 전달하고 나면, 브라우저가 그 HTML을 파싱하면서 JavaScript 코드를 자신의 엔진에 올려 직접 실행한다. `fetch()`가 HTTP 요청을 보내는 주체는 서버가 아니라 브라우저다.
+
+```java
+// 이 코드는 서버(JVM)에서 실행됨
+// 서버가 DB에서 닉네임을 꺼내 HTML에 집어넣는다
+model.addAttribute("nickname", account.getNickname()); // Thymeleaf
+```
+
+```javascript
+// 이 코드는 브라우저(V8 엔진)에서 실행됨
+// 서버와 무관하게 브라우저가 직접 HTTP 요청을 보낸다
+const response = await fetch("http://localhost:8080/api/auth/signup", { ... });
+```
+
+이 전제를 이해하면, "왜 두 번째 요청에서 frontend-service가 관여하지 않는가"라는 의문이 자연스럽게 풀린다. `fetch()`를 실행하는 주체는 브라우저이고, 브라우저는 URL에 적힌 주소로 직접 연결을 열기 때문이다.
+
+---
+
+### 3. 어느 서버로 요청이 가는지는 URL의 포트 번호가 결정한다
+
+`fetch("http://localhost:8080/api/auth/signup")`에서 `8080`은 단순한 목적지 주소다. 브라우저는 이 숫자를 보고 "내 컴퓨터의 8080번 포트로 TCP 연결을 열겠다"고 결정한다. 거기에 api-gateway가 대기하고 있기 때문에 api-gateway로 요청이 가는 것이다.
+
+만약 `8081`이었다면 account-service로 직접 갔을 것이고, `8090`이었다면 frontend-service로 갔을 것이다. 어느 서버로 요청이 가는지는 **오직 URL 안의 포트 번호로만 결정된다.** frontend-service가 중간에서 중계해주는 것이 전혀 아니다.
+
+```javascript
+fetch("http://localhost:8080/...")  // → api-gateway
+fetch("http://localhost:8081/...")  // → account-service (직접, 보안 위반)
+fetch("http://localhost:8090/...")  // → frontend-service (잘못된 대상)
+```
+
+그래서 `API_BASE` 변수 하나가 MSA 아키텍처에서 매우 중요한 역할을 한다. 모든 `fetch()` 호출이 반드시 api-gateway(`8080`)로만 향하도록 이 변수 하나가 강제하고 있다. 만약 개발자가 실수로 `API_BASE = "http://localhost:8081"`이라고 적으면 account-service에 JWT 검증 없이 직접 접근하는 보안 구멍이 생긴다.
+
+```yaml
+# frontend-service application.yml
+app:
+  api-base-url: http://localhost:8080  # 이 값 하나가 모든 요청의 목적지를 결정한다
+```
+
+```java
+// AuthPageController.java
+@Value("${app.api-base-url}")
+private String apiBase;
+
+@GetMapping("/sign-up")
+public String signUpPage(Model model) {
+    model.addAttribute("apiBase", apiBase);  // HTML에 주입
+    return "account/sign-up";
+}
+```
+
+```html
+<!-- 브라우저에 전달된 HTML: Thymeleaf가 이미 값을 채워넣은 상태 -->
+<script>
+    const API_BASE = "http://localhost:8080";  // [[${apiBase}]] 가 치환된 결과
+</script>
+```
+
+운영 서버에 배포할 때는 `application.yml`의 `api-base-url` 값만 `https://api.studyolle.com`으로 바꾸면 HTML 파일을 하나도 건드릴 필요가 없다.
+
+---
+
+### 4. TCP 연결은 양방향 파이프다 — 응답이 frontend-service를 경유하지 않는 이유
+
+브라우저가 `fetch("http://localhost:8080/...")`을 실행하면, 브라우저가 `localhost:8080`으로 TCP 연결을 직접 연다. 이 연결은 양방향 파이프다. 파이프의 한쪽 끝은 브라우저가 들고 있고, 다른 쪽 끝은 api-gateway가 들고 있다.
+
+요청은 브라우저 → api-gateway 방향으로 흐르고, 응답은 api-gateway → 브라우저 방향으로 **같은 파이프를 통해** 되돌아온다. api-gateway가 account-service로부터 응답을 받으면, "이 요청이 어디서 왔지?"를 이미 알고 있기 때문에(아까 열린 그 TCP 연결을 통해 왔으니까) 그 연결의 반대 방향으로 응답을 돌려보낸다. 그 반대 방향은 브라우저다.
+
+frontend-service는 이 파이프 어디에도 포함되어 있지 않다. 처음에 브라우저가 `8080`으로 연결을 열었기 때문이다. `8090`(frontend-service)은 이 연결에 참여한 적이 없으므로, 응답이 frontend-service를 경유할 물리적인 이유가 없다.
+
+```
+[브라우저] ←── 양방향 TCP 파이프 (localhost:8080) ──→ [api-gateway :8080]
+     요청 →                                                  → account-service
+     ← 응답                                                  ← account-service
+
+[frontend-service :8090]  ← 이 파이프에 포함된 적 없음
+```
+
+---
+
+### 5. 세 개의 독립적인 레이어 — 각자가 서로를 몰라도 동작한다
+
+MSA에서 독립적으로 사고해야 하는 레이어가 정확히 세 개 있다.
+
+**백엔드 서비스(account-service 등)**는 HTTP 요청이 브라우저에서 왔는지, Postman에서 왔는지 전혀 신경 쓰지 않는다. 요청이 오면 데이터를 처리해서 JSON을 돌려줄 뿐이다. 화면이 어떻게 생겼는지 전혀 모른다.
+
+**frontend-service**는 브라우저가 나중에 어떤 데이터를 받아올지 신경 쓰지 않는다. 요청이 오면 HTML/JS/CSS 파일을 내려줄 뿐이다. 백엔드 서비스들이 어떻게 구현됐는지도 모른다.
+
+**브라우저**는 frontend-service가 어떤 서버인지, 백엔드가 Spring Boot인지 아닌지 모른다. URL에 적힌 주소로 연결을 열고 응답을 받을 뿐이다.
+
+이 독립성을 확인하는 방법은 간단하다. **한 레이어를 통째로 다른 것으로 바꿔도 나머지가 그대로 동작하는가?** account-service를 Java 대신 Python으로 완전히 다시 짜도, `/api/auth/signup`으로 POST를 받아 JSON을 돌려주기만 하면 브라우저도 frontend-service도 아무것도 바꿀 필요가 없다. 각 레이어가 JSON이라는 얇은 계약 하나로만 연결되어 있기 때문이다.
+
+```
+[브라우저]          [frontend-service]     [백엔드 서비스]
+- JS 실행           - HTML/JS/CSS 배달     - 데이터 처리
+- DOM 조작          - apiBase 주입         - JSON 반환
+- API 호출          - 페이지 라우팅        - DB 접근
+
+각 레이어는 서로의 내부 구현을 모름.
+연결 고리는 오직: URL 주소(포트번호) + JSON 형식뿐.
+```
+
+---
+
+### 6. frontend-service는 "정의"를 담당하고, 브라우저는 "실행"을 담당한다
+
+브라우저에서 실행되는 JavaScript 코드는 결국 frontend-service가 내려준 파일 안에 적혀있는 것들이다. `fetch()`를 어디로 보낼지, 응답을 받으면 어떤 DOM 요소를 보여줄지, 에러 코드에 따라 어떤 메시지를 표시할지, 이 모든 로직은 개발자가 frontend-service의 HTML/JS 파일 안에 미리 작성해둔 것들이다. 브라우저는 그 코드를 받아서 실행하는 것뿐이고, 자기 마음대로 동작하는 게 아니다.
+
+따라서 더 정밀하게 표현하면, **"프론트엔드의 로직과 정의는 frontend-service에 있고, 그 로직의 실행은 브라우저에서 일어난다."** 설계도는 서버에 있고, 그 설계도대로 실제로 움직이는 것은 브라우저인 셈이다.
+
+이것이 모노리틱과 비교해서 달라진 점이다. 모노리틱에서도 Thymeleaf 템플릿은 서버에 있었고, 브라우저는 그 결과물을 받아서 보여줬다. **달라진 것은 언제 로직이 실행되느냐**다. 모노리틱에서는 로직이 서버에서 HTML을 만들 때 실행됐고, MSA에서는 로직이 브라우저가 HTML을 받은 이후에 실행된다.
+
+```
+[모노리틱]
+로직 정의: Thymeleaf 템플릿 (서버에 있음)
+로직 실행: 서버가 요청을 받을 때마다 실행 → 완성된 HTML 생성 → 브라우저에 전달
+
+[MSA]
+로직 정의: JavaScript 코드 (frontend-service에 있음)
+로직 실행: 브라우저가 JS를 받은 이후, 브라우저 안에서 실행
+           → api-gateway로 데이터 요청 → JSON 수신 → DOM 업데이트
+```
+
+모노리틱은 서버가 "완성된 결과"를 주고, MSA는 서버가 "결과를 만드는 방법(JS 코드)"과 "재료(JSON 데이터)"를 따로 준다. 방법과 재료를 조합해서 최종 화면을 만드는 것은 브라우저가 한다.
+
+---
+
 ## 목차
 
 1. [전체 구조 변화](#1-전체-구조-변화)

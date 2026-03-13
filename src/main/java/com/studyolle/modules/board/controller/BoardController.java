@@ -8,8 +8,6 @@ import com.studyolle.modules.board.entity.BoardCategory;
 import com.studyolle.modules.board.entity.BoardComment;
 import com.studyolle.modules.board.repository.BoardCommentRepository;
 import com.studyolle.modules.board.service.BoardService;
-import com.studyolle.modules.study.entity.Study;
-import com.studyolle.modules.study.service.StudyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;

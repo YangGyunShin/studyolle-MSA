@@ -3,8 +3,6 @@ package com.studyolle.modules.study.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.study.entity.JoinType;
-import com.studyolle.modules.study.entity.Study;
 import com.studyolle.modules.study.dto.StudyDescriptionForm;
 import com.studyolle.modules.study.service.StudySettingsService;
 import com.studyolle.modules.tag.Tag;

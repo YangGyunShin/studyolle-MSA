@@ -10,7 +10,6 @@ import com.studyolle.modules.event.event.EnrollmentEvent;
 import com.studyolle.modules.notification.Notification;
 import com.studyolle.modules.notification.NotificationRepository;
 import com.studyolle.modules.notification.NotificationType;
-import com.studyolle.modules.study.entity.Study;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;

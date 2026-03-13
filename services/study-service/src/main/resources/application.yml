@@ -1,0 +1,25 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: study-service
+  datasource:
+    url: jdbc:postgresql://localhost:5434/study_db
+    username: studyolle
+    password: studyolle
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        # @ElementCollection (tagIds, zoneIds 등) 로딩 시 N+1 방지
+        # 스터디 목록 조회 시 각 study의 컬렉션을 최대 100개씩 IN 쿼리로 묶어서 조회
+        default_batch_fetch_size: 100
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/

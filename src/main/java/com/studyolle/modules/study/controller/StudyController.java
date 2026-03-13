@@ -1,9 +1,6 @@
 package com.studyolle.modules.study.controller;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.study.entity.Study;
-import com.studyolle.modules.study.dto.StudyForm;
-import com.studyolle.modules.study.service.StudyService;
 import com.studyolle.modules.event.entity.Event;
 import com.studyolle.modules.event.repository.EventRepository;
 import com.studyolle.modules.study.validator.StudyFormValidator;

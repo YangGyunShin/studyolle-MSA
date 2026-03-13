@@ -1,7 +1,6 @@
 package com.studyolle.modules.board.entity;
 
 import com.studyolle.modules.account.entity.Account;
-import com.studyolle.modules.study.entity.Study;
 import jakarta.persistence.*;
 import lombok.*;
 

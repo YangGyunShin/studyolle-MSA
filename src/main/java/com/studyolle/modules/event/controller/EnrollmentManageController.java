@@ -4,7 +4,6 @@ import com.studyolle.modules.account.entity.Account;
 import com.studyolle.modules.event.entity.Enrollment;
 import com.studyolle.modules.event.entity.Event;
 import com.studyolle.modules.event.service.EnrollmentService;
-import com.studyolle.modules.study.entity.Study;
 import com.studyolle.modules.study.service.StudySettingsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;

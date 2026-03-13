@@ -1,7 +1,6 @@
 package com.studyolle.modules.event.repository;
 
 import com.studyolle.modules.event.entity.Event;
-import com.studyolle.modules.study.entity.Study;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.transaction.annotation.Transactional;
