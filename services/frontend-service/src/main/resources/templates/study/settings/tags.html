@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<!--
+    study/settings/tags.html  (MSA 버전)
+
+    [모노리틱과의 핵심 차이]
+
+    1. CSRF 헤더 완전 제거
+       - 모노리틱: th:replace="fragments.html :: ajax-csrf-header"
+                   → $.ajaxSetup({ beforeSend: function(xhr) { xhr.setRequestHeader(_csrf_header, _csrf); } })
+       - MSA:       완전 제거. 모든 요청에 Authorization: Bearer 헤더를 직접 추가.
+
+    2. Tagify 이벤트 핸들러 (add/remove 태그)
+       - 모노리틱: update-tags fragment → $.ajax({ headers: { _csrf_header: _csrf } })
+       - MSA:       fetch() + 'Authorization': 'Bearer ' + localStorage.getItem('accessToken')
+
+    3. 태그 whitelist
+       - 모노리틱: th:text="${whitelist}" hidden div → JS 에서 innerHTML 파싱
+       - MSA:       th:inline="javascript" 로 서버가 whitelist JSON 을 JS 변수로 직접 주입
+
+    4. 초기 태그 값
+       - 모노리틱: th:value="${#strings.listJoin(tags, ',')}"
+       - MSA:       th:inline="javascript" 로 서버가 tags 배열을 JS 변수로 주입
+
+    [API 엔드포인트]
+    - 태그 추가: POST /api/studies/{path}/settings/tags/add    { tagTitle: "..." }
+    - 태그 제거: POST /api/studies/{path}/settings/tags/remove { tagTitle: "..." }
+
+    [필요한 model 속성]
+    - study      : StudyResponse (path, title)
+    - tags       : List<String> (현재 등록된 태그 목록)
+    - whitelist  : String (JSON 형식의 전체 태그 whitelist, study-service 가 제공)
+    - account    : AccountSummaryDto (nav 용)
+    - apiBase    : String
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head(${study.title} + ' - 스터디 주제')}"></head>
+
+<body class="bg-light">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+<div th:replace="~{fragments.html :: study-info}"></div>
+
+<!-- 설정 탭 바 -->
+<div class="border-bottom bg-white">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <nav class="nav py-2">
+                    <a class="nav-link rounded-pill px-3 text-muted"
+                       style="font-size: 0.9rem;"
+                       th:href="@{'/study/' + ${study.path}}">
+                        <i class="fa-solid fa-arrow-left me-1"></i> 스터디로 돌아가기
+                    </a>
+                    <span class="nav-link px-3 fw-semibold"
+                          style="color: #8e85b0; font-size: 0.9rem;">
+                        <i class="fa-solid fa-gear me-1"></i> 스터디 설정
+                    </span>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="row g-4">
+
+                <!-- 사이드바 -->
+                <div class="col-md-3">
+                    <div th:replace="~{fragments.html :: study-settings-menu('tags')}"></div>
+                </div>
+
+                <!-- 메인 콘텐츠 -->
+                <div class="col-md-9">
+                    <div class="card border-0 shadow-sm rounded-3">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-tags text-primary me-2"></i>스터디 주제
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="alert alert-primary border-0 rounded-3 mb-4" role="alert">
+                                <i class="fa-solid fa-circle-info me-2"></i>
+                                스터디에서 주로 다루는 주제를 태그로 등록하세요.
+                                태그를 입력하고 콤마(,) 또는 엔터를 입력하면 추가됩니다.
+                            </div>
+
+                            <!--
+                                Tagify 가 이 input 을 변환한다.
+                                초기값은 JS 변수 CURRENT_TAGS 에서 Tagify API 로 설정한다.
+                            -->
+                            <input id="tags" type="text" class="form-control"
+                                   placeholder="예) Java, Spring Boot, JPA">
+
+                            <!-- 태그 추가/제거 실시간 피드백 -->
+                            <div id="tagFeedback" class="mt-2 small" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+<script th:inline="javascript">
+    const STUDY_PATH = [[${study.path}]];
+
+    /*
+     * [모노리틱 차이]
+     * 모노리틱: hidden div th:text="${whitelist}" → JavaScript 에서 innerHTML 로 파싱
+     * MSA:       th:inline="javascript" 로 서버가 JSON 문자열을 JS 변수에 직접 주입.
+     *            whitelist 는 study-service 의 MetadataFeignClient 가 조회한 전체 태그 목록.
+     *            형식: '[{"value":"Java"},{"value":"Spring"}]' 또는 '["Java","Spring"]'
+     */
+    const WHITELIST_JSON = /*[[${whitelist}]]*/ '[]';
+
+    /*
+     * 현재 스터디에 등록된 태그 목록.
+     * 형식: ["Java", "Spring Boot"]
+     */
+    const CURRENT_TAGS = /*[[${tags}]]*/ [];
+</script>
+
+<script>
+    // ---------------------------------------------------------------
+    // Tagify 초기화
+    //
+    // [모노리틱 차이]
+    // 모노리틱: update-tags fragment 가 $.ajax + CSRF 헤더로 add/remove 처리
+    // MSA:       Tagify 이벤트에서 직접 fetch() + Authorization: Bearer 헤더 사용
+    //
+    // whitelist 파싱:
+    //   study-service 가 반환하는 형식에 따라 두 가지 경우를 처리한다.
+    //   1) [{value: "Java"}, ...] 형식 (Tagify 기본 형식)
+    //   2) ["Java", "Spring", ...] 문자열 배열 → {value: "..."} 로 변환
+    // ---------------------------------------------------------------
+    let whitelist = [];
+    try {
+        const parsed = JSON.parse(WHITELIST_JSON);
+        // 첫 항목이 문자열이면 {value: "..."} 형식으로 변환
+        if (parsed.length > 0 && typeof parsed[0] === 'string') {
+            whitelist = parsed.map(function (t) { return { value: t }; });
+        } else {
+            whitelist = parsed;
+        }
+    } catch (e) {
+        whitelist = [];
+    }
+
+    const tagify = new Tagify(document.getElementById('tags'), {
+        whitelist: whitelist,
+        // enforceWhitelist: false — 태그를 자유롭게 입력 가능
+        //   (zones.html 은 true 로 제한)
+        enforceWhitelist: false,
+        dropdown: {
+            maxItems: 20,
+            classname: 'tags-look',
+            enabled: 0,     // 0 = 항상 드롭다운 표시
+            closeOnSelect: false
+        }
+    });
+
+    // 현재 태그 초기 로드
+    if (CURRENT_TAGS && CURRENT_TAGS.length > 0) {
+        tagify.addTags(CURRENT_TAGS);
+    }
+
+    // ---------------------------------------------------------------
+    // 태그 추가 이벤트
+    // Tagify 가 add 이벤트를 발생시키면 API 로 태그를 서버에 저장한다.
+    // ---------------------------------------------------------------
+    tagify.on('add', async function (e) {
+        const tagTitle = e.detail.data.value;
+        try {
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/tags/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ tagTitle: tagTitle })
+            });
+            if (!res.ok) {
+                // 실패 시 해당 태그를 Tagify 에서 제거
+                tagify.removeTags(tagTitle);
+                const data = await res.json();
+                showFeedback(data.message || '태그 추가 실패', 'error');
+            } else {
+                showFeedback('"' + tagTitle + '" 태그가 추가되었습니다.', 'success');
+            }
+        } catch (err) {
+            tagify.removeTags(tagTitle);
+            showFeedback('서버 연결 오류', 'error');
+            console.error(err);
+        }
+    });
+
+    // ---------------------------------------------------------------
+    // 태그 제거 이벤트
+    // ---------------------------------------------------------------
+    tagify.on('remove', async function (e) {
+        const tagTitle = e.detail.data.value;
+        try {
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/tags/remove', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ tagTitle: tagTitle })
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                showFeedback(data.message || '태그 제거 실패', 'error');
+            } else {
+                showFeedback('"' + tagTitle + '" 태그가 제거되었습니다.', 'success');
+            }
+        } catch (err) {
+            showFeedback('서버 연결 오류', 'error');
+            console.error(err);
+        }
+    });
+
+    // 피드백 메시지 표시 헬퍼
+    function showFeedback(msg, type) {
+        const el = document.getElementById('tagFeedback');
+        el.textContent = msg;
+        el.style.color = (type === 'error') ? '#b05a3a' : '#4a8a62';
+        el.style.display = 'block';
+        // 2초 후 자동 숨김
+        setTimeout(function () {
+            el.style.display = 'none';
+        }, 2000);
+    }
+</script>
+
+</body>
+</html>

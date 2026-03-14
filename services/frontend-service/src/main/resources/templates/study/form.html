@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<!--
+    study/form.html  (MSA 버전)
+
+    [모노리틱과의 핵심 차이]
+
+    1. 폼 바인딩 제거
+       - 모노리틱: th:action="@{/new-study}" th:object="${studyForm}" method="post"
+                   th:field="*{path}", th:errors="*{path}" 서버 DTO 자동 연결
+       - MSA:       일반 <div>. fetch(POST /api/studies) + Authorization: Bearer 헤더.
+                   서버 에러는 errorCode 기반으로 JS 가 해당 필드 아래에 직접 표시.
+
+    2. Summernote 에디터
+       - 모노리틱: th:field="*{fullDescription}" class="editor" → fragment editor-script 로 초기화
+       - MSA:       동일한 Summernote 에디터 사용하지만, 제출 시 JS 가 .summernote('code') 로
+                   HTML 내용을 직접 읽어서 fetch body 에 포함.
+
+    3. CSRF 제거, 리다이렉트 변경
+       - 모노리틱: 성공 시 서버가 redirect:/study/{path}
+       - MSA:       성공 시 JS 가 window.location.href = '/study/' + path
+
+    [필요한 model 속성]
+    - apiBase : String (API Gateway URL, StudyPageController 가 주입)
+    - account : AccountSummaryDto (네비게이션 바 표시용)
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head('새 스터디 개설')}"></head>
+
+<!-- Summernote CSS (에디터 페이지에서만 필요) -->
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.css" rel="stylesheet">
+
+<body class="bg-light">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-md-10 col-sm-12">
+
+            <!-- 헤더 영역 -->
+            <div class="text-center mb-4">
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                     style="width: 72px; height: 72px; background: linear-gradient(135deg, #8e85b0 0%, #a099bd 100%);">
+                    <i class="fa-solid fa-book-open text-white" style="font-size: 1.8rem;"></i>
+                </div>
+                <h2 class="fw-bold mb-1">새 스터디 개설</h2>
+                <p class="text-muted">함께 성장할 스터디를 만들어 보세요</p>
+            </div>
+
+            <!--
+                공통 에러 박스
+                DUPLICATE_PATH, VALIDATION_ERROR 등 필드에 귀속되지 않는 에러를 표시한다.
+            -->
+            <div id="errorGeneral" class="alert alert-danger border-0 rounded-3 mb-4" role="alert"
+                 style="display: none;">
+                <i class="fa-solid fa-circle-exclamation me-2"></i>
+                <span id="errorGeneralMsg"></span>
+            </div>
+
+            <!--
+                [모노리틱 제거] <form th:action th:object method="post">
+                [MSA]          <div>. 버튼 클릭 시 JS 가 fetch() 호출.
+            -->
+            <div>
+
+                <!-- 기본 정보 섹션 -->
+                <div class="card border-0 shadow-sm rounded-3 mb-4">
+                    <div class="card-header bg-white border-bottom pt-3 pb-2">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fa-solid fa-circle-info text-primary me-2"></i>기본 정보
+                        </h6>
+                    </div>
+                    <div class="card-body p-4">
+
+                        <!-- 스터디 URL -->
+                        <div class="mb-4">
+                            <label for="path" class="form-label fw-semibold">
+                                스터디 URL <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0 text-muted small">studyolle.com/study/</span>
+                                <!--
+                                    [모노리틱 제거] th:field="*{path}"
+                                    [MSA]          일반 input. id 로 JS 가 값을 읽는다.
+                                -->
+                                <input id="path" type="text" class="form-control border-start-0"
+                                       placeholder="my-study" minlength="2" maxlength="20">
+                            </div>
+                            <div class="form-text">
+                                <i class="fa-solid fa-circle-question me-1"></i>
+                                공백 없이 문자, 숫자, 대시(-), 언더바(_)만 2~20자
+                            </div>
+                            <!--
+                                [모노리틱 제거] th:if="${#fields.hasErrors('path')}" th:errors="*{path}"
+                                [MSA]          JS 가 에러 메시지를 여기에 직접 삽입
+                            -->
+                            <div id="pathError" class="text-danger small mt-1" style="display: none;"></div>
+                        </div>
+
+                        <!-- 스터디 이름 -->
+                        <div class="mb-4">
+                            <label for="title" class="form-label fw-semibold">
+                                스터디 이름 <span class="text-danger">*</span>
+                            </label>
+                            <input id="title" type="text" class="form-control"
+                                   placeholder="예) Spring Boot 마스터 클래스" maxlength="50">
+                            <div class="form-text">50자 이내로 입력하세요.</div>
+                            <div id="titleError" class="text-danger small mt-1" style="display: none;"></div>
+                        </div>
+
+                        <!-- 짧은 소개 -->
+                        <div class="mb-0">
+                            <label for="shortDescription" class="form-label fw-semibold">
+                                짧은 소개 <span class="text-danger">*</span>
+                            </label>
+                            <textarea id="shortDescription" class="form-control"
+                                      placeholder="스터디를 한 문장으로 소개해 주세요."
+                                      maxlength="100" rows="2"></textarea>
+                            <div class="form-text">100자 이내로 간단히 소개하세요.</div>
+                            <div id="shortDescError" class="text-danger small mt-1" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 상세 소개 섹션 -->
+                <div class="card border-0 shadow-sm rounded-3 mb-4">
+                    <div class="card-header bg-white border-bottom pt-3 pb-2">
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fa-solid fa-pen-fancy text-warning me-2"></i>상세 소개
+                        </h6>
+                    </div>
+                    <div class="card-body p-4">
+                        <label for="fullDescription" class="form-label fw-semibold">
+                            스터디 상세 설명 <span class="text-danger">*</span>
+                        </label>
+                        <!--
+                            Summernote 에디터 대상 textarea.
+                            제출 시 JS 가 $('#fullDescription').summernote('code') 로 HTML 내용을 읽는다.
+                        -->
+                        <textarea id="fullDescription" class="form-control"
+                                  placeholder="스터디를 자세히 설명해 주세요." rows="10"></textarea>
+                        <div class="form-text">
+                            <i class="fa-solid fa-lightbulb text-warning me-1"></i>
+                            목표, 일정, 방식, 교재, 강좌, 모집 스터디원 등 자세히 입력하세요.
+                        </div>
+                        <div id="fullDescError" class="text-danger small mt-1" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- 제출 버튼 -->
+                <div class="d-flex justify-content-between align-items-center">
+                    <a href="/" class="text-muted text-decoration-none">
+                        <i class="fa-solid fa-arrow-left me-1"></i> 돌아가기
+                    </a>
+                    <button id="createBtn" type="button"
+                            class="btn btn-lg rounded-pill px-5 shadow-sm text-white"
+                            style="background: linear-gradient(135deg, #8e85b0 0%, #a099bd 100%); border: none;">
+                        <i class="fa-solid fa-rocket me-2"></i>스터디 만들기
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+<!-- Summernote (이 페이지에서만 필요) -->
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/lang/summernote-ko-KR.min.js"></script>
+
+<script>
+    // ---------------------------------------------------------------
+    // Summernote 에디터 초기화
+    // 모노리틱과 동일한 옵션. 단, 폼 submit 이 아닌 JS fetch 로 내용을 전달한다.
+    // ---------------------------------------------------------------
+    $(document).ready(function () {
+        $('#fullDescription').summernote({
+            height: 300,
+            lang: 'ko-KR',
+            placeholder: '스터디의 목표, 일정, 방식, 교재, 강좌 등을 입력하세요.',
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'clear']],
+                ['fontsize', ['fontsize']],
+                ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['insert', ['link', 'picture']],
+                ['view', ['fullscreen', 'codeview']]
+            ]
+        });
+    });
+
+    // ---------------------------------------------------------------
+    // 스터디 생성 처리
+    //
+    // [흐름]
+    // 1. 버튼 클릭
+    // 2. 빈 값 검증
+    // 3. fetch(POST /api/studies) + Authorization: Bearer
+    // 4. 성공(201) → window.location.href = '/study/' + path
+    //    실패(400~) → errorCode 에 따라 필드별 에러 표시
+    //
+    // [study-service StudyCreateRequest 필드]
+    //   path             : 2~20자, 영문 소문자/숫자/대시/언더바
+    //   title            : 1~50자
+    //   shortDescription : 1~100자
+    //   fullDescription  : 필수
+    //
+    // [예상 errorCode]
+    //   DUPLICATE_STUDY_PATH : 이미 사용 중인 경로
+    //   VALIDATION_ERROR     : @Valid 실패
+    // ---------------------------------------------------------------
+    document.getElementById('createBtn').addEventListener('click', async function () {
+        clearAllErrors();
+
+        const path             = document.getElementById('path').value.trim();
+        const title            = document.getElementById('title').value.trim();
+        const shortDescription = document.getElementById('shortDescription').value.trim();
+        // Summernote 에디터에서 HTML 내용을 읽는다.
+        const fullDescription  = $('#fullDescription').summernote('code');
+
+        // 클라이언트 사이드 빈 값 검증
+        if (!path || !title || !shortDescription || !fullDescription || fullDescription === '<p><br></p>') {
+            showGeneralError('모든 필드를 입력해주세요.');
+            return;
+        }
+
+        const btn = document.getElementById('createBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>만드는 중...';
+
+        try {
+            const response = await fetch(API_BASE + '/api/studies', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ path, title, shortDescription, fullDescription })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                // -------------------------------------------------------
+                // 성공: 생성된 스터디 상세 페이지로 이동
+                // 모노리틱: 서버가 redirect:/study/{path}
+                // MSA:       JS 가 직접 이동
+                // -------------------------------------------------------
+                window.location.href = '/study/' + path;
+            } else {
+                const errorCode = result.errorCode || '';
+                const message   = result.message   || '스터디 생성 중 오류가 발생했습니다.';
+
+                if (errorCode === 'DUPLICATE_STUDY_PATH') {
+                    showFieldError('pathError', message);
+                } else if (errorCode === 'VALIDATION_ERROR') {
+                    showGeneralError(message);
+                } else {
+                    showGeneralError(message);
+                }
+            }
+
+        } catch (e) {
+            showGeneralError('서버와 연결할 수 없습니다. 잠시 후 다시 시도해주세요.');
+            console.error('스터디 생성 실패:', e);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-rocket me-2"></i>스터디 만들기';
+        }
+    });
+
+    // --- 헬퍼 함수 ---
+
+    function showFieldError(id, message) {
+        const el = document.getElementById(id);
+        el.textContent = message;
+        el.style.display = 'block';
+    }
+
+    function showGeneralError(message) {
+        document.getElementById('errorGeneralMsg').textContent = message;
+        document.getElementById('errorGeneral').style.display = 'block';
+    }
+
+    function clearAllErrors() {
+        ['pathError', 'titleError', 'shortDescError', 'fullDescError'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) { el.textContent = ''; el.style.display = 'none'; }
+        });
+        document.getElementById('errorGeneralMsg').textContent = '';
+        document.getElementById('errorGeneral').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>

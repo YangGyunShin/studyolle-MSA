@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<!--
+    fragments.html  (MSA 버전)
+
+    [모노리틱과의 핵심 차이]
+
+    1. sec:authorize 완전 제거
+       - 모노리틱: sec:authorize="isAuthenticated()" 로 서버가 인증 여부를 렌더링 시 확인
+       - MSA:       th:if="${account != null}" — StudyPageController 가 model 에 account 를 주입
+                    비로그인이면 account == null, 로그인이면 account 객체가 있음
+
+    2. CSRF 완전 제거
+       - 모노리틱: Spring Security 가 hidden input 으로 자동 삽입
+       - MSA:       JWT 를 Authorization: Bearer 헤더로 전달하므로 CSRF 불필요
+
+    3. 가입/탈퇴 버튼
+       - 모노리틱: th:action 폼 POST → 서버 처리 → redirect
+       - MSA:       onclick="..." → fetch() → JSON 응답 → JS 가 페이지 새로고침
+
+    4. Tagify (tags/zones)
+       - 모노리틱: ajax-csrf-header 포함 jQuery AJAX + CSRF 헤더
+       - MSA:       fetch() + Authorization: Bearer localStorage.getItem('accessToken')
+
+    [fragments 목록]
+    - head          : CDN + CSS 링크 (모든 study 페이지 공통 head)
+    - main-nav      : 상단 네비게이션 바
+    - study-info    : 스터디 헤더 (배너 + 제목 + 상태 배지 + 가입/탈퇴 버튼)
+    - study-settings-menu : 설정 페이지 사이드바
+    - footer        : 페이지 하단 + JS CDN
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<!-- ============================================================
+     head fragment
+     모든 study 페이지의 <head> 를 대체한다.
+     title 파라미터로 페이지별 제목을 받는다.
+     ============================================================ -->
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' - StudyOlle'">StudyOlle</title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Bootstrap Icons + FontAwesome -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+
+    <!-- Tagify (tags/zones 설정 페이지에서 사용) -->
+    <link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css" rel="stylesheet">
+
+    <!-- 스터디 공통 스타일 -->
+    <link rel="stylesheet" th:href="@{/css/main-style.css}">
+</head>
+
+
+<!-- ============================================================
+     main-nav fragment
+     상단 네비게이션 바.
+
+     [모노리틱과의 차이]
+     모노리틱: sec:authorize="isAuthenticated()" 로 서버가 렌더링 시 분기
+     MSA:       th:if="${account != null}" — StudyPageController 가 model.addAttribute("account", account)
+                비로그인이면 account = null, 로그인이면 AccountSummaryDto 객체
+
+     검색 기능: 현재 MSA 전환 범위 외. 폼 submit → /search 로 임시 연결.
+     ============================================================ -->
+<nav th:fragment="main-nav" class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm sticky-top">
+    <div class="container">
+
+        <!-- 로고 -->
+        <a class="navbar-brand fw-bold text-decoration-none" href="/"
+           style="color: #8e85b0; font-size: 1.3rem; letter-spacing: -0.5px;">
+            <i class="fa-solid fa-book-open me-2"></i>StudyOlle
+        </a>
+
+        <!-- 모바일 토글 버튼 -->
+        <button class="navbar-toggler border-0" type="button"
+                data-bs-toggle="collapse" data-bs-target="#mainNavbar">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="mainNavbar">
+
+            <!-- 검색 폼 (중앙) -->
+            <form class="d-flex mx-auto my-2 my-lg-0" style="max-width: 360px; width: 100%;"
+                  action="/search" method="get">
+                <div class="input-group input-group-sm">
+                    <input id="keyword" type="text" name="keyword"
+                           class="form-control rounded-start-pill border-end-0"
+                           placeholder="스터디 검색..."
+                           style="border-color: #d0ccdf; font-size: 0.875rem;">
+                    <button class="btn rounded-end-pill border border-start-0"
+                            style="border-color: #d0ccdf; background: #f8f7fc; color: #8e85b0;">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </form>
+
+            <!-- 오른쪽 메뉴 -->
+            <ul class="navbar-nav ms-auto align-items-center gap-1">
+
+                <!--
+                    [비로그인 상태]
+                    모노리틱: sec:authorize="!isAuthenticated()"
+                    MSA:       th:if="${account == null}"
+                -->
+                <li th:if="${account == null}" class="nav-item">
+                    <a class="nav-link px-3 py-2 rounded-pill text-muted"
+                       href="/login" style="font-size: 0.9rem;">
+                        <i class="bi bi-box-arrow-in-right me-1"></i>로그인
+                    </a>
+                </li>
+                <li th:if="${account == null}" class="nav-item">
+                    <a class="btn btn-sm rounded-pill px-3 py-2 text-white"
+                       href="/sign-up"
+                       style="background: #8e85b0; font-size: 0.9rem; border: none;">
+                        회원가입
+                    </a>
+                </li>
+
+                <!--
+                    [로그인 상태]
+                    모노리틱: sec:authorize="isAuthenticated()"
+                    MSA:       th:if="${account != null}"
+                -->
+                <li th:if="${account != null}" class="nav-item">
+                    <a class="nav-link px-3 py-2 rounded-pill text-muted position-relative"
+                       href="/notifications" style="font-size: 0.9rem;">
+                        <i class="bi bi-bell"></i>
+                    </a>
+                </li>
+                <li th:if="${account != null}" class="nav-item">
+                    <a class="btn btn-sm rounded-pill px-3 py-2 text-white"
+                       href="/new-study"
+                       style="background: #7fac8e; font-size: 0.85rem; border: none;">
+                        <i class="fa-solid fa-plus me-1"></i>새 스터디
+                    </a>
+                </li>
+                <li th:if="${account != null}" class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle d-flex align-items-center gap-2 px-2"
+                       href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <svg th:if="${#strings.isEmpty(account?.profileImage)}"
+                             th:data-jdenticon-value="${account.nickname}"
+                             width="32" height="32" class="rounded-circle border"></svg>
+                        <img th:if="${!#strings.isEmpty(account?.profileImage)}"
+                             th:src="${account.profileImage}"
+                             width="32" height="32" class="rounded-circle border object-fit-cover" alt="프로필"/>
+                        <span class="small fw-semibold text-dark" th:text="${account.nickname}">닉네임</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 py-2">
+                        <li>
+                            <a class="dropdown-item rounded-2 px-3 py-2"
+                               th:href="@{'/profile/' + ${account.nickname}}">
+                                <i class="bi bi-person me-2 text-muted"></i>프로필
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item rounded-2 px-3 py-2" href="/settings/profile">
+                                <i class="bi bi-gear me-2 text-muted"></i>설정
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider my-1"></li>
+                        <li>
+                            <!--
+                                [모노리틱 차이]
+                                모노리틱: th:action="@{/logout}" POST 폼
+                                MSA:       로그아웃은 localStorage 를 비우고 / 로 이동
+                                           서버에 별도 로그아웃 API 호출 가능하지만
+                                           JWT Stateless 에서는 로컬 토큰 삭제로 충분
+                            -->
+                            <a class="dropdown-item rounded-2 px-3 py-2 text-danger" href="#"
+                               onclick="handleLogout(event)">
+                                <i class="bi bi-box-arrow-right me-2"></i>로그아웃
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
+
+        </div>
+    </div>
+</nav>
+
+
+<!-- ============================================================
+     study-info fragment
+     스터디 상세/설정 페이지 상단에 공통으로 표시되는 스터디 헤더.
+     배너 이미지, 제목, 상태 배지, 가입/탈퇴/설정 버튼을 포함한다.
+
+     [모노리틱과의 차이]
+     1. sec:authorize 완전 제거 → th:if="${isManager}", th:if="${isMember}"
+     2. 가입/탈퇴 form POST → onclick fetch() + Bearer 헤더
+     3. 승인제 가입 신청 → fetch() POST /api/studies/{path}/join-request
+
+     [필요한 model 속성]
+     - study      : StudyResponse (path, title, published, closed, recruiting, useBanner, image, joinType)
+     - account    : AccountSummaryDto or null
+     - isManager  : boolean (현재 사용자가 이 스터디의 관리자인지)
+     - isMember   : boolean (현재 사용자가 이 스터디의 멤버인지)
+     - hasPendingRequest : boolean (승인제 가입 신청 대기 중인지) — view.html 에서만 사용
+     - apiBase    : String (API Gateway URL)
+     ============================================================ -->
+<div th:fragment="study-info">
+
+    <!-- 배너 이미지 영역 -->
+    <div class="study-banner-area"
+         th:style="${study.useBanner && !#strings.isEmpty(study.image)}
+                   ? 'background-image: url(' + ${study.image} + '); background-size: cover; background-position: center; height: 200px;'
+                   : 'background: linear-gradient(135deg, #8e85b0 0%, #a099bd 60%, #b8b3cc 100%); height: 100px;'">
+    </div>
+
+    <!-- 스터디 제목 + 상태 배지 + 액션 버튼 -->
+    <div class="bg-white border-bottom shadow-sm">
+        <div class="container py-3">
+            <div class="row justify-content-center">
+                <div class="col-lg-10">
+                    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2">
+
+                        <!-- 제목 + 배지 -->
+                        <div>
+                            <h2 class="fw-bold mb-1" style="color: #2c2843; font-size: 1.5rem;"
+                                th:text="${study.title}">스터디 이름</h2>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <!-- 공개 여부 배지 -->
+                                <span th:if="${study.published && !study.closed}"
+                                      class="badge rounded-pill"
+                                      style="background: #7fac8e; font-size: 0.75rem;">
+                                    <i class="fa-solid fa-globe me-1"></i>공개
+                                </span>
+                                <span th:if="${!study.published}"
+                                      class="badge rounded-pill bg-secondary"
+                                      style="font-size: 0.75rem;">
+                                    <i class="fa-solid fa-lock me-1"></i>준비중
+                                </span>
+                                <span th:if="${study.closed}"
+                                      class="badge rounded-pill"
+                                      style="background: #c4917e; font-size: 0.75rem;">
+                                    <i class="fa-solid fa-lock me-1"></i>종료됨
+                                </span>
+
+                                <!-- 모집 여부 배지 -->
+                                <span th:if="${study.recruiting && !study.closed}"
+                                      class="badge rounded-pill"
+                                      style="background: #bfa473; font-size: 0.75rem;">
+                                    <i class="fa-solid fa-bullhorn me-1"></i>모집중
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- 액션 버튼 영역 -->
+                        <div class="d-flex gap-2 align-items-center flex-wrap">
+
+                            <!--
+                                [설정 링크] 관리자만 표시
+                                모노리틱: sec:authorize + study.isManager(#authentication.principal)
+                                MSA:       th:if="${isManager}"
+                            -->
+                            <a th:if="${isManager}"
+                               th:href="@{'/study/' + ${study.path} + '/settings/description'}"
+                               class="btn btn-sm rounded-pill px-3"
+                               style="border: 1.5px solid #8e85b0; color: #8e85b0; font-size: 0.85rem;">
+                                <i class="fa-solid fa-gear me-1"></i>스터디 설정
+                            </a>
+
+                            <!--
+                                [가입하기 버튼] 자유 가입 (OPEN), 비관리자, 비멤버, 모집중, 종료전
+                                모노리틱: sec:authorize + form POST
+                                MSA:       th:if + onclick fetch() + Bearer 헤더
+                            -->
+                            <button th:if="${account != null && !isManager && !isMember
+                                            && study.recruiting && !study.closed
+                                            && study.joinType == 'OPEN'}"
+                                    class="btn btn-sm rounded-pill px-4 text-white"
+                                    style="background: #7fac8e; border: none; font-size: 0.85rem;"
+                                    th:onclick="'joinStudy(\'' + ${study.path} + '\')'">
+                                <i class="fa-solid fa-user-plus me-1"></i>가입하기
+                            </button>
+
+                            <!--
+                                [가입 신청 버튼] 승인제 (APPROVAL_REQUIRED), 비관리자, 비멤버, 신청 안 함
+                            -->
+                            <button th:if="${account != null && !isManager && !isMember
+                                            && study.recruiting && !study.closed
+                                            && study.joinType == 'APPROVAL_REQUIRED'
+                                            && !hasPendingRequest}"
+                                    class="btn btn-sm rounded-pill px-4"
+                                    style="border: 1.5px solid #7fac8e; color: #7fac8e; font-size: 0.85rem;"
+                                    th:onclick="'requestJoinStudy(\'' + ${study.path} + '\')'">
+                                <i class="fa-solid fa-paper-plane me-1"></i>가입 신청
+                            </button>
+
+                            <!-- 신청 대기 중 표시 -->
+                            <span th:if="${account != null && !isManager && !isMember && hasPendingRequest}"
+                                  class="badge rounded-pill px-3 py-2"
+                                  style="background: #f0ece8; color: #bfa473; font-size: 0.8rem;">
+                                <i class="fa-solid fa-clock me-1"></i>승인 대기 중
+                            </span>
+
+                            <!--
+                                [탈퇴하기 버튼] 멤버(관리자 제외)만 표시
+                                모노리틱: sec:authorize + form POST
+                                MSA:       th:if + onclick fetch() + Bearer 헤더
+                            -->
+                            <button th:if="${isMember && !isManager}"
+                                    class="btn btn-sm rounded-pill px-4"
+                                    style="border: 1.5px solid #c4917e; color: #c4917e; font-size: 0.85rem;"
+                                    th:onclick="'leaveStudy(\'' + ${study.path} + '\')'">
+                                <i class="fa-solid fa-right-from-bracket me-1"></i>탈퇴하기
+                            </button>
+
+                            <!-- 비로그인 사용자 → 로그인 유도 -->
+                            <a th:if="${account == null && study.recruiting && !study.closed}"
+                               href="/login"
+                               class="btn btn-sm rounded-pill px-4"
+                               style="border: 1.5px solid #8e85b0; color: #8e85b0; font-size: 0.85rem;">
+                                <i class="fa-solid fa-right-to-bracket me-1"></i>로그인 후 가입
+                            </a>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ============================================================
+     study-settings-menu fragment
+     설정 페이지의 좌측 사이드바 메뉴.
+
+     currentMenu 파라미터로 현재 활성 메뉴를 받는다.
+     가능한 값: description | image | tags | zones | study | join-requests
+
+     [모노리틱과의 차이]
+     - th:replace="fragments.html :: study-settings-menu(currentMenu='description')" 구조 동일
+     - 단, isManager 체크가 없어졌다 (설정 페이지 자체가 관리자만 접근 가능하므로)
+     ============================================================ -->
+<div th:fragment="study-settings-menu(currentMenu)" class="list-group rounded-3 shadow-sm border-0">
+    <a th:href="@{'/study/' + ${study.path} + '/settings/description'}"
+       th:classappend="${currentMenu == 'description'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 mb-1 px-3 py-2">
+        <i class="fa-solid fa-pen-to-square me-2"></i>소개
+    </a>
+    <a th:href="@{'/study/' + ${study.path} + '/settings/banner'}"
+       th:classappend="${currentMenu == 'image'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 mb-1 px-3 py-2">
+        <i class="fa-solid fa-image me-2"></i>배너 이미지
+    </a>
+    <a th:href="@{'/study/' + ${study.path} + '/settings/tags'}"
+       th:classappend="${currentMenu == 'tags'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 mb-1 px-3 py-2">
+        <i class="fa-solid fa-tags me-2"></i>스터디 주제
+    </a>
+    <a th:href="@{'/study/' + ${study.path} + '/settings/zones'}"
+       th:classappend="${currentMenu == 'zones'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 mb-1 px-3 py-2">
+        <i class="fa-solid fa-map-location-dot me-2"></i>활동 지역
+    </a>
+    <a th:href="@{'/study/' + ${study.path} + '/settings/join-requests'}"
+       th:classappend="${currentMenu == 'join-requests'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 mb-1 px-3 py-2">
+        <i class="fa-solid fa-user-clock me-2"></i>가입 관리
+    </a>
+    <a th:href="@{'/study/' + ${study.path} + '/settings/study'}"
+       th:classappend="${currentMenu == 'study'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 px-3 py-2">
+        <i class="fa-solid fa-screwdriver-wrench me-2"></i>스터디
+    </a>
+</div>
+
+
+<!-- ============================================================
+     footer fragment
+     페이지 하단 + JS CDN 로드.
+
+     [모노리틱과의 차이]
+     - jQuery: 계속 사용 (Tagify 일부 의존성)
+     - Bootstrap JS: 유지
+     - Summernote: 유지 (description 페이지에서만 로드)
+     - Jdenticon: 유지 (프로필 이미지 없을 때)
+     - CSRF 관련 스크립트: 완전 제거
+     ============================================================ -->
+<div th:fragment="footer" class="border-top bg-white mt-5 py-4">
+    <div class="container">
+        <div class="text-center text-muted small">
+            &copy; 2025 StudyOlle. All rights reserved.
+        </div>
+    </div>
+
+    <!-- Bootstrap Bundle (Popper 포함) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- jQuery (Summernote / Cropper 의존성) -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+
+    <!-- Tagify -->
+    <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.min.js"></script>
+
+    <!-- Jdenticon (프로필 이미지 자동 생성) -->
+    <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.2.0/dist/jdenticon.min.js"></script>
+
+    <!-- Bootstrap Tooltip 초기화 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const tooltipEls = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            tooltipEls.forEach(function (el) {
+                new bootstrap.Tooltip(el);
+            });
+        });
+    </script>
+
+    <!--
+        공통 가입/탈퇴 함수.
+
+        [모노리틱 차이]
+        모노리틱: th:action 폼 POST → Spring Security → redirect
+        MSA:       fetch() + Authorization: Bearer + 성공 시 페이지 새로고침
+
+        localStorage 의 accessToken 을 Authorization 헤더에 담아
+        api-gateway → study-service 로 라우팅.
+        study-service 는 X-Account-Id 헤더로 사용자 식별 (JWT 라이브러리 없음).
+    -->
+    <script th:inline="javascript">
+        const API_BASE = [[${apiBase}]];
+
+        // 토큰 가져오기 헬퍼
+        function getToken() {
+            return localStorage.getItem('accessToken') || '';
+        }
+
+        // 인증 헤더 헬퍼
+        function authHeaders(extra) {
+            return Object.assign({
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + getToken()
+            }, extra || {});
+        }
+
+        // 스터디 가입 (자유 가입 OPEN)
+        async function joinStudy(path) {
+            try {
+                const res = await fetch(API_BASE + '/api/studies/' + path + '/join', {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+                if (res.ok) {
+                    location.reload();
+                } else {
+                    const data = await res.json();
+                    alert(data.message || '가입 중 오류가 발생했습니다.');
+                }
+            } catch (e) {
+                alert('서버와 연결할 수 없습니다.');
+                console.error(e);
+            }
+        }
+
+        // 스터디 가입 신청 (승인제 APPROVAL_REQUIRED)
+        async function requestJoinStudy(path) {
+            try {
+                const res = await fetch(API_BASE + '/api/studies/' + path + '/join-request', {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+                if (res.ok) {
+                    location.reload();
+                } else {
+                    const data = await res.json();
+                    alert(data.message || '가입 신청 중 오류가 발생했습니다.');
+                }
+            } catch (e) {
+                alert('서버와 연결할 수 없습니다.');
+                console.error(e);
+            }
+        }
+
+        // 스터디 탈퇴
+        async function leaveStudy(path) {
+            if (!confirm('정말 탈퇴하시겠습니까?')) return;
+            try {
+                const res = await fetch(API_BASE + '/api/studies/' + path + '/leave', {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+                if (res.ok) {
+                    location.reload();
+                } else {
+                    const data = await res.json();
+                    alert(data.message || '탈퇴 중 오류가 발생했습니다.');
+                }
+            } catch (e) {
+                alert('서버와 연결할 수 없습니다.');
+                console.error(e);
+            }
+        }
+
+        // 로그아웃
+        function handleLogout(e) {
+            e.preventDefault();
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+            window.location.href = '/';
+        }
+    </script>
+</div>
+
+</html>

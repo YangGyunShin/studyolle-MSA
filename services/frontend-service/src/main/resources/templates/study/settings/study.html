@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<!--
+    study/settings/study.html  (MSA 버전)
+
+    [모노리틱과의 핵심 차이]
+
+    각 카드의 <form> 을 모두 제거하고 버튼 onclick → fetch() 패턴으로 변환.
+
+    구체적인 변환 매핑:
+      공개:   POST .../settings/study/publish  (모노리틱: form POST → redirect)
+      종료:   POST .../settings/study/close    (모노리틱: form POST → redirect)
+      모집시작: POST .../settings/recruit/start
+      모집중단: POST .../settings/recruit/stop
+      경로수정: POST .../settings/study/path   body: { newPath: "..." }
+      이름수정: POST .../settings/study/title  body: { newTitle: "..." }
+      삭제:   DELETE .../                      성공 시 / 로 이동
+
+    [조건부 카드 렌더링]
+    모노리틱: th:if="${!study.published && !study.closed}" 등 Thymeleaf 조건
+    MSA:       동일. Thymeleaf 로 서버에서 조건 평가.
+    (study 상태는 StudyPageController 가 study-service API 를 호출해서 가져옴)
+
+    [경로/이름 에러]
+    모노리틱: studyPathError, studyTitleError model attribute 로 서버가 에러 표시
+    MSA:       fetch 응답의 errorCode 로 JS 가 해당 필드 아래에 에러 표시
+
+    [필요한 model 속성]
+    - study    : StudyResponse (path, title, published, closed, recruiting, removable)
+    - account  : AccountSummaryDto (nav 용)
+    - apiBase  : String
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head(${study.title} + ' - 스터디 관리')}"></head>
+
+<body class="bg-light">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+<div th:replace="~{fragments.html :: study-info}"></div>
+
+<!-- 설정 탭 바 -->
+<div class="border-bottom bg-white">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <nav class="nav py-2">
+                    <a class="nav-link rounded-pill px-3 text-muted"
+                       style="font-size: 0.9rem;"
+                       th:href="@{'/study/' + ${study.path}}">
+                        <i class="fa-solid fa-arrow-left me-1"></i> 스터디로 돌아가기
+                    </a>
+                    <span class="nav-link px-3 fw-semibold"
+                          style="color: #8e85b0; font-size: 0.9rem;">
+                        <i class="fa-solid fa-gear me-1"></i> 스터디 설정
+                    </span>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="row g-4">
+
+                <!-- 사이드바 -->
+                <div class="col-md-3">
+                    <div th:replace="~{fragments.html :: study-settings-menu('study')}"></div>
+                </div>
+
+                <!-- 메인 콘텐츠 -->
+                <div class="col-md-9">
+
+                    <!-- 공통 작업 알림 (JS 가 조작) -->
+                    <div id="alertSuccess" class="alert border-0 rounded-3 mb-3"
+                         style="background: #e8f4ee; color: #4a8a62; display: none;">
+                        <i class="fa-solid fa-circle-check me-2"></i>
+                        <span id="alertSuccessMsg"></span>
+                    </div>
+                    <div id="alertError" class="alert border-0 rounded-3 mb-3"
+                         style="background: #fdf0ed; color: #b05a3a; display: none;">
+                        <i class="fa-solid fa-circle-exclamation me-2"></i>
+                        <span id="alertErrorMsg"></span>
+                    </div>
+
+                    <!-- ========== 스터디 공개 및 종료 ========== -->
+                    <div class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-rocket text-primary me-2"></i>스터디 공개 및 종료
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+
+                            <!-- 공개 전 (준비 중 상태) -->
+                            <div th:if="${!study.published && !study.closed}">
+                                <div class="alert alert-primary border-0 rounded-3" role="alert">
+                                    <i class="fa-solid fa-circle-info me-2"></i>
+                                    스터디를 다른 사용자에게 공개할 준비가 되었다면 버튼을 클릭하세요.
+                                    소개, 배너 이미지, 스터디 주제 및 활동 지역을 등록했는지 확인하세요.
+                                    공개하면 관심있는 사용자에게 알림을 전송합니다.
+                                </div>
+                                <button type="button"
+                                        class="btn btn-primary rounded-pill w-100"
+                                        onclick="doStudyAction('publish', '스터디를 공개하시겠습니까?', '스터디가 공개되었습니다.')">
+                                    <i class="fa-solid fa-globe me-1"></i> 스터디 공개
+                                </button>
+                            </div>
+
+                            <!-- 공개 후 (종료 가능 상태) -->
+                            <div th:if="${study.published && !study.closed}">
+                                <div class="alert alert-warning border-0 rounded-3" role="alert">
+                                    <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                                    스터디를 종료하면 더이상 팀원을 모집하거나 모임을 만들 수 없으며,
+                                    경로와 이름을 수정할 수 없습니다. 모임과 참여한 팀원의 기록은 보관됩니다.
+                                </div>
+                                <button type="button"
+                                        class="btn btn-warning rounded-pill w-100"
+                                        onclick="doStudyAction('close', '스터디를 종료하시겠습니까? 이 작업은 되돌릴 수 없습니다.', '스터디가 종료되었습니다.')">
+                                    <i class="fa-solid fa-lock me-1"></i> 스터디 종료
+                                </button>
+                            </div>
+
+                            <!-- 종료 완료 -->
+                            <div th:if="${study.closed}"
+                                 class="alert alert-secondary border-0 rounded-3 mb-0" role="alert">
+                                <i class="fa-solid fa-lock me-2"></i>
+                                이 스터디는 종료되었습니다. 다시 진행하고 싶다면 새로운 스터디를 만드세요.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========== 팀원 모집 시작 ========== -->
+                    <div th:if="${!study.closed && !study.recruiting && study.published}"
+                         class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-user-plus text-success me-2"></i>팀원 모집
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="alert alert-info border-0 rounded-3" role="alert">
+                                <i class="fa-solid fa-circle-info me-2"></i>
+                                팀원을 모집합니다. 충분한 팀원을 모집했다면 모집을 멈출 수 있습니다.
+                                팀원 모집 정보는 1시간에 한번만 변경할 수 있습니다.
+                            </div>
+                            <button type="button"
+                                    class="btn btn-success rounded-pill w-100"
+                                    onclick="doRecruitAction('start', '팀원 모집을 시작하시겠습니까?', '팀원 모집을 시작했습니다.')">
+                                <i class="fa-solid fa-bullhorn me-1"></i> 팀원 모집 시작
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ========== 팀원 모집 중단 ========== -->
+                    <div th:if="${!study.closed && study.recruiting && study.published}"
+                         class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-user-plus text-success me-2"></i>팀원 모집
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="alert alert-primary border-0 rounded-3" role="alert">
+                                <i class="fa-solid fa-circle-info me-2"></i>
+                                팀원 모집을 중단합니다. 충원이 필요할 때 다시 시작할 수 있습니다.
+                                팀원 모집 정보는 1시간에 한번만 변경할 수 있습니다.
+                            </div>
+                            <button type="button"
+                                    class="btn btn-outline-secondary rounded-pill w-100"
+                                    onclick="doRecruitAction('stop', '팀원 모집을 중단하시겠습니까?', '팀원 모집을 중단했습니다.')">
+                                <i class="fa-solid fa-pause me-1"></i> 팀원 모집 중단
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ========== 스터디 경로 수정 ========== -->
+                    <div th:if="${!study.closed}" class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-link text-warning me-2"></i>스터디 경로
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="alert alert-warning border-0 rounded-3" role="alert">
+                                <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                                경로를 수정하면 이전 경로로 스터디에 접근할 수 없습니다.
+                            </div>
+                            <div class="mb-3">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light text-muted small">studyolle.com/study/</span>
+                                    <!--
+                                        [모노리틱 차이]
+                                        모노리틱: th:value="${study.path}" → form submit
+                                        MSA:       th:value 초기값 설정 + JS 가 값을 읽어 fetch 호출
+                                    -->
+                                    <input id="newPath" type="text" class="form-control"
+                                           th:value="${study.path}" placeholder="study-path">
+                                </div>
+                                <div class="form-text">공백 없이 문자, 숫자, 대시(-), 언더바(_)만 2~20자</div>
+                                <!--
+                                    [모노리틱 차이]
+                                    모노리틱: th:if="${studyPathError}" th:text="${studyPathError}"
+                                    MSA:       JS 가 errorCode 에 따라 여기에 메시지를 삽입
+                                -->
+                                <div id="pathError" class="text-danger small mt-1"
+                                     style="display: none;"></div>
+                            </div>
+                            <button type="button"
+                                    class="btn btn-outline-warning rounded-pill w-100"
+                                    onclick="updatePath()">
+                                <i class="fa-solid fa-pen me-1"></i> 경로 수정
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ========== 스터디 이름 수정 ========== -->
+                    <div th:if="${!study.closed}" class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-heading text-warning me-2"></i>스터디 이름
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="mb-3">
+                                <input id="newTitle" type="text" class="form-control"
+                                       th:value="${study.title}"
+                                       placeholder="스터디 이름" maxlength="50">
+                                <div class="form-text">50자 이내로 입력하세요.</div>
+                                <div id="titleError" class="text-danger small mt-1"
+                                     style="display: none;"></div>
+                            </div>
+                            <button type="button"
+                                    class="btn btn-outline-warning rounded-pill w-100"
+                                    onclick="updateTitle()">
+                                <i class="fa-solid fa-pen me-1"></i> 이름 수정
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ========== 스터디 삭제 (위험 영역) ========== -->
+                    <div class="card border-0 rounded-3 mb-4"
+                         style="border: 1.5px solid #c4917e !important; box-shadow: 0 1px 4px rgba(196,145,126,0.15);">
+                        <div class="card-header border-bottom pt-3 pb-2"
+                             style="background: #fdf3ef;">
+                            <h6 class="fw-bold mb-0" style="color: #b05a3a;">
+                                <i class="fa-solid fa-trash-can me-2"></i>스터디 삭제
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <!--
+                                [모노리틱 차이]
+                                모노리틱: study.isRemovable() → 서버 메서드 호출
+                                MSA:       study.removable — StudyPageController 가 미리 계산해서 전달
+                            -->
+                            <div th:if="${study.removable}">
+                                <div class="alert alert-danger border-0 rounded-3" role="alert">
+                                    <i class="fa-solid fa-circle-exclamation me-2"></i>
+                                    스터디를 삭제하면 모든 기록이 삭제되며 <strong>복구할 수 없습니다</strong>.
+                                </div>
+                                <button type="button"
+                                        class="btn btn-danger rounded-pill w-100"
+                                        onclick="deleteStudy()">
+                                    <i class="fa-solid fa-trash-can me-1"></i> 스터디 삭제
+                                </button>
+                            </div>
+                            <div th:if="${!study.removable}">
+                                <div class="alert alert-secondary border-0 rounded-3 mb-3" role="alert">
+                                    <i class="fa-solid fa-ban me-2"></i>
+                                    공개 중이고 모임을 했던 스터디는 삭제할 수 없습니다.
+                                </div>
+                                <button type="button"
+                                        class="btn btn-outline-danger rounded-pill w-100" disabled>
+                                    <i class="fa-solid fa-trash-can me-1"></i> 스터디 삭제
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+<script th:inline="javascript">
+    // 현재 스터디 경로 (JS 변수로 주입)
+    // 경로 수정 성공 시 새 경로로 리다이렉트해야 하므로 JS 에서 필요
+    let STUDY_PATH = [[${study.path}]];
+</script>
+
+<script>
+    // ---------------------------------------------------------------
+    // 스터디 공개 / 종료 처리
+    //
+    // [action]  : 'publish' | 'close'
+    // [confirm] : 사용자에게 보여줄 확인 메시지
+    // [success] : 성공 시 알림 메시지
+    // ---------------------------------------------------------------
+    async function doStudyAction(action, confirmMsg, successMsg) {
+        if (!confirm(confirmMsg)) return;
+        clearAlerts();
+
+        try {
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/study/' + action, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                }
+            });
+            if (res.ok) {
+                showSuccess(successMsg);
+                // 화면 상태(배지, 버튼) 갱신을 위해 새로고침
+                setTimeout(function () { location.reload(); }, 1000);
+            } else {
+                const data = await res.json();
+                showError(data.message || '처리 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            showError('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 팀원 모집 시작 / 중단 처리
+    //
+    // [action] : 'start' | 'stop'
+    // 1시간 제한 오류는 RECRUIT_RECENTLY_UPDATED errorCode 로 처리
+    // ---------------------------------------------------------------
+    async function doRecruitAction(action, confirmMsg, successMsg) {
+        if (!confirm(confirmMsg)) return;
+        clearAlerts();
+
+        try {
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/recruit/' + action, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                }
+            });
+            if (res.ok) {
+                showSuccess(successMsg);
+                setTimeout(function () { location.reload(); }, 1000);
+            } else {
+                const data = await res.json();
+                // 1시간 이내 재변경 시도 에러 처리
+                showError(data.message || '처리 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            showError('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 스터디 경로 수정
+    //
+    // 성공 시 새 경로 URL 로 이동 (이전 경로는 더이상 유효하지 않음)
+    // ---------------------------------------------------------------
+    async function updatePath() {
+        clearAlerts();
+        const newPath = document.getElementById('newPath').value.trim();
+
+        if (!newPath) {
+            document.getElementById('pathError').textContent = '경로를 입력하세요.';
+            document.getElementById('pathError').style.display = 'block';
+            return;
+        }
+
+        try {
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/study/path', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ newPath: newPath })
+            });
+
+            if (res.ok) {
+                // 경로가 변경되었으므로 새 경로 URL 로 이동
+                STUDY_PATH = newPath;
+                showSuccess('경로가 수정되었습니다. 새 경로로 이동합니다...');
+                setTimeout(function () {
+                    window.location.href = '/study/' + newPath + '/settings/study';
+                }, 1200);
+            } else {
+                const data = await res.json();
+                const el = document.getElementById('pathError');
+                el.textContent = data.message || '경로 수정 중 오류가 발생했습니다.';
+                el.style.display = 'block';
+            }
+        } catch (e) {
+            showError('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 스터디 이름 수정
+    // ---------------------------------------------------------------
+    async function updateTitle() {
+        clearAlerts();
+        const newTitle = document.getElementById('newTitle').value.trim();
+
+        if (!newTitle) {
+            const el = document.getElementById('titleError');
+            el.textContent = '스터디 이름을 입력하세요.';
+            el.style.display = 'block';
+            return;
+        }
+
+        try {
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/study/title', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ newTitle: newTitle })
+            });
+
+            if (res.ok) {
+                showSuccess('스터디 이름이 수정되었습니다.');
+                setTimeout(function () { location.reload(); }, 1000);
+            } else {
+                const data = await res.json();
+                const el = document.getElementById('titleError');
+                el.textContent = data.message || '이름 수정 중 오류가 발생했습니다.';
+                el.style.display = 'block';
+            }
+        } catch (e) {
+            showError('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 스터디 삭제
+    //
+    // 삭제 성공 시 홈(/) 으로 이동.
+    // 모노리틱: form POST → study.remove() → redirect:/
+    // MSA:       fetch(DELETE /api/studies/{path}) → 200 → location.href='/'
+    // ---------------------------------------------------------------
+    async function deleteStudy() {
+        if (!confirm('정말 스터디를 삭제하시겠습니까? 모든 기록이 삭제되며 복구할 수 없습니다.')) return;
+        clearAlerts();
+
+        try {
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                }
+            });
+
+            if (res.ok) {
+                window.location.href = '/';
+            } else {
+                const data = await res.json();
+                showError(data.message || '삭제 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            showError('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // --- 알림 헬퍼 함수 ---
+
+    function showSuccess(msg) {
+        document.getElementById('alertSuccessMsg').textContent = msg;
+        document.getElementById('alertSuccess').style.display = 'block';
+        document.getElementById('alertError').style.display = 'none';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function showError(msg) {
+        document.getElementById('alertErrorMsg').textContent = msg;
+        document.getElementById('alertError').style.display = 'block';
+        document.getElementById('alertSuccess').style.display = 'none';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function clearAlerts() {
+        document.getElementById('alertSuccess').style.display = 'none';
+        document.getElementById('alertError').style.display = 'none';
+        ['pathError', 'titleError'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) { el.style.display = 'none'; }
+        });
+    }
+</script>
+
+</body>
+</html>

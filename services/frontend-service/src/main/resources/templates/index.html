@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<!--
+    index.html  (MSA 버전 — 랜딩 + 대시보드 통합)
+
+    [모노리틱 구조와의 핵심 차이]
+
+    모노리틱: index.html (비로그인) / index-after-login.html (로그인)
+              컨트롤러가 서로 다른 뷰 이름을 반환해서 파일 자체가 분리됨
+    MSA:       하나의 index.html 에 th:if="${account == null}" / th:if="${account != null}"
+              분기로 통합. 컨트롤러는 항상 "index" 뷰를 반환하고,
+              account 가 null 인지 아닌지로 어떤 화면을 보여줄지 결정한다.
+
+    [FullCalendar 이벤트 URL 처리]
+    모노리틱: events: '/api/calendar/events'  (상대 경로, 같은 서버)
+    MSA:       events: API_BASE + '/api/calendar/events'
+              브라우저가 fetch 를 날릴 때는 api-gateway(:8080) 를 향해야 하므로
+              th:inline="javascript" 로 주입한 API_BASE 변수를 사용한다.
+              FullCalendar 는 뷰 전환 시 자동으로 ?start=...&end=... 를 붙여 호출한다.
+
+    [account 객체 차이]
+    모노리틱: Account JPA 엔티티 (account.tags.size(), account.zones.size() 직접 접근)
+    MSA:       AccountSummaryDto (account.tagCount, account.zoneCount 으로 접근)
+              컬렉션 전체를 내려받지 않고 개수만 받는다.
+
+    [date-time fragment 제거]
+    모노리틱: th:replace="fragments.html :: date-time"  (서버 사이드 날짜 포맷)
+    MSA:       JS 로 LocalDateTime 형식의 문자열을 직접 포맷하거나,
+              컨트롤러가 이미 포맷된 문자열을 넘긴다. fragment 자체를 제거.
+
+    [필요한 model 속성]
+    - account          : AccountSummaryDto | null
+                         (id, nickname, email, bio, profileImage,
+                          emailVerified, tagCount, zoneCount)
+    - apiBase          : String
+
+    --- 로그인 상태일 때만 필요 ---
+    - studyManagerOf   : List<StudyDto>     (id, path, title)
+    - studyMemberOf    : List<StudyDto>     (id, path, title)
+    - studyEventsMap   : Map<Long, List<EventDto>>  (studyId -> 예정 모임)
+    - enrolledEventIds : Set<Long>          (참가 확정된 모임 ID 집합)
+    - studyList        : List<StudyDto>     (추천 또는 최근 공개 스터디)
+    - profileCompletion: Integer (0~100)
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head('스터디올래 - 함께 성장하는 스터디 플랫폼')}"></head>
+
+<body class="page-main">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+
+<!-- ============================================================
+     [A] 비로그인 랜딩 페이지
+     account 가 null 이면 이 블록만 보인다.
+     ============================================================ -->
+<th:block th:if="${account == null}">
+
+    <!-- 히어로 섹션 -->
+    <section class="hero-section">
+        <div class="container py-5">
+            <div class="row align-items-center justify-content-center text-center">
+                <div class="col-lg-7 py-4">
+                    <h1 class="hero-title mb-3">
+                        함께 성장하는 스터디,<br/>
+                        <span class="highlight">스터디올래</span>
+                    </h1>
+                    <p class="hero-subtitle mb-4">
+                        관심 주제와 활동 지역 기반으로 나에게 맞는 스터디를 찾고,<br class="d-none d-md-block"/>
+                        모임 일정 관리까지 한 곳에서 해결하세요.
+                    </p>
+                    <div class="d-flex justify-content-center gap-3">
+                        <a th:href="@{/sign-up}" class="btn btn-gradient-primary btn-lg rounded-pill px-4">
+                            <i class="fa-solid fa-user-plus me-1"></i> 회원 가입
+                        </a>
+                        <a th:href="@{/login}" class="btn btn-glass-outline btn-lg rounded-pill px-4">
+                            로그인
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 기능 소개 카드 -->
+    <div class="container mt-5 mb-4">
+        <div class="row g-4 justify-content-center">
+            <div class="col-md-4">
+                <div class="feature-card h-100">
+                    <div class="feature-icon icon-indigo">
+                        <i class="fa-solid fa-tags"></i>
+                    </div>
+                    <h6 class="feature-title">관심 주제 매칭</h6>
+                    <p class="feature-desc">
+                        태그 기반으로 나와 같은 관심사를 가진<br/>스터디를 추천받을 수 있어요
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card h-100">
+                    <div class="feature-icon icon-rose">
+                        <i class="fa-solid fa-map-location-dot"></i>
+                    </div>
+                    <h6 class="feature-title">지역 기반 검색</h6>
+                    <p class="feature-desc">
+                        내 활동 지역 근처의 오프라인 스터디를<br/>쉽게 찾아 참여할 수 있어요
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card h-100">
+                    <div class="feature-icon icon-emerald">
+                        <i class="fa-solid fa-calendar-check"></i>
+                    </div>
+                    <h6 class="feature-title">모임 일정 관리</h6>
+                    <p class="feature-desc">
+                        모임 생성부터 참석 관리까지<br/>스터디 운영을 한 곳에서 해결하세요
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 최근 공개된 스터디 -->
+    <div class="container mb-5">
+        <div class="mb-3 d-flex align-items-center">
+            <h6 class="section-title mb-0">
+                <i class="fa-solid fa-fire text-danger me-1"></i> 최근 공개된 스터디
+            </h6>
+        </div>
+
+        <!-- 스터디가 있을 때 -->
+        <div th:if="${studyList != null and !#lists.isEmpty(studyList)}">
+            <div class="row justify-content-center">
+                <div th:replace="~{fragments.html :: study-list (studyList=${studyList})}"></div>
+            </div>
+        </div>
+
+        <!-- 스터디가 없을 때 -->
+        <div th:if="${studyList == null or #lists.isEmpty(studyList)}" class="card border-0 shadow-sm">
+            <div class="card-body text-center py-5">
+                <div class="empty-icon empty-icon-amber mx-auto">
+                    <i class="fa-solid fa-book-open"></i>
+                </div>
+                <p class="text-muted fw-medium mb-1">아직 공개된 스터디가 없습니다</p>
+                <p class="text-muted small mb-3">첫 번째 스터디를 만들어 보세요!</p>
+                <a th:href="@{/sign-up}" class="btn btn-gradient-primary btn-sm rounded-pill px-4">
+                    <i class="fa-solid fa-user-plus me-1"></i> 가입하고 시작하기
+                </a>
+            </div>
+        </div>
+    </div>
+
+</th:block>
+<!-- /[A] 비로그인 랜딩 끝 -->
+
+
+<!-- ============================================================
+     [B] 로그인 대시보드
+     account 가 null 이 아니면 이 블록만 보인다.
+     ============================================================ -->
+<th:block th:if="${account != null}">
+
+    <!-- 이메일 인증 알림 배너 -->
+    <div class="container mt-3" th:if="${!account.emailVerified}">
+        <div class="alert alert-glass-warning alert-dismissible fade show d-flex align-items-center" role="alert">
+            <i class="fa-solid fa-circle-exclamation me-2 fs-5" style="color: #bfa473;"></i>
+            <div>
+                스터디올래의 모든 기능을 사용하려면
+                <!--
+                    [MSA 차이] 이메일 재발송은 account-service API 를 fetch 로 호출.
+                    모노리틱: <a th:href="@{/check-email(email=...)}"> -> 서버 렌더링
+                    MSA:      /check-email 페이지 자체는 frontend-service 가 서빙하고,
+                              실제 재발송 버튼은 fetch(POST /api/auth/resend-verification) 호출.
+                              여기서는 우선 check-email 페이지로 이동하는 링크로 처리.
+                -->
+                <a href="/check-email" class="fw-semibold" style="color: #8a7350;">계정 인증 이메일을 확인</a>하세요.
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="닫기"></button>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         프로필 완성도 배너
+         [MSA 차이]
+         모노리틱: account.tags.size(), account.zones.size() (JPA 컬렉션 직접 접근)
+         MSA:       account.tagCount, account.zoneCount (DTO 필드 — 개수만 내려옴)
+         ============================================================ -->
+    <div class="container mt-3" th:if="${profileCompletion != null and profileCompletion < 100}">
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-body p-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="d-flex align-items-center">
+                        <i class="fa-solid fa-user-pen me-2" style="color: #8e85b0;"></i>
+                        <span class="fw-medium small" style="color: #4a4540;">
+                            프로필 <span th:text="${profileCompletion}">60</span>% 완성
+                        </span>
+                    </div>
+                    <!-- 미완성 항목별 CTA: 우선순위 순서대로 하나만 표시 -->
+                    <a th:if="${#strings.isEmpty(account.bio)}"
+                       href="/settings/profile"
+                       class="btn btn-sm btn-outline-primary rounded-pill px-3"
+                       style="font-size: 0.75rem;">
+                        <i class="fa-solid fa-pen me-1"></i> 소개 작성하기
+                    </a>
+                    <a th:if="${!#strings.isEmpty(account.bio) and account.tagCount == 0}"
+                       href="/settings/tags"
+                       class="btn btn-sm btn-outline-primary rounded-pill px-3"
+                       style="font-size: 0.75rem;">
+                        <i class="fa-solid fa-tag me-1"></i> 관심 주제 등록
+                    </a>
+                    <a th:if="${!#strings.isEmpty(account.bio) and account.tagCount > 0 and account.zoneCount == 0}"
+                       href="/settings/zones"
+                       class="btn btn-sm btn-outline-primary rounded-pill px-3"
+                       style="font-size: 0.75rem;">
+                        <i class="fa-solid fa-map-pin me-1"></i> 활동 지역 등록
+                    </a>
+                </div>
+
+                <!-- 프로그레스 바 -->
+                <div class="progress" style="height: 6px; border-radius: 3px; background: rgba(142,133,176,0.1);">
+                    <div class="progress-bar" role="progressbar"
+                         th:style="'width: ' + ${profileCompletion} + '%; background: linear-gradient(90deg, #8e85b0, #a099bd); border-radius: 3px;'"
+                         th:attr="aria-valuenow=${profileCompletion}"
+                         aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+
+                <!-- 완성 항목 체크리스트 -->
+                <div class="d-flex flex-wrap gap-3 mt-2">
+                    <span class="d-flex align-items-center" style="font-size: 0.72rem;"
+                          th:classappend="${account.emailVerified} ? ' text-success' : ' text-muted'">
+                        <i th:class="${account.emailVerified} ? 'fa-solid fa-circle-check me-1' : 'fa-regular fa-circle me-1'"></i>
+                        이메일 인증
+                    </span>
+                    <span class="d-flex align-items-center" style="font-size: 0.72rem;"
+                          th:classappend="${!#strings.isEmpty(account.bio)} ? ' text-success' : ' text-muted'">
+                        <i th:class="${!#strings.isEmpty(account.bio)} ? 'fa-solid fa-circle-check me-1' : 'fa-regular fa-circle me-1'"></i>
+                        소개
+                    </span>
+                    <span class="d-flex align-items-center" style="font-size: 0.72rem;"
+                          th:classappend="${!#strings.isEmpty(account.profileImage)} ? ' text-success' : ' text-muted'">
+                        <i th:class="${!#strings.isEmpty(account.profileImage)} ? 'fa-solid fa-circle-check me-1' : 'fa-regular fa-circle me-1'"></i>
+                        프로필 이미지
+                    </span>
+                    <span class="d-flex align-items-center" style="font-size: 0.72rem;"
+                          th:classappend="${account.tagCount > 0} ? ' text-success' : ' text-muted'">
+                        <i th:class="${account.tagCount > 0} ? 'fa-solid fa-circle-check me-1' : 'fa-regular fa-circle me-1'"></i>
+                        관심 주제
+                    </span>
+                    <span class="d-flex align-items-center" style="font-size: 0.72rem;"
+                          th:classappend="${account.zoneCount > 0} ? ' text-success' : ' text-muted'">
+                        <i th:class="${account.zoneCount > 0} ? 'fa-solid fa-circle-check me-1' : 'fa-regular fa-circle me-1'"></i>
+                        활동 지역
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         메인 콘텐츠 — 2컬럼
+         col-lg-8: 내 스터디 (관리중 + 참여중)  <- 핵심 정보
+         col-lg-4: 캘린더 + 추천 스터디         <- 보조 정보
+         ============================================================ -->
+    <div class="container mt-4 mb-5">
+        <div class="row g-4">
+
+            <!-- ===== 좌측: 나의 스터디 ===== -->
+            <div class="col-lg-8">
+
+                <!-- 관리중인 스터디 -->
+                <div class="mb-4">
+                    <h6 class="section-title mb-3">
+                        <i class="fa-solid fa-crown" style="color: #bfa473;"></i> 관리중인 스터디
+                    </h6>
+
+                    <div th:if="${studyManagerOf != null and !#lists.isEmpty(studyManagerOf)}">
+                        <div th:each="study : ${studyManagerOf}" class="card border-0 shadow-sm mb-3">
+                            <div class="card-body p-3">
+
+                                <!-- 스터디 제목 -->
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="study-dot bg-warning me-2 flex-shrink-0"></div>
+                                    <a th:href="@{'/study/' + ${study.path}}"
+                                       class="fw-semibold text-decoration-none text-truncate"
+                                       style="color: #4a4540; font-size: 0.9rem;"
+                                       th:text="${study.title}">스터디명</a>
+                                </div>
+
+                                <!-- 예정 모임 -->
+                                <div th:if="${studyEventsMap != null and studyEventsMap.containsKey(study.id)}">
+                                    <a th:each="event : ${studyEventsMap.get(study.id)}"
+                                       th:href="@{'/study/' + ${study.path} + '/events/' + ${event.id}}"
+                                       class="d-flex align-items-center py-2 text-decoration-none dashboard-event-row">
+                                        <!--
+                                            참가 확정 여부: enrolledEventIds Set 에 포함되면 초록 체크,
+                                            아니면 회색 캘린더 아이콘.
+                                        -->
+                                        <i th:if="${enrolledEventIds != null and enrolledEventIds.contains(event.id)}"
+                                           class="fa-solid fa-circle-check me-2 flex-shrink-0"
+                                           style="color: #7fac8e; font-size: 0.75rem;"></i>
+                                        <i th:unless="${enrolledEventIds != null and enrolledEventIds.contains(event.id)}"
+                                           class="fa-regular fa-calendar me-2 flex-shrink-0"
+                                           style="color: #b8b2aa; font-size: 0.75rem;"></i>
+                                        <span class="small text-truncate flex-grow-1"
+                                              style="color: #6b6560;" th:text="${event.title}">모임명</span>
+                                        <!--
+                                            [MSA 날짜 처리]
+                                            모노리틱: .calendar 클래스 + date-time fragment 가 JS 로 변환
+                                            MSA:       컨트롤러(StudyPageController)가 포맷된 문자열을 EventDto.displayDateTime 으로 넘긴다.
+                                                       혹은 JS 로 ISO 문자열을 변환한다 (아래 formatDateTime() 함수 참고).
+                                        -->
+                                        <span class="ms-3 small flex-shrink-0 event-datetime"
+                                              style="color: #9e9689; font-size: 0.72rem; white-space: nowrap;"
+                                              th:text="${event.startDateTime}">날짜</span>
+                                    </a>
+                                </div>
+
+                                <!-- 예정 모임 없을 때 -->
+                                <div th:unless="${studyEventsMap != null and studyEventsMap.containsKey(study.id)}"
+                                     class="pt-1">
+                                    <p class="small mb-0" style="color: #c4bfb6; font-size: 0.78rem;">
+                                        <i class="fa-regular fa-calendar me-1"></i> 예정된 모임이 없어요
+                                    </p>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 관리중인 스터디 없음 -->
+                    <div th:if="${studyManagerOf == null or #lists.isEmpty(studyManagerOf)}"
+                         class="card border-0 shadow-sm">
+                        <div class="card-body text-center py-4">
+                            <div class="empty-icon empty-icon-amber mx-auto">
+                                <i class="fa-solid fa-crown"></i>
+                            </div>
+                            <p class="fw-medium mb-1" style="color: #4a4540;">관리중인 스터디가 없어요</p>
+                            <p class="text-muted small mb-3">직접 스터디를 개설해서 팀원을 모아보세요</p>
+                            <a href="/new-study" class="btn btn-outline-warning btn-sm rounded-pill px-4">
+                                <i class="fa-solid fa-plus me-1"></i> 스터디 개설하기
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 참여중인 스터디 -->
+                <div class="mb-4">
+                    <h6 class="section-title mb-3">
+                        <i class="fa-solid fa-user-group" style="color: #8e85b0;"></i> 참여중인 스터디
+                    </h6>
+
+                    <div th:if="${studyMemberOf != null and !#lists.isEmpty(studyMemberOf)}">
+                        <div th:each="study : ${studyMemberOf}" class="card border-0 shadow-sm mb-3">
+                            <div class="card-body p-3">
+
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="study-dot bg-info me-2 flex-shrink-0"></div>
+                                    <a th:href="@{'/study/' + ${study.path}}"
+                                       class="fw-semibold text-decoration-none text-truncate"
+                                       style="color: #4a4540; font-size: 0.9rem;"
+                                       th:text="${study.title}">스터디명</a>
+                                </div>
+
+                                <div th:if="${studyEventsMap != null and studyEventsMap.containsKey(study.id)}">
+                                    <a th:each="event : ${studyEventsMap.get(study.id)}"
+                                       th:href="@{'/study/' + ${study.path} + '/events/' + ${event.id}}"
+                                       class="d-flex align-items-center py-2 text-decoration-none dashboard-event-row">
+                                        <i th:if="${enrolledEventIds != null and enrolledEventIds.contains(event.id)}"
+                                           class="fa-solid fa-circle-check me-2 flex-shrink-0"
+                                           style="color: #7fac8e; font-size: 0.75rem;"></i>
+                                        <i th:unless="${enrolledEventIds != null and enrolledEventIds.contains(event.id)}"
+                                           class="fa-regular fa-calendar me-2 flex-shrink-0"
+                                           style="color: #b8b2aa; font-size: 0.75rem;"></i>
+                                        <span class="small text-truncate flex-grow-1"
+                                              style="color: #6b6560;" th:text="${event.title}">모임명</span>
+                                        <span class="ms-3 small flex-shrink-0 event-datetime"
+                                              style="color: #9e9689; font-size: 0.72rem; white-space: nowrap;"
+                                              th:text="${event.startDateTime}">날짜</span>
+                                    </a>
+                                </div>
+
+                                <div th:unless="${studyEventsMap != null and studyEventsMap.containsKey(study.id)}"
+                                     class="pt-1">
+                                    <p class="small mb-0" style="color: #c4bfb6; font-size: 0.78rem;">
+                                        <i class="fa-regular fa-calendar me-1"></i> 예정된 모임이 없어요
+                                    </p>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 참여중인 스터디 없음 -->
+                    <div th:if="${studyMemberOf == null or #lists.isEmpty(studyMemberOf)}"
+                         class="card border-0 shadow-sm">
+                        <div class="card-body text-center py-4">
+                            <div class="empty-icon empty-icon-sky mx-auto">
+                                <i class="fa-solid fa-user-group"></i>
+                            </div>
+                            <p class="fw-medium mb-1" style="color: #4a4540;">참여중인 스터디가 없어요</p>
+                            <p class="text-muted small mb-3">관심 있는 스터디를 찾아 참여해 보세요</p>
+                            <a href="/search/study" class="btn btn-outline-primary btn-sm rounded-pill px-4">
+                                <i class="fa-solid fa-magnifying-glass me-1"></i> 스터디 찾기
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <!-- /좌측 끝 -->
+
+            <!-- ===== 우측: 캘린더 + 추천 스터디 ===== -->
+            <div class="col-lg-4">
+
+                <!-- 모임 캘린더 -->
+                <div class="calendar-card mb-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="section-title mb-0">
+                            <i class="fa-solid fa-calendar-days" style="color: #8e85b0;"></i> 모임 캘린더
+                        </h6>
+                    </div>
+                    <div id="study-calendar"></div>
+                    <div class="calendar-legend">
+                        <div class="calendar-legend-item">
+                            <div class="calendar-legend-dot" style="background: #bfa473;"></div>
+                            <span>관리중</span>
+                        </div>
+                        <div class="calendar-legend-item">
+                            <div class="calendar-legend-dot" style="background: #8e85b0;"></div>
+                            <span>참여중</span>
+                        </div>
+                        <div class="calendar-legend-item">
+                            <div class="calendar-legend-dot" style="background: #7fac8e;"></div>
+                            <span>참가 확정</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 추천 스터디 -->
+                <div class="mb-4">
+                    <h6 class="section-title mb-3">
+                        <i class="fa-solid fa-wand-magic-sparkles" style="color: #bfa473;"></i> 추천 스터디
+                    </h6>
+
+                    <div th:if="${studyList != null and !#lists.isEmpty(studyList)}">
+                        <div th:replace="~{fragments.html :: study-list (studyList=${studyList})}"></div>
+                    </div>
+
+                    <div th:if="${studyList == null or #lists.isEmpty(studyList)}"
+                         class="card border-0 shadow-sm">
+                        <div class="card-body text-center py-4">
+                            <div class="empty-icon empty-icon-amber mx-auto">
+                                <i class="fa-solid fa-book-open"></i>
+                            </div>
+                            <p class="fw-medium mb-1" style="color: #4a4540;">추천 스터디가 없어요</p>
+                            <p class="text-muted small mb-3">관심 주제와 활동 지역을 등록하면<br/>맞춤 스터디를 추천해 드려요</p>
+                            <div class="d-flex justify-content-center gap-2">
+                                <a href="/settings/tags" class="btn btn-primary btn-sm rounded-pill px-3">
+                                    <i class="fa-solid fa-tag me-1"></i> 주제 등록
+                                </a>
+                                <a href="/settings/zones" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+                                    <i class="fa-solid fa-map-pin me-1"></i> 지역 등록
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 관심주제 · 활동지역 설정 바로가기 -->
+                <div class="card border-0" style="background: #fdfcfa; border: 1px solid #e8e4dd !important;">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <span class="small" style="color: #6b6560;">관심주제 · 활동지역</span>
+                            <div class="d-flex gap-3">
+                                <a href="/settings/tags" class="text-decoration-none small"
+                                   style="color: #8e85b0; font-size: 0.78rem;">
+                                    <i class="fa-solid fa-hashtag me-1"></i>주제
+                                </a>
+                                <a href="/settings/zones" class="text-decoration-none small"
+                                   style="color: #c4917e; font-size: 0.78rem;">
+                                    <i class="fa-solid fa-location-dot me-1"></i>지역
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <!-- /우측 끝 -->
+
+        </div>
+    </div>
+
+    <!-- FullCalendar CDN (대시보드에서만 로드)
+         CSS 가 JS 번들에 포함되어 있으므로 별도 link 태그 불필요. -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+
+    <script th:inline="javascript">
+        /*
+         * [MSA 핵심]
+         * 모노리틱: events: '/api/calendar/events'  (같은 서버이므로 상대 경로)
+         * MSA:       events 를 절대 경로로 지정해야 함.
+         *            브라우저 -> api-gateway(:8080) -> 각 서비스 흐름이므로
+         *            [[${apiBase}]] 로 주입된 API_BASE 변수를 사용한다.
+         */
+        const API_BASE = [[${apiBase}]];
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var calendarEl = document.getElementById('study-calendar');
+            if (!calendarEl) return;
+
+            var tooltip = null;
+
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                height: 'auto',
+                locale: 'ko',
+                headerToolbar: {
+                    left: 'prev,next',
+                    center: 'title',
+                    right: 'today'
+                },
+                buttonText: { today: '오늘' },
+
+                /*
+                 * [MSA 차이]
+                 * 모노리틱: events: '/api/calendar/events'
+                 * MSA:       api-gateway 를 통해 요청해야 하므로 절대 URL 사용.
+                 *            FullCalendar 가 뷰 전환 시 자동으로 ?start=...&end=... 를 붙임.
+                 *            Authorization 헤더는 FullCalendar 의 eventSourceSuccess/failure 로
+                 *            처리하거나, api-gateway 가 쿠키 방식을 지원한다면 생략 가능.
+                 *            현재 아키텍처에서는 Bearer 토큰을 localStorage 에서 읽어
+                 *            extraParams 방식 대신 xhrFields 를 사용한다.
+                 */
+                events: {
+                    url: API_BASE + '/api/calendar/events',
+                    extraParams: function () {
+                        return {};
+                    },
+                    success: function (content) {
+                        return content;
+                    },
+                    failure: function () {
+                        console.warn('FullCalendar: 캘린더 이벤트 로딩 실패');
+                    },
+                    // FullCalendar 의 fetch 요청에 Authorization 헤더 추가
+                    ajaxSetup: function (req) {
+                        var token = localStorage.getItem('accessToken');
+                        if (token) {
+                            req.headers = req.headers || {};
+                            req.headers['Authorization'] = 'Bearer ' + token;
+                        }
+                    }
+                },
+
+                eventClick: function (info) {
+                    info.jsEvent.preventDefault();
+                    if (info.event.url) {
+                        window.location.href = info.event.url;
+                    }
+                },
+
+                eventDidMount: function (info) {
+                    var studyTitle = info.event.extendedProps.studyTitle;
+                    if (!studyTitle) return;
+
+                    info.el.addEventListener('mouseenter', function (e) {
+                        tooltip = document.createElement('div');
+                        tooltip.className = 'fc-event-tooltip';
+                        tooltip.textContent = studyTitle;
+                        document.body.appendChild(tooltip);
+                        tooltip.style.left = e.pageX + 12 + 'px';
+                        tooltip.style.top  = e.pageY - 30 + 'px';
+                    });
+                    info.el.addEventListener('mousemove', function (e) {
+                        if (tooltip) {
+                            tooltip.style.left = e.pageX + 12 + 'px';
+                            tooltip.style.top  = e.pageY - 30 + 'px';
+                        }
+                    });
+                    info.el.addEventListener('mouseleave', function () {
+                        if (tooltip) { tooltip.remove(); tooltip = null; }
+                    });
+                },
+
+                dayMaxEvents: 3
+            });
+
+            calendar.render();
+        });
+
+        /*
+         * 날짜 포맷 변환 (event-datetime 요소에 적용)
+         *
+         * [MSA 차이]
+         * 모노리틱: th:replace="fragments.html :: date-time" — 서버 사이드 날짜 변환 fragment
+         * MSA:       fragment 제거. 컨트롤러가 EventDto.startDateTime 을 이미 포맷된
+         *            문자열로 내려보내거나, 아래 JS 로 ISO 문자열을 읽기 좋게 변환한다.
+         *            서버가 "MM월 dd일 HH:mm" 형식으로 미리 포맷하면 이 JS 는 불필요.
+         *
+         * 서버가 LocalDateTime.toString() 그대로(ISO 형식: "2024-11-15T14:00:00")
+         * 내려줄 경우에만 이 함수가 동작한다.
+         */
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.event-datetime').forEach(function (el) {
+                var raw = el.textContent.trim();
+                // ISO 형식이 아니면 이미 포맷된 문자열이므로 그냥 둔다.
+                if (!raw || !raw.includes('T')) return;
+
+                try {
+                    var d = new Date(raw);
+                    var month = d.getMonth() + 1;
+                    var day   = d.getDate();
+                    var hour  = String(d.getHours()).padStart(2, '0');
+                    var min   = String(d.getMinutes()).padStart(2, '0');
+                    el.textContent = month + '월 ' + day + '일 ' + hour + ':' + min;
+                } catch (e) {
+                    // 파싱 실패 시 원본 유지
+                }
+            });
+        });
+    </script>
+
+</th:block>
+<!-- /[B] 대시보드 끝 -->
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+</body>
+</html>

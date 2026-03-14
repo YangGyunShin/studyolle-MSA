@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<!--
+    study/settings/join-requests.html  (MSA 버전)
+
+    [모노리틱과의 핵심 차이]
+
+    1. 가입 방식 변경 폼 -> fetch
+       - 모노리틱: form POST -> redirect
+       - MSA:       라디오 change 이벤트 -> 즉시 fetch(POST .../settings/join-type)
+                    선택 즉시 자동 저장 (별도 저장 버튼 없음)
+
+    2. 승인/거절 폼 -> fetch + DOM 제거
+       - 모노리틱: form submit -> redirect -> 전체 페이지 재렌더링
+       - MSA:       fetch POST -> 성공 시 해당 행만 DOM 에서 제거 (새로고침 없음)
+
+    3. sec:authorize 제거
+       - StudyPageController 가 isManager 검증 후 비관리자는 리다이렉트 처리
+
+    [필요한 model 속성]
+    - study           : StudyResponse (path, title, joinType: "OPEN" | "APPROVAL_REQUIRED")
+    - pendingRequests : List<JoinRequestDto>
+                        (id, account.nickname, account.profileImage, account.bio, requestedAt)
+    - pendingCount    : int
+    - account         : AccountSummaryDto (nav 용)
+    - apiBase         : String
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head(${study.title} + ' - 가입 관리')}"></head>
+
+<body class="bg-light">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+<div th:replace="~{fragments.html :: study-info}"></div>
+
+<!-- 설정 탭 바 -->
+<div class="border-bottom bg-white">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <nav class="nav py-2">
+                    <a class="nav-link rounded-pill px-3 text-muted"
+                       style="font-size: 0.9rem;"
+                       th:href="@{'/study/' + ${study.path}}">
+                        <i class="fa-solid fa-arrow-left me-1"></i> 스터디로 돌아가기
+                    </a>
+                    <span class="nav-link px-3 fw-semibold"
+                          style="color: #8e85b0; font-size: 0.9rem;">
+                        <i class="fa-solid fa-gear me-1"></i> 스터디 설정
+                    </span>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="row g-4">
+
+                <!-- 사이드바 -->
+                <div class="col-md-3">
+                    <div th:replace="~{fragments.html :: study-settings-menu('join-requests')}"></div>
+                </div>
+
+                <!-- 메인 콘텐츠 -->
+                <div class="col-md-9">
+
+                    <!-- 작업 알림 (JS 가 조작) -->
+                    <div id="alertSuccess" class="alert border-0 rounded-3 mb-3"
+                         style="background: #e8f4ee; color: #4a8a62; display: none;">
+                        <i class="fa-solid fa-circle-check me-2"></i>
+                        <span id="alertSuccessMsg"></span>
+                    </div>
+                    <div id="alertError" class="alert border-0 rounded-3 mb-3"
+                         style="background: #fdf0ed; color: #b05a3a; display: none;">
+                        <i class="fa-solid fa-circle-exclamation me-2"></i>
+                        <span id="alertErrorMsg"></span>
+                    </div>
+
+                    <!-- ========== 가입 방식 설정 ========== -->
+                    <div class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-door-open text-primary me-2"></i>가입 방식
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="alert alert-primary border-0 rounded-3 mb-3" role="alert">
+                                <i class="fa-solid fa-circle-info me-2"></i>
+                                <strong>자유 가입</strong>은 누구나 바로 가입할 수 있고,
+                                <strong>승인제</strong>는 관리자가 신청을 확인한 뒤 승인해야 가입됩니다.
+                                선택 즉시 자동 저장됩니다.
+                            </div>
+
+                            <!--
+                                [모노리틱 차이]
+                                모노리틱: 라디오 + 저장 버튼 조합 (form submit)
+                                MSA:       라디오 change 이벤트만으로 즉시 API 호출.
+                                           th:checked 로 현재 joinType 을 초기 선택 상태로 반영.
+                                           th:classappend 로 선택된 항목을 시각적으로 강조.
+                            -->
+                            <div class="form-check mb-3 p-3 rounded-3 border jointype-option"
+                                 id="optionOpen"
+                                 th:classappend="${study.joinType == 'OPEN'} ? ' border-primary bg-primary bg-opacity-10' : ''">
+                                <input class="form-check-input" type="radio"
+                                       name="joinType" id="joinTypeOpen"
+                                       value="OPEN"
+                                       th:checked="${study.joinType == 'OPEN'}"
+                                       onchange="handleJoinTypeChange('OPEN')">
+                                <label class="form-check-label w-100" for="joinTypeOpen">
+                                    <span class="fw-semibold">
+                                        <i class="fa-solid fa-unlock text-success me-1"></i> 자유 가입
+                                    </span>
+                                    <p class="text-muted small mb-0 mt-1">
+                                        모집 중인 스터디에 누구나 즉시 가입할 수 있습니다.
+                                    </p>
+                                </label>
+                            </div>
+
+                            <div class="form-check p-3 rounded-3 border jointype-option"
+                                 id="optionApproval"
+                                 th:classappend="${study.joinType == 'APPROVAL_REQUIRED'} ? ' border-primary bg-primary bg-opacity-10' : ''">
+                                <input class="form-check-input" type="radio"
+                                       name="joinType" id="joinTypeApproval"
+                                       value="APPROVAL_REQUIRED"
+                                       th:checked="${study.joinType == 'APPROVAL_REQUIRED'}"
+                                       onchange="handleJoinTypeChange('APPROVAL_REQUIRED')">
+                                <label class="form-check-label w-100" for="joinTypeApproval">
+                                    <span class="fw-semibold">
+                                        <i class="fa-solid fa-shield-halved text-warning me-1"></i> 승인제
+                                    </span>
+                                    <p class="text-muted small mb-0 mt-1">
+                                        가입 신청 후 관리자가 승인해야 멤버로 등록됩니다.
+                                    </p>
+                                </label>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- ========== 대기 중인 가입 신청 목록 ========== -->
+                    <div class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2
+                                    d-flex align-items-center justify-content-between">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-user-clock text-warning me-2"></i>대기 중인 가입 신청
+                            </h6>
+                            <span id="pendingBadge"
+                                  class="badge rounded-pill px-3 py-2"
+                                  style="background: #fef3e2; color: #bfa473; font-size: 0.8rem;"
+                                  th:text="${pendingCount} + '건'">0건</span>
+                        </div>
+                        <div class="card-body p-4">
+
+                            <!--
+                                빈 상태 영역.
+                                pendingRequests 가 비어있으면 처음부터 표시,
+                                아니면 숨겨두고 JS 가 모든 행 제거 후 display:block 으로 전환.
+                            -->
+                            <div id="emptyState"
+                                 th:style="${pendingRequests.isEmpty()} ? 'display:block' : 'display:none'"
+                                 class="text-center py-4 text-muted">
+                                <i class="fa-solid fa-inbox fa-2x mb-2" style="color: #d0ccdf;"></i>
+                                <p class="mb-0 small">대기 중인 가입 신청이 없습니다.</p>
+                            </div>
+
+                            <!-- 신청 목록 컨테이너 -->
+                            <div id="requestList">
+                                <!--
+                                    각 행에 th:id="'request-' + request.id" 를 부여한다.
+                                    승인/거절 성공 시 JS 가 getElementById('request-' + id) 로
+                                    해당 행을 찾아 fade-out 후 제거한다. (페이지 새로고침 없이 즉시 반영)
+                                -->
+                                <div th:each="request : ${pendingRequests}"
+                                     th:id="'request-' + ${request.id}"
+                                     class="d-flex align-items-center justify-content-between
+                                            p-3 mb-2 rounded-3 border"
+                                     style="transition: opacity 0.3s;">
+
+                                    <!-- 신청자 정보 -->
+                                    <div class="d-flex align-items-center">
+                                        <a th:href="@{'/profile/' + ${request.account.nickname}}"
+                                           class="text-decoration-none me-3 flex-shrink-0">
+                                            <svg th:if="${#strings.isEmpty(request.account.profileImage)}"
+                                                 th:data-jdenticon-value="${request.account.nickname}"
+                                                 width="48" height="48"
+                                                 class="rounded-circle border"></svg>
+                                            <img th:if="${!#strings.isEmpty(request.account.profileImage)}"
+                                                 th:src="${request.account.profileImage}"
+                                                 width="48" height="48"
+                                                 class="rounded-circle border object-fit-cover"
+                                                 alt="프로필"/>
+                                        </a>
+                                        <div>
+                                            <a th:href="@{'/profile/' + ${request.account.nickname}}"
+                                               class="fw-semibold text-dark text-decoration-none"
+                                               th:text="${request.account.nickname}">닉네임</a>
+                                            <p class="text-muted small mb-0 mt-1">
+                                                <i class="fa-regular fa-clock me-1"></i>
+                                                <span th:text="${request.requestedAt}">신청 시각</span>
+                                            </p>
+                                            <p th:if="${!#strings.isEmpty(request.account.bio)}"
+                                               class="text-muted small mb-0 text-truncate"
+                                               style="max-width: 250px;"
+                                               th:text="${request.account.bio}">소개</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- 승인 / 거절 버튼 -->
+                                    <div class="d-flex gap-2 flex-shrink-0">
+                                        <!--
+                                            [모노리틱 차이]
+                                            모노리틱: <form th:action="@{.../approve}"> submit -> redirect
+                                            MSA:       onclick="approveRequest(id)" -> fetch -> 해당 행 DOM 제거
+                                        -->
+                                        <button type="button"
+                                                class="btn btn-success btn-sm rounded-pill px-3"
+                                                th:onclick="'approveRequest(' + ${request.id} + ')'">
+                                            <i class="fa-solid fa-check me-1"></i> 승인
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-outline-danger btn-sm rounded-pill px-3"
+                                                th:onclick="'rejectRequest(' + ${request.id} + ')'">
+                                            <i class="fa-solid fa-xmark me-1"></i> 거절
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- 승인제 안내 카드 (승인제일 때만 표시) -->
+                    <div th:if="${study.joinType == 'APPROVAL_REQUIRED'}"
+                         class="card border-0 shadow-sm rounded-3 mb-4">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-lightbulb text-info me-2"></i>승인제 안내
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="d-flex flex-column gap-3">
+                                <div class="d-flex align-items-start">
+                                    <span class="badge rounded-circle me-3 flex-shrink-0
+                                                 d-flex align-items-center justify-content-center"
+                                          style="width:28px;height:28px;min-width:28px;background:#8e85b0;">1</span>
+                                    <div>
+                                        <span class="fw-semibold">사용자가 "가입 신청" 버튼 클릭</span>
+                                        <p class="text-muted small mb-0">
+                                            기존 "가입하기" 버튼 대신 "가입 신청" 버튼이 표시됩니다.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-start">
+                                    <span class="badge rounded-circle me-3 flex-shrink-0
+                                                 d-flex align-items-center justify-content-center"
+                                          style="width:28px;height:28px;min-width:28px;background:#8e85b0;">2</span>
+                                    <div>
+                                        <span class="fw-semibold">관리자에게 알림 발송</span>
+                                        <p class="text-muted small mb-0">
+                                            이 페이지에서 대기 중인 신청을 확인할 수 있습니다.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-start">
+                                    <span class="badge rounded-circle me-3 flex-shrink-0
+                                                 d-flex align-items-center justify-content-center"
+                                          style="width:28px;height:28px;min-width:28px;background:#8e85b0;">3</span>
+                                    <div>
+                                        <span class="fw-semibold">승인 시 자동으로 멤버 등록</span>
+                                        <p class="text-muted small mb-0">
+                                            거절하면 신청자에게 알림이 전송됩니다.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+<script th:inline="javascript">
+    const STUDY_PATH = [[${study.path}]];
+    // 현재 대기 신청 건수 추적 (배지 업데이트용)
+    let pendingCount = [[${pendingCount}]];
+</script>
+
+<script>
+    // ---------------------------------------------------------------
+    // 가입 방식 변경 (라디오 change 이벤트 -> 즉시 fetch)
+    //
+    // [모노리틱 차이]
+    // 모노리틱: "저장" 버튼 클릭 -> form submit -> redirect
+    // MSA:       라디오 선택 즉시 -> fetch POST -> 성공/실패 알림만 표시 (새로고침 없음)
+    // ---------------------------------------------------------------
+    async function handleJoinTypeChange(joinType) {
+        // 선택된 옵션 시각적 강조 업데이트
+        document.querySelectorAll('.jointype-option').forEach(function (el) {
+            el.classList.remove('border-primary', 'bg-primary', 'bg-opacity-10');
+        });
+        const selectedEl = (joinType === 'OPEN')
+            ? document.getElementById('optionOpen')
+            : document.getElementById('optionApproval');
+        if (selectedEl) {
+            selectedEl.classList.add('border-primary', 'bg-primary', 'bg-opacity-10');
+        }
+
+        try {
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/join-type', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ joinType: joinType })
+            });
+
+            if (res.ok) {
+                const label = (joinType === 'OPEN') ? '자유 가입' : '승인제';
+                showSuccess('가입 방식이 "' + label + '"으로 변경되었습니다.');
+            } else {
+                const data = await res.json();
+                showError(data.message || '가입 방식 변경 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            showError('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 가입 신청 승인
+    //
+    // [모노리틱 차이]
+    // 모노리틱: form submit -> redirect -> 전체 페이지 재렌더링
+    // MSA:       fetch -> 성공 시 해당 행만 DOM 에서 제거. 더 빠른 UX.
+    // ---------------------------------------------------------------
+    async function approveRequest(requestId) {
+        try {
+            const res = await fetch(
+                API_BASE + '/api/studies/' + STUDY_PATH
+                + '/settings/join-requests/' + requestId + '/approve',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                    }
+                }
+            );
+
+            if (res.ok) {
+                removeRequestRow(requestId);
+                showSuccess('가입 신청을 승인했습니다.');
+            } else {
+                const data = await res.json();
+                showError(data.message || '승인 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            showError('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 가입 신청 거절
+    // ---------------------------------------------------------------
+    async function rejectRequest(requestId) {
+        if (!confirm('가입 신청을 거절하시겠습니까?')) return;
+
+        try {
+            const res = await fetch(
+                API_BASE + '/api/studies/' + STUDY_PATH
+                + '/settings/join-requests/' + requestId + '/reject',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                    }
+                }
+            );
+
+            if (res.ok) {
+                removeRequestRow(requestId);
+                showSuccess('가입 신청을 거절했습니다.');
+            } else {
+                const data = await res.json();
+                showError(data.message || '거절 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            showError('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 신청 행을 DOM 에서 제거하고 배지/빈 상태 업데이트
+    // ---------------------------------------------------------------
+    function removeRequestRow(requestId) {
+        const row = document.getElementById('request-' + requestId);
+        if (!row) return;
+
+        // 부드럽게 사라지는 효과
+        row.style.opacity = '0';
+        setTimeout(function () {
+            row.remove();
+            pendingCount = Math.max(0, pendingCount - 1);
+            document.getElementById('pendingBadge').textContent = pendingCount + '건';
+
+            // 남은 신청이 없으면 빈 상태 표시
+            const remaining = document.querySelectorAll('#requestList > div').length;
+            if (remaining === 0) {
+                document.getElementById('emptyState').style.display = 'block';
+            }
+        }, 300);
+    }
+
+    function showSuccess(msg) {
+        document.getElementById('alertSuccessMsg').textContent = msg;
+        document.getElementById('alertSuccess').style.display = 'block';
+        document.getElementById('alertError').style.display = 'none';
+        setTimeout(function () {
+            document.getElementById('alertSuccess').style.display = 'none';
+        }, 3000);
+    }
+
+    function showError(msg) {
+        document.getElementById('alertErrorMsg').textContent = msg;
+        document.getElementById('alertError').style.display = 'block';
+        document.getElementById('alertSuccess').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>

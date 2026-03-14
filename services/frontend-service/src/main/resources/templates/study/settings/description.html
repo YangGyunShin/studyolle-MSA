@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<!--
+    study/settings/description.html  (MSA 버전)
+
+    [모노리틱과의 핵심 차이]
+
+    1. 폼 바인딩 제거
+       - 모노리틱: th:action="@{...}" th:object="${studyDescriptionForm}" method="post"
+                   th:field="*{shortDescription}", th:errors="*{shortDescription}"
+       - MSA:       일반 textarea. 저장 버튼 클릭 시 fetch(PATCH /api/studies/{path}/settings/description)
+                   + Authorization: Bearer 헤더.
+
+    2. Summernote
+       - 모노리틱: th:field="*{fullDescription}" class="editor"
+       - MSA:       id="fullDescription" + JS 에서 $('#fullDescription').summernote('code') 로 값 읽기.
+                   초기값을 서버에서 Thymeleaf 로 주입: th:text="${study.fullDescription}"
+                   → Summernote 초기화 시 val() 을 읽어 에디터에 로드.
+
+    3. CSRF 제거
+
+    [필요한 model 속성]
+    - study    : StudyResponse (path, shortDescription, fullDescription)
+    - account  : AccountSummaryDto (nav 용)
+    - apiBase  : String
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head(${study.title} + ' - 소개 수정')}"></head>
+
+<!-- Summernote CSS -->
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.css" rel="stylesheet">
+
+<body class="bg-light">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+<div th:replace="~{fragments.html :: study-info}"></div>
+
+<!-- 설정 메뉴 탭 바 -->
+<div class="border-bottom bg-white">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <nav class="nav py-2">
+                    <a class="nav-link rounded-pill px-3 text-muted"
+                       style="font-size: 0.9rem;"
+                       th:href="@{'/study/' + ${study.path}}">
+                        <i class="fa-solid fa-arrow-left me-1"></i> 스터디로 돌아가기
+                    </a>
+                    <span class="nav-link px-3 fw-semibold"
+                          style="color: #8e85b0; font-size: 0.9rem;">
+                        <i class="fa-solid fa-gear me-1"></i> 스터디 설정
+                    </span>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="row g-4">
+
+                <!-- 사이드바 -->
+                <div class="col-md-3">
+                    <div th:replace="~{fragments.html :: study-settings-menu('description')}"></div>
+                </div>
+
+                <!-- 메인 콘텐츠 -->
+                <div class="col-md-9">
+
+                    <!-- 저장 완료 / 에러 알림 (JS 가 조작) -->
+                    <div id="alertSuccess" class="alert border-0 rounded-3 mb-3"
+                         style="background: #e8f4ee; color: #4a8a62; display: none;">
+                        <i class="fa-solid fa-circle-check me-2"></i>소개가 저장되었습니다.
+                    </div>
+                    <div id="alertError" class="alert border-0 rounded-3 mb-3"
+                         style="background: #fdf0ed; color: #b05a3a; display: none;">
+                        <i class="fa-solid fa-circle-exclamation me-2"></i>
+                        <span id="alertErrorMsg"></span>
+                    </div>
+
+                    <div class="card border-0 shadow-sm rounded-3">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-pen-to-square text-primary me-2"></i>스터디 소개 수정
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+
+                            <!-- 짧은 소개 -->
+                            <div class="mb-4">
+                                <label for="shortDescription" class="form-label fw-semibold">짧은 소개</label>
+                                <!--
+                                    [모노리틱 제거] th:field="*{shortDescription}"
+                                    [MSA]          th:text 로 초기값만 설정. JS 가 값을 읽는다.
+                                -->
+                                <textarea id="shortDescription" class="form-control"
+                                          placeholder="스터디를 짧게 소개해 주세요."
+                                          rows="2" maxlength="100"
+                                          th:text="${study.shortDescription}"></textarea>
+                                <div class="form-text">100자 이내</div>
+                                <div id="shortDescError" class="text-danger small mt-1"
+                                     style="display: none;"></div>
+                            </div>
+
+                            <!-- 상세 소개 (Summernote) -->
+                            <div class="mb-4">
+                                <label for="fullDescription" class="form-label fw-semibold">상세 소개</label>
+                                <!--
+                                    th:text 로 HTML 내용을 주입.
+                                    Summernote 초기화 시 이 값을 에디터에 로드한다.
+                                -->
+                                <textarea id="fullDescription" class="form-control"
+                                          th:text="${study.fullDescription}"></textarea>
+                                <div class="form-text">
+                                    <i class="fa-solid fa-lightbulb text-warning me-1"></i>
+                                    목표, 일정, 방식, 교재, 강좌, 모집 스터디원 등 자세히 입력하세요.
+                                </div>
+                            </div>
+
+                            <!-- 저장 버튼 -->
+                            <div class="d-grid">
+                                <button id="saveBtn" type="button"
+                                        class="btn btn-primary rounded-pill">
+                                    <i class="fa-solid fa-check me-1"></i> 수정하기
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+<!-- Summernote -->
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/lang/summernote-ko-KR.min.js"></script>
+
+<script th:inline="javascript">
+    // 현재 스터디 경로 (th:inline="javascript" 로 서버에서 주입)
+    const STUDY_PATH = [[${study.path}]];
+</script>
+
+<script>
+    // Summernote 초기화
+    $(document).ready(function () {
+        $('#fullDescription').summernote({
+            height: 300,
+            lang: 'ko-KR',
+            toolbar: [
+                ['style', ['style']],
+                ['font', ['bold', 'italic', 'underline', 'clear']],
+                ['fontsize', ['fontsize']],
+                ['color', ['color']],
+                ['para', ['ul', 'ol', 'paragraph']],
+                ['insert', ['link', 'picture']],
+                ['view', ['fullscreen', 'codeview']]
+            ]
+        });
+    });
+
+    // ---------------------------------------------------------------
+    // 소개 저장 처리
+    //
+    // [흐름]
+    // 1. 저장 버튼 클릭
+    // 2. fetch(PATCH /api/studies/{path}/settings/description)
+    //    + Authorization: Bearer 헤더 + JSON body
+    // 3. 성공(200) → 상단 성공 알림 표시
+    //    실패(4xx) → 에러 알림 표시
+    //
+    // [study-service StudyDescriptionRequest 필드]
+    //   shortDescription : 1~100자
+    //   fullDescription  : 필수
+    // ---------------------------------------------------------------
+    document.getElementById('saveBtn').addEventListener('click', async function () {
+        clearAlerts();
+
+        const shortDescription = document.getElementById('shortDescription').value.trim();
+        const fullDescription  = $('#fullDescription').summernote('code');
+
+        if (!shortDescription || !fullDescription || fullDescription === '<p><br></p>') {
+            showError('소개 내용을 입력해주세요.');
+            return;
+        }
+
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>저장 중...';
+
+        try {
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/description', {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ shortDescription, fullDescription })
+            });
+
+            if (res.ok) {
+                showSuccess();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                const data = await res.json();
+                showError(data.message || '저장 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            showError('서버와 연결할 수 없습니다.');
+            console.error(e);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> 수정하기';
+        }
+    });
+
+    function showSuccess() {
+        document.getElementById('alertSuccess').style.display = 'block';
+        document.getElementById('alertError').style.display = 'none';
+    }
+
+    function showError(msg) {
+        document.getElementById('alertErrorMsg').textContent = msg;
+        document.getElementById('alertError').style.display = 'block';
+        document.getElementById('alertSuccess').style.display = 'none';
+    }
+
+    function clearAlerts() {
+        document.getElementById('alertSuccess').style.display = 'none';
+        document.getElementById('alertError').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>

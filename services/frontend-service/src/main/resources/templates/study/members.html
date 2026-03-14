@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<!--
+    study/members.html  (MSA 버전)
+
+    [모노리틱과의 핵심 차이]
+    - th:replace="fragments.html :: member-list" fragment 제거
+      모노리틱에서는 관리자/멤버 목록을 별도 fragment 로 분리했으나,
+      MSA 에서는 인라인으로 직접 렌더링 (fragment 의존성 줄이기)
+    - sec:authorize 완전 제거 → th:if="${account != null}" / th:if="${isManager}"
+
+    [필요한 model 속성]
+    - study    : StudyResponse (path, title, managers:List, members:List, recruiting, closed)
+    - account  : AccountSummaryDto or null
+    - isManager : boolean
+    - isMember  : boolean
+    - apiBase   : String
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head(${study.title} + ' - 구성원')}"></head>
+
+<body class="bg-light">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+<div th:replace="~{fragments.html :: study-info}"></div>
+
+<!-- 스터디로 돌아가기 바 -->
+<div class="border-bottom bg-white">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <nav class="nav py-2">
+                    <a class="nav-link rounded-pill px-3 text-muted"
+                       style="font-size: 0.9rem;"
+                       th:href="@{'/study/' + ${study.path}}">
+                        <i class="fa-solid fa-arrow-left me-1"></i> 스터디로 돌아가기
+                    </a>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 구성원 목록 -->
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+            <!-- 관리자 섹션 -->
+            <div class="mb-5">
+                <h6 class="fw-bold mb-3" style="color: #6d6484;">
+                    <i class="fa-solid fa-crown text-warning me-2"></i>관리자
+                    <span class="badge rounded-pill ms-1"
+                          style="background: #f0ece8; color: #bfa473; font-size: 0.75rem;"
+                          th:text="${study.managers.size()}">1</span>
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-6 col-lg-4" th:each="manager : ${study.managers}">
+                        <a th:href="@{'/profile/' + ${manager.nickname}}" class="text-decoration-none">
+                            <div class="card border-0 shadow-sm rounded-3 h-100"
+                                 style="transition: transform 0.15s;"
+                                 onmouseover="this.style.transform='translateY(-2px)'"
+                                 onmouseout="this.style.transform='translateY(0)'">
+                                <div class="card-body d-flex align-items-center p-3">
+                                    <svg th:if="${#strings.isEmpty(manager.profileImage)}"
+                                         th:data-jdenticon-value="${manager.nickname}"
+                                         width="52" height="52"
+                                         class="rounded-circle border flex-shrink-0 me-3"></svg>
+                                    <img th:if="${!#strings.isEmpty(manager.profileImage)}"
+                                         th:src="${manager.profileImage}"
+                                         width="52" height="52"
+                                         class="rounded-circle border object-fit-cover flex-shrink-0 me-3"
+                                         alt="프로필"/>
+                                    <div>
+                                        <span class="fw-semibold text-dark"
+                                              th:text="${manager.nickname}">닉네임</span>
+                                        <span class="badge rounded-pill ms-1"
+                                              style="background: #f8f5ee; color: #bfa473; font-size: 0.7rem;">관리자</span>
+                                        <p class="text-muted small mb-0 mt-1 text-truncate"
+                                           style="max-width: 180px;"
+                                           th:text="${manager.bio ?: ''}"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 일반 멤버 섹션 -->
+            <div th:if="${!study.members.isEmpty()}">
+                <h6 class="fw-bold mb-3" style="color: #6d6484;">
+                    <i class="fa-solid fa-users me-2" style="color: #8e85b0;"></i>멤버
+                    <span class="badge rounded-pill ms-1"
+                          style="background: #eeedf8; color: #8e85b0; font-size: 0.75rem;"
+                          th:text="${study.members.size()}">0</span>
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-6 col-lg-4" th:each="member : ${study.members}">
+                        <a th:href="@{'/profile/' + ${member.nickname}}" class="text-decoration-none">
+                            <div class="card border-0 shadow-sm rounded-3 h-100"
+                                 style="transition: transform 0.15s;"
+                                 onmouseover="this.style.transform='translateY(-2px)'"
+                                 onmouseout="this.style.transform='translateY(0)'">
+                                <div class="card-body d-flex align-items-center p-3">
+                                    <svg th:if="${#strings.isEmpty(member.profileImage)}"
+                                         th:data-jdenticon-value="${member.nickname}"
+                                         width="52" height="52"
+                                         class="rounded-circle border flex-shrink-0 me-3"></svg>
+                                    <img th:if="${!#strings.isEmpty(member.profileImage)}"
+                                         th:src="${member.profileImage}"
+                                         width="52" height="52"
+                                         class="rounded-circle border object-fit-cover flex-shrink-0 me-3"
+                                         alt="프로필"/>
+                                    <div>
+                                        <span class="fw-semibold text-dark"
+                                              th:text="${member.nickname}">닉네임</span>
+                                        <p class="text-muted small mb-0 mt-1 text-truncate"
+                                           style="max-width: 180px;"
+                                           th:text="${member.bio ?: ''}"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 멤버 없을 때 -->
+            <div th:if="${study.members.isEmpty()}" class="text-center py-5">
+                <i class="fa-solid fa-user-group fa-2x mb-2" style="color: #d0ccdf;"></i>
+                <p class="text-muted small mb-1">아직 가입한 멤버가 없습니다.</p>
+                <p th:if="${study.recruiting && !study.closed}"
+                   class="text-muted small mb-0">첫 번째 멤버가 되어보세요!</p>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+</body>
+</html>
