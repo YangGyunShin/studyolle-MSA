@@ -33,6 +33,106 @@ import java.util.stream.Collectors;
  * - JWT 검증: api-gateway 가 이미 완료. @RequestHeader 로 결과만 받는다.
  * - 비즈니스 로직: 버튼 클릭(가입, 설정 변경 등)은 브라우저 JS 가 직접 처리.
  *   이 컨트롤러는 오직 초기 HTML 렌더링을 위한 데이터 조회만 한다.
+ *
+ * ====================================================================
+ * [전체 요청 처리 흐름 — studyView() 기준]
+ * ====================================================================
+ *
+ * STEP 1. 브라우저 → DispatcherServlet → StudyPageController
+ * --------------------------------------------------------------------
+ * 브라우저가 GET /study/my-study 를 전송한다.
+ * 이 요청은 api-gateway(:8080) 를 경유해 frontend-service(:8090) 에 도달하고
+ * Spring MVC 의 DispatcherServlet 이 URL 패턴을 보고
+ * StudyPageController.studyView() 메서드를 호출한다.
+ *
+ * api-gateway 의 JwtAuthenticationFilter 가 이미 JWT 를 검증했으므로
+ * X-Account-Id: 123 헤더가 붙어 있다.
+ * @RequestHeader 로 꺼낸 accountId = 123L 이 메서드 파라미터로 들어온다.
+ *
+ * STEP 2. StudyPageController → StudyInternalClient.getStudyPageData()
+ * --------------------------------------------------------------------
+ * studyInternalClient.getStudyPageData("my-study", 123L) 를 호출한다.
+ * 이 시점부터 제어권은 StudyInternalClient 로 넘어간다.
+ *
+ * STEP 3. StudyInternalClient → @LoadBalanced RestTemplate
+ * --------------------------------------------------------------------
+ * StudyInternalClient 가 URL 을 조립한다.
+ *   "lb://STUDY-SERVICE/internal/studies/my-study/page-data?accountId=123"
+ *
+ * InternalHeaderHelper.build(123L) 로 HttpEntity 를 생성한다.
+ *   헤더: { X-Internal-Service: frontend-service, X-Account-Id: 123 }
+ *
+ * RestTemplateConfig 에서 @LoadBalanced 로 등록된 RestTemplate 에
+ * exchange(url, GET, httpEntity, StudyPageDataDto.class) 를 호출한다.
+ *
+ * STEP 4. @LoadBalanced RestTemplate → Spring Cloud LoadBalancer → Eureka
+ * --------------------------------------------------------------------
+ * @LoadBalanced 가 붙은 RestTemplate 은 "lb://" 로 시작하는 URL 을
+ * 그대로 HTTP 로 보내지 않는다.
+ * Spring Cloud LoadBalancer 가 요청을 가로채서
+ * Eureka Server(:8761) 에 "STUDY-SERVICE 의 실제 IP:PORT 가 뭐야?" 를 질의한다.
+ *
+ * Eureka 가 "10.0.0.5:8083" 을 응답하면
+ * URL 이 다음과 같이 변환된다.
+ *   "http://10.0.0.5:8083/internal/studies/my-study/page-data?accountId=123"
+ *
+ * STEP 5. HTTP 요청 → study-service InternalRequestFilter
+ * --------------------------------------------------------------------
+ * 변환된 URL 로 실제 HTTP GET 요청이 전송된다.
+ * study-service 의 InternalRequestFilter 가 요청을 가로챈다.
+ *
+ *   "/internal/**" 경로 감지
+ *   X-Internal-Service 헤더 확인
+ *     - 헤더 없음  → 403 Forbidden 반환 (요청 차단, 컨트롤러까지 도달하지 않음)
+ *     - "frontend-service" 존재 → 통과
+ *
+ * STEP 6. study-service InternalStudyController 처리
+ * --------------------------------------------------------------------
+ * InternalStudyController.getStudyPageData() 메서드가 실행된다.
+ *
+ *   1) StudyRepository.findByPath("my-study") 로 Study 엔티티 조회
+ *   2) accountId(123) 기반 권한 플래그 계산
+ *        managers 컬렉션에 id=123 존재 → isManager = true
+ *        members  컬렉션에 id=123 존재 → isMember = false
+ *        JoinRequest 테이블에 PENDING 상태의 123 신청 존재 여부 → hasPendingRequest
+ *   3) StudyPageDataDto 조립 후 반환
+ *        { id, path, title, ..., managers:[...], members:[...],
+ *          manager:true, member:false, hasPendingRequest:false }
+ *
+ * STEP 7. HTTP 응답 JSON → Jackson → StudyPageDataDto
+ * --------------------------------------------------------------------
+ * study-service 가 응답 바디를 JSON 으로 직렬화해서 반환한다.
+ * RestTemplate 내부의 MappingJackson2HttpMessageConverter 가
+ * JSON 문자열을 StudyPageDataDto 인스턴스로 역직렬화한다.
+ * response.getBody() 로 꺼낸 StudyPageDataDto 가 StudyInternalClient 로 반환된다.
+ *
+ * STEP 8. StudyInternalClient → StudyPageController
+ * --------------------------------------------------------------------
+ * getStudyPageData() 가 StudyPageDataDto 를 반환한다.
+ * 제어권이 다시 StudyPageController.studyView() 로 돌아온다.
+ *
+ * STEP 9. StudyPageController → Model 적재
+ * --------------------------------------------------------------------
+ * addCommonAttributes(model, accountId, study) 를 호출한다.
+ *   model["study"]     = StudyPageDataDto 인스턴스
+ *   model["isManager"] = study.isManager()  // true
+ *   model["isMember"]  = study.isMember()   // false
+ *   model["account"]   = AccountInternalClient.getAccountSummary(123L) 결과
+ *   model["apiBase"]   = "http://localhost:8080"
+ *
+ * STEP 10. Thymeleaf → HTML 렌더링 → 브라우저
+ * --------------------------------------------------------------------
+ * ThymeleafViewResolver 가 "study/view" 를 받아
+ * templates/study/view.html 을 찾아 model 의 값으로 치환한다.
+ *
+ *   th:if="${isManager}"           → true  → 설정 버튼 DOM 에 포함
+ *   th:text="${study.title}"        → 스터디 제목 텍스트로 치환
+ *   th:each="m : ${study.managers}" → managers 목록 반복 렌더링
+ *
+ * 완성된 HTML 이 HTTP 응답으로 브라우저에 전달된다.
+ * 이후 버튼 클릭(가입, 설정 저장 등)은 브라우저 JS 가
+ * API_BASE(api-gateway) 로 fetch 를 날려 처리한다.
+ * ====================================================================
  */
 @Controller
 @RequiredArgsConstructor

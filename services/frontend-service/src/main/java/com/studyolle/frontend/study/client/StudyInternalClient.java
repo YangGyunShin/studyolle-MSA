@@ -47,18 +47,42 @@ public class StudyInternalClient {
      * @return StudyPageDataDto, 스터디가 없으면 null
      */
     public StudyPageDataDto getStudyPageData(String path, Long accountId) {
+
+        // [STEP 3-a] URL 조립
+        // studyServiceBaseUrl = "lb://STUDY-SERVICE" (@Value 주입)
+        // 최종 조립 결과: "lb://STUDY-SERVICE/internal/studies/my-study/page-data?accountId=123"
+        // "lb://" 접두사는 @LoadBalanced RestTemplate 이 처리하는 특수 스킴이다.
+        // 일반 HTTP 클라이언트로는 이 URL 로 요청할 수 없다.
         String url = studyServiceBaseUrl + "/internal/studies/" + path + "/page-data"
                 + (accountId != null ? "?accountId=" + accountId : "");
         try {
+            // [STEP 3-b] InternalHeaderHelper 로 공통 헤더가 담긴 HttpEntity 생성
+            // HttpEntity 구조: 바디 없음(Void) + 헤더 두 개
+            //   X-Internal-Service: frontend-service  <- study-service InternalRequestFilter 통과용
+            //   X-Account-Id: 123                     <- study-service 가 isManager/isMember 계산에 사용
+            //
+            // [STEP 3-c] @LoadBalanced RestTemplate.exchange() 호출
+            // 이 시점에 Spring Cloud LoadBalancer 가 개입한다.
+            //   "lb://STUDY-SERVICE" → Eureka Server(:8761) 질의 → 실제 IP:PORT 획득
+            //   → "http://10.0.0.5:8083/internal/studies/my-study/page-data?accountId=123" 으로 변환 후 전송
+            //
+            // [STEP 7] 응답 수신 및 역직렬화
+            // study-service 가 반환한 JSON 을
+            // MappingJackson2HttpMessageConverter 가 StudyPageDataDto 로 역직렬화한다.
+            // StudyPageDataDto.class 가 Jackson 에게 "이 타입으로 변환해" 라고 알려주는 힌트다.
             ResponseEntity<StudyPageDataDto> response = restTemplate.exchange(
                     url,
                     HttpMethod.GET,
-                    InternalHeaderHelper.build(accountId),
-                    StudyPageDataDto.class
+                    InternalHeaderHelper.build(accountId),  // STEP 3-b
+                    StudyPageDataDto.class                  // STEP 7: 역직렬화 타입 힌트
             );
+
+            // [STEP 8] StudyPageDataDto 를 StudyPageController 로 반환
             return response.getBody();
+
         } catch (HttpClientErrorException.NotFound e) {
-            // 스터디가 존재하지 않음
+            // study-service 가 404 를 반환한 경우 (스터디 경로가 존재하지 않음).
+            // StudyPageController 가 null 을 받으면 response.sendError(404) 로 처리한다.
             return null;
         }
     }
