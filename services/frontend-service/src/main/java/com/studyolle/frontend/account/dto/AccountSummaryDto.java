@@ -1,4 +1,4 @@
-package com.studyolle.frontend.study.dto;
+package com.studyolle.frontend.account.dto;
 
 /**
  * 네비게이션 바 + 대시보드 프로필 완성도에 필요한 계정 정보 DTO.
