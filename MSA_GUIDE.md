@@ -1,7 +1,63 @@
 # StudyOlle MSA 전환 가이드
 
 > 이 파일은 studyolle-msa 프로젝트의 전체 구성 가이드입니다.
-> 순서대로 따라하면 Phase 1 (Spring Cloud 인프라) 까지 완성됩니다.
+
+---
+
+## 현재 진행 상황 (2026-03-16 기준)
+
+| Phase | 내용 | 상태 |
+|-------|------|------|
+| Phase 1 | 인프라 (Eureka, Config, API Gateway) | ✅ 완료 |
+| Phase 2 | account-service | ✅ 완료 |
+| Phase 3 | frontend-service (인증 페이지 + study 페이지 전체) | ✅ 완료 |
+| Phase 4 | study-service 소스코드 | ✅ 완료 |
+| Phase 4 | study-service InternalStudyController 추가 엔드포인트 | 🔲 진행중 |
+| Phase 4 | event-service | 🔲 예정 |
+| Phase 5 | notification-service | 🔲 예정 |
+| Phase 6 | admin-service | 🔲 예정 |
+
+**다음 즉시 할 일:**
+1. `HomeController.java` 패키지 선언 수정 (`com.studyolle.frontend`)
+2. `StudyInternalClient.java` dead code (`internalHeaders()`) 제거
+3. study-service `InternalStudyController` 추가 엔드포인트 구현
+4. 전체 서비스 통합 테스트
+
+자세한 TODO는 `MSA_TODO.txt` 참고.
+
+---
+
+## 아키텍처 요약
+
+```
+[브라우저]
+    │
+    ▼
+[api-gateway :8080]   JWT 검증, 라우팅, X-Account-Id 헤더 추가
+    │
+    ├── [account-service  :8081]   회원가입/로그인/JWT 발급
+    ├── [study-service    :8083]   스터디 CRUD/설정/가입
+    ├── [event-service    :8084]   모임 생성/신청 (예정)
+    └── [notification-service :8085] 알림 (예정)
+
+[frontend-service :8090]   Thymeleaf HTML 서빙 (DB 없음)
+    │  브라우저 렌더링 전 RestTemplate 으로 내부 API 호출
+    ├── StudyInternalClient   lb://STUDY-SERVICE/internal/**
+    └── AccountInternalClient  lb://ACCOUNT-SERVICE/internal/**
+
+[eureka-server :8761]   서비스 디스커버리
+[config-server :8888]   중앙 설정 관리
+```
+
+**핵심 원칙:**
+- 브라우저 → api-gateway → 각 서비스 (외부 요청 흐름)
+- frontend-service → 내부 서비스 직접 (lb://, api-gateway 우회)
+- JWT 검증은 api-gateway 전담, 각 서비스는 X-Account-Id 헤더만 읽음
+- 서비스 간 내부 통신은 /internal/** 경로 + X-Internal-Service 헤더
+
+---
+
+## Phase 1 초기 설정 가이드
 
 ---
 
