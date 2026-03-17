@@ -1,11 +1,20 @@
 package com.studyolle.study.controller;
 
+import com.studyolle.study.client.MetadataFeignClient;
 import com.studyolle.study.dto.response.StudyInternalResponse;
+import com.studyolle.study.dto.response.StudyPageDataResponse;
+import com.studyolle.study.entity.JoinRequestStatus;
 import com.studyolle.study.entity.Study;
+import com.studyolle.study.repository.JoinRequestRepository;
 import com.studyolle.study.repository.StudyRepository;
+import com.studyolle.study.service.StudyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 서비스 간 내부 통신 전용 컨트롤러.
@@ -45,11 +54,15 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/internal/studies")
 @RequiredArgsConstructor
+@Transactional(readOnly = true)  // 모든 메서드가 읽기 전용. 컬렉션(@ElementCollection) 지연 로딩 지원
 public class StudyInternalController {
 
     private final StudyRepository studyRepository;
+    private final JoinRequestRepository joinRequestRepository;
+    private final MetadataFeignClient metadataFeignClient;
+    private final StudyService studyService;
 
-    /**
+    /*
      * GET /internal/studies/{path}
      *
      * path 로 스터디 기본 정보를 조회한다.
@@ -75,7 +88,7 @@ public class StudyInternalController {
         return ResponseEntity.ok(StudyInternalResponse.from(study));
     }
 
-    /**
+    /*
      * GET /internal/studies/{path}/is-manager?accountId=123
      *
      * 특정 사용자가 이 스터디의 관리자인지 확인한다.
@@ -117,4 +130,115 @@ public class StudyInternalController {
         }
         return ResponseEntity.ok(study.isManagerOf(accountId));
     }
+
+    // GET /internal/studies/{path}/page-data?accountId=123
+    //
+    // 스터디 페이지 렌더링에 필요한 모든 데이터를 한 번에 반환한다 (BFF 집계 패턴).
+    // accountId 는 optional — null 이면 비로그인 상태로 판단하고 권한 플래그를 모두 false 로 반환한다.
+    //
+    // @Transactional(readOnly = true) 가 클래스 레벨에 있으므로 managerIds, memberIds 등 @ElementCollection 컬렉션에 안전하게 접근할 수 있다.
+    @GetMapping("/{path}/page-data")
+    public ResponseEntity<StudyPageDataResponse> getStudyPageData(
+            @PathVariable String path,
+            @RequestParam(required = false) Long accountId) {
+
+        Study study = studyRepository.findByPath(path);
+        if (study == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        boolean isManager = accountId != null && study.isManagerOf(accountId);
+        boolean isMember = accountId != null && study.getMemberIds().contains(accountId);
+        boolean hasPendingRequest = accountId != null && joinRequestRepository.existsByStudyAndAccountIdAndStatus(study, accountId, JoinRequestStatus.PENDING);
+
+        // =============================================
+        // Set<Long> → List<MemberInfo> 변환이 필요한 이유
+        // =============================================
+        //
+        // Study 엔티티는 멤버 정보를 managerIds, memberIds라는 Set<Long>으로만 저장한다.
+        // study-service DB에는 숫자 ID(123, 456...)만 있고, 닉네임·프로필 이미지 등
+        // 사람에 대한 정보는 모두 account-service가 소유한다.
+        //
+        // 그런데 frontend-service가 요구하는 응답 형태(StudyPageDataDto)의 managers/members 필드는
+        // List<MemberDto> 타입이고, MemberDto에는 id뿐 아니라 nickname, profileImage, bio가 있다.
+        // 즉, frontend-service는 "숫자 ID 목록"이 아니라 "사람 정보 목록"을 원한다.
+        //
+        // 이 불일치를 완전히 해결하려면 account-service에 아래와 같은 batch 조회 endpoint가 필요하다.
+        //   POST /internal/accounts/batch  { ids: [123, 456] }  →  [{ id, nickname, profileImage, bio }, ...]
+        // 그 결과로 MemberInfo의 nickname 등을 채워서 반환하는 것이 올바른 구현이다.
+        //
+        // 그러나 현재 account-service에 해당 endpoint가 아직 구현되지 않았으므로,
+        // 일단 id만 채운 MemberInfo 객체를 만들어 보낸다.
+        // Jdenticon 라이브러리는 id 값만 있어도 아바타를 자동 생성하므로
+        // 화면에서 멤버 카드 자체는 나타나고, 닉네임 자리만 빈칸으로 표시된다.
+        //
+        // [Phase 5 TODO] account-service에 batch endpoint 추가 후 아래 두 블록을 교체한다.
+        //   AccountFeignClient.getAccountsByIds(study.getManagerIds(), "study-service")
+        //   → List<AccountSummaryDto>를 받아 MemberInfo.nickname, profileImage, bio까지 채운다.
+        List<StudyPageDataResponse.MemberInfo> managers = study.getManagerIds().stream()
+                .map(id -> StudyPageDataResponse.MemberInfo.builder().id(id).build())
+                .collect(Collectors.toList());
+
+        List<StudyPageDataResponse.MemberInfo> members = study.getMemberIds().stream()
+                .map(id -> StudyPageDataResponse.MemberInfo.builder().id(id).build())
+                .collect(Collectors.toList());
+
+        StudyPageDataResponse response = StudyPageDataResponse.builder()
+                .id(study.getId())
+                .path(study.getPath())
+                .title(study.getTitle())
+                .shortDescription(study.getShortDescription())
+                .fullDescription(study.getFullDescription())
+                .image(study.getImage())
+                .published(study.isPublished())
+                .closed(study.isClosed())
+                .recruiting(study.isRecruiting())
+                .joinType(study.getJoinType().name())  // enum -> String
+                .removable(study.isRemovable())
+                .memberCount(study.getMemberCount())
+                .managers(managers)
+                .members(members)
+                .manager(isManager)
+                .member(isMember)
+                .hasPendingRequest(hasPendingRequest)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
+
+    // GET /internal/studies/{path}/join-requests
+    //
+    // PENDING 상태 가입 신청 목록을 반환한다 (승인 대기 중인 것만).
+    // JoinRequest.accountNickname 이 비정규화 저장되어 있으므로
+    // account-service 호출 없이 닉네임을 바로 포함할 수 있다.
+
+    // GET /internal/studies/{path}/tags-str
+    //
+    // 현재 스터디의 태그 이름 목록을 반환한다.
+    // study.tagIds(Set<Long>) → MetadataFeignClient.getTagsByIds() → List<String> 이름 변환.
+
+    // GET /internal/studies/{path}/zones-str
+    //
+    // 현재 스터디의 지역 이름 목록을 반환한다.
+    // "Seoul(서울)/서울특별시" 형태의 문자열 목록.
+
+    // GET /internal/studies/tag-whitelist
+    //
+    // 전체 태그 이름 목록. Tagify 자동완성 whitelist 용.
+    // MetadataFeignClient.getAllTagTitles() 를 그대로 위임한다.
+
+    // GET /internal/studies/zone-whitelist
+    //
+    // 전체 지역 이름 목록. Tagify 자동완성 whitelist 용.
+
+    // GET /internal/studies/dashboard?accountId=123
+    //
+    // 대시보드 렌더링에 필요한 집계 데이터를 반환한다.
+    // studyEventsMap, enrolledEventIds 는 event-service 구현 후 채울 예정 (현재 빈 값).
+
+    // GET /internal/studies/recent
+    //
+    // 최근 공개된 스터디 최대 9개. 비로그인 랜딩 페이지 하단 스터디 카드용.
+    // studyRepository.findFirst9ByPublishedAndClosedOrderByPublishedDateTimeDesc() 는
+    // StudyService.getRecommendedStudies() 에서 이미 사용 중인 메서드다.
 }
