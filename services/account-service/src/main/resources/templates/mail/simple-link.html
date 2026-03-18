@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"></head>
+<body>
+<div>
+    <p>안녕하세요, <span th:text="${nickname}"></span>님.</p>
+    <p th:text="${message}"></p>
+    <div>
+        <a th:href="${host + link}" th:text="${linkName}">링크</a>
+    </div>
+</div>
+</body>
+</html>

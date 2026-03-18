@@ -6,6 +6,24 @@ spring:
     name: api-gateway
   cloud:
     gateway:
+      # CORS 설정
+      # 브라우저가 frontend-service(:8090)에서 api-gateway(:8080)로 fetch를 보낼 때
+      # 출처(origin)가 다르므로 브라우저가 CORS preflight(OPTIONS) 요청을 먼저 보낸다.
+      # 이 설정이 없으면 preflight가 거부되어 모든 fetch가 네트워크 오류로 실패한다.
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:8090"   # frontend-service
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
       routes:
         # 인증 불필요 - account-service 공개 API
         - id: account-service-public
