@@ -1,8 +1,8 @@
 package com.studyolle.study.controller;
 
 import com.studyolle.study.client.MetadataFeignClient;
-import com.studyolle.study.dto.response.StudyInternalResponse;
-import com.studyolle.study.dto.response.StudyPageDataResponse;
+import com.studyolle.study.client.dto.ZoneDto;
+import com.studyolle.study.dto.response.*;
 import com.studyolle.study.entity.JoinRequestStatus;
 import com.studyolle.study.entity.Study;
 import com.studyolle.study.repository.JoinRequestRepository;
@@ -13,38 +13,39 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * 서비스 간 내부 통신 전용 컨트롤러.
- *
+ * <p>
  * =============================================
  * 이 컨트롤러가 필요한 이유
  * =============================================
- *
+ * <p>
  * 모노리틱에서는 같은 JVM 프로세스 안에 있는 서비스들이 서로의 메서드를 직접 호출했다.
  * MSA 에서는 각 서비스가 독립적인 프로세스로 실행되므로 HTTP 를 통해서만 통신할 수 있다.
  * event-service 가 스터디 정보가 필요하면 study-service 의 이 컨트롤러로 HTTP 요청을 보낸다.
- *
+ * <p>
  * =============================================
  * /internal/** 보안 계층 구조
  * =============================================
- *
+ * <p>
  * 이 경로는 두 가지 방어막으로 외부 접근을 차단한다:
- *
+ * <p>
  * 1차 방어 — api-gateway:
- *   application.yml 에서 /internal/** 경로를 전면 403 으로 차단한다.
- *   외부 클라이언트(브라우저, 앱)는 이 경로에 도달조차 할 수 없다.
- *
+ * application.yml 에서 /internal/** 경로를 전면 403 으로 차단한다.
+ * 외부 클라이언트(브라우저, 앱)는 이 경로에 도달조차 할 수 없다.
+ * <p>
  * 2차 방어 — InternalRequestFilter (각 서비스):
- *   서비스 내부 네트워크에서 들어오는 요청도 X-Internal-Service 헤더가 없으면 403 을 반환한다.
- *   api-gateway 를 우회하더라도 헤더 없이는 데이터에 접근할 수 없다.
- *
+ * 서비스 내부 네트워크에서 들어오는 요청도 X-Internal-Service 헤더가 없으면 403 을 반환한다.
+ * api-gateway 를 우회하더라도 헤더 없이는 데이터에 접근할 수 없다.
+ * <p>
  * =============================================
  * Service 계층 없이 Repository 를 직접 호출하는 이유
  * =============================================
- *
+ * <p>
  * 이 컨트롤러는 단순 조회만 수행한다. 비즈니스 로직이 없다.
  * Service 를 거치면 불필요한 중간 계층이 추가되므로 Repository 를 직접 사용한다.
  * 단, 데이터를 변경하는 작업이 생기면 반드시 Service 를 추가해야 한다.
@@ -175,12 +176,20 @@ public class StudyInternalController {
         // [Phase 5 TODO] account-service에 batch endpoint 추가 후 아래 두 블록을 교체한다.
         //   AccountFeignClient.getAccountsByIds(study.getManagerIds(), "study-service")
         //   → List<AccountSummaryDto>를 받아 MemberInfo.nickname, profileImage, bio까지 채운다.
-        List<StudyPageDataResponse.MemberInfo> managers = study.getManagerIds().stream()
-                .map(id -> StudyPageDataResponse.MemberInfo.builder().id(id).build())
+        List<StudyPageDataResponse.MemberInfo> managers = study.getManagerIds()
+                .stream()
+                .map(id -> StudyPageDataResponse.MemberInfo
+                        .builder()
+                        .id(id)
+                        .build())
                 .collect(Collectors.toList());
 
-        List<StudyPageDataResponse.MemberInfo> members = study.getMemberIds().stream()
-                .map(id -> StudyPageDataResponse.MemberInfo.builder().id(id).build())
+        List<StudyPageDataResponse.MemberInfo> members = study.getMemberIds()
+                .stream()
+                .map(id -> StudyPageDataResponse.MemberInfo
+                        .builder()
+                        .id(id)
+                        .build())
                 .collect(Collectors.toList());
 
         StudyPageDataResponse response = StudyPageDataResponse.builder()
@@ -209,36 +218,143 @@ public class StudyInternalController {
     // GET /internal/studies/{path}/join-requests
     //
     // PENDING 상태 가입 신청 목록을 반환한다 (승인 대기 중인 것만).
-    // JoinRequest.accountNickname 이 비정규화 저장되어 있으므로
-    // account-service 호출 없이 닉네임을 바로 포함할 수 있다.
+    // JoinRequest.accountNickname 이 비정규화 저장되어 있으므로 account-service 호출 없이 닉네임을 바로 포함할 수 있다.
+    @GetMapping("/{path}/join-requests")
+    public ResponseEntity<List<JoinRequestResponse>> getJoinRequests(@PathVariable String path) {
+
+        Study study = studyRepository.findByPath(path);
+        if (study == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        List<JoinRequestResponse> result = joinRequestRepository.findByStudyAndStatusOrderByRequestedAtAsc(study, JoinRequestStatus.PENDING)
+                .stream()
+                .map(JoinRequestResponse::from)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
 
     // GET /internal/studies/{path}/tags-str
     //
     // 현재 스터디의 태그 이름 목록을 반환한다.
     // study.tagIds(Set<Long>) → MetadataFeignClient.getTagsByIds() → List<String> 이름 변환.
+    @GetMapping("/{path}/tags-str")
+    public ResponseEntity<List<String>> getStudyTags(@PathVariable String path) {
+
+        Study study = studyRepository.findByPath(path);
+        if (study == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (study.getTagIds().isEmpty()) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+
+        List<String> tagNames = metadataFeignClient
+                .getTagsByIds(study.getTagIds(), "study-service")
+                .stream()
+                .map(tagDto -> tagDto.getTitle())  // TagDto.getTitle() 사용 — 필드명 확인 필요
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(tagNames);
+    }
 
     // GET /internal/studies/{path}/zones-str
     //
     // 현재 스터디의 지역 이름 목록을 반환한다.
     // "Seoul(서울)/서울특별시" 형태의 문자열 목록.
+    @GetMapping("/{path}/zones-str")
+    public ResponseEntity<List<String>> getStudyZones(@PathVariable String path) {
+
+        Study study = studyRepository.findByPath(path);
+        if (study == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (study.getZoneIds().isEmpty()) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+
+        List<String> zoneNames = metadataFeignClient
+                .getZonesByIds(study.getZoneIds(), "study-service")
+                .stream()
+                .map(ZoneDto::toDisplayString)
+                .collect(Collectors.toList());
+        // ZoneDto 의 실제 필드명은 MetadataFeignClient 의 ZoneDto 클래스를 확인해서 맞춰야 한다.
+
+        return ResponseEntity.ok(zoneNames);
+    }
 
     // GET /internal/studies/tag-whitelist
     //
     // 전체 태그 이름 목록. Tagify 자동완성 whitelist 용.
     // MetadataFeignClient.getAllTagTitles() 를 그대로 위임한다.
+    @GetMapping("/tag-whitelist")
+    public ResponseEntity<List<String>> getTagWhitelist() {
+        return ResponseEntity.ok(metadataFeignClient.getAllTagTitles("study-service"));
+    }
 
     // GET /internal/studies/zone-whitelist
     //
     // 전체 지역 이름 목록. Tagify 자동완성 whitelist 용.
+    @GetMapping("/zone-whitelist")
+    public ResponseEntity<List<String>> getZoneWhitelist() {
+        return ResponseEntity.ok(metadataFeignClient.getAllZoneNames("study-service"));
+    }
 
     // GET /internal/studies/dashboard?accountId=123
     //
     // 대시보드 렌더링에 필요한 집계 데이터를 반환한다.
     // studyEventsMap, enrolledEventIds 는 event-service 구현 후 채울 예정 (현재 빈 값).
+    @GetMapping("/dashboard")
+    public ResponseEntity<DashboardResponse> getDashboard(@RequestParam Long accountId) {
+
+        // StudyService 의 기존 메서드를 재사용한다.
+        // getStudiesAsManager, getStudiesAsMember, getRecommendedStudies 는
+        // 모두 @Transactional(readOnly = true) 로 선언되어 있으므로
+        // 이 컨트롤러의 트랜잭션과 독립적으로 동작하거나 전파된다.
+        //
+        // [TODO] 태그/지역 기반 추천을 위해서는 accountId 로 account-service 에서
+        // 사용자 관심 태그/지역 ID 를 가져와야 한다.
+        // 현재는 빈 Set 을 전달하여 최신 공개 스터디 9개를 기본 추천으로 반환한다.
+        List<StudySummaryResponse> managerOf = studyService.getStudiesAsManager(accountId)
+                .stream()
+                .map(StudySummaryResponse::from)
+                .collect(Collectors.toList());
+
+        List<StudySummaryResponse> memberOf = studyService.getStudiesAsMember(accountId)
+                .stream()
+                .map(StudySummaryResponse::from)
+                .collect(Collectors.toList());
+
+        List<StudySummaryResponse> recommended = studyService.getRecommendedStudies(Collections.emptySet(), Collections.emptySet())
+                .stream()
+                .map(StudySummaryResponse::from)
+                .collect(Collectors.toList());
+
+
+        DashboardResponse response = DashboardResponse.builder()
+                .studyManagerOf(managerOf)
+                .studyMemberOf(memberOf)
+                .studyList(recommended)
+                .studyEventsMap(Collections.emptyMap())  // Phase 5 TODO
+                .enrolledEventIds(Collections.emptySet()) // Phase 5 TODO
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
 
     // GET /internal/studies/recent
     //
     // 최근 공개된 스터디 최대 9개. 비로그인 랜딩 페이지 하단 스터디 카드용.
     // studyRepository.findFirst9ByPublishedAndClosedOrderByPublishedDateTimeDesc() 는
     // StudyService.getRecommendedStudies() 에서 이미 사용 중인 메서드다.
+    @GetMapping("/recent")
+    public ResponseEntity<List<StudySummaryResponse>> getRecentStudies() {
+        List<StudySummaryResponse> result = studyRepository.findFirst9ByPublishedAndClosedOrderByPublishedDateTimeDesc(true, false)
+                .stream()
+                .map(StudySummaryResponse::from)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
 }
