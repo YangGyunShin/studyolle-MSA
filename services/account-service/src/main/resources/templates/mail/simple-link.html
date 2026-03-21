@@ -8,6 +8,14 @@
     <div>
         <a th:href="${host + link}" th:text="${linkName}">링크</a>
     </div>
+
+    <!--
+        [개발용 콘솔 복사 링크]
+        th:text 는 & 를 &amp; 로 HTML 인코딩한다.
+        th:utext 는 인코딩 없이 raw 문자열을 그대로 출력한다.
+        콘솔 로그에서 아래 줄의 URL 을 복사해서 브라우저에 붙여넣으면 된다.
+    -->
+    <p>직접 복사 링크: <span th:utext="${host + link}"></span></p>
 </div>
 </body>
 </html>

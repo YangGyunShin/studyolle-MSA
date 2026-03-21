@@ -13,7 +13,6 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
-  # 개발용 콘솔 메일 (실제 SMTP 설정 전까지 콘솔에 출력)
   mail:
     host: localhost
     port: 25
@@ -29,4 +28,8 @@ jwt:
   refresh-token-expiration: 604800000 # 7일
 
 app:
-  host: http://localhost:8090  # frontend-service 주소 - 이메일 인증 링크의 호스트
+  # 이메일 인증 링크의 호스트.
+  # 브라우저가 링크를 클릭하면 api-gateway(8080)로 들어오고,
+  # api-gateway가 /check-email-token 경로를 frontend-service로 라우팅한다.
+  # frontend-service의 JS가 토큰 검증 API를 호출하고 JWT를 localStorage에 저장한다.
+  host: http://localhost:8080

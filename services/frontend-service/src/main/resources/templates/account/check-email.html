@@ -1,25 +1,4 @@
 <!DOCTYPE html>
-<!--
-    account/check-email.html  (MSA 버전)
-
-    [모노리틱과의 차이]
-    - 모노리틱: th:if="${error == null}" / th:if="${error != null}" 로
-                서버가 두 개의 카드(정상/에러) 중 하나를 렌더링했다.
-                /resend-confirm-email 링크가 GET 요청으로 재발송을 처리했다.
-
-    - MSA:      이 페이지는 회원가입 성공 후에만 도달한다.
-                에러 카드는 필요 없다 (에러는 sign-up.html 에서 이미 처리됨).
-                재발송 버튼은 fetch() 로 POST /api/auth/resend-verification-email 을 호출한다.
-
-    - 인라인 <style> 블록 제거: .result-card, .mail-icon, .btn-resend 등의 스타일이
-                glassmorphism.css 섹션 13 에 이미 포함되어 있으므로 중복 제거.
-
-    [email 값 출처]
-    AuthPageController.checkEmailPage() 가 URL 파라미터 ?email=... 을 받아
-    Model 에 ${email} 로 넣어준다.
-    sign-up.html 의 JS 가 location.href = '/check-email?email=' + encodeURIComponent(email)
-    형태로 이동하므로 항상 값이 존재한다.
--->
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 
 <head>
@@ -30,7 +9,6 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
-    <!-- .result-card, .mail-icon, .btn-resend 등 모두 auth-style.css 섹션 13 에 정의됨 -->
     <link rel="stylesheet" th:href="@{/css/auth-style.css}">
 </head>
 
@@ -41,16 +19,10 @@
     <div class="orb orb-2"></div>
     <div class="orb orb-3"></div>
 
-    <!-- 로고 -->
     <a class="page-logo" href="/">
         <span>StudyOlle</span>
     </a>
 
-    <!--
-        [모노리틱 제거] th:if="${error == null}" 조건 분기 제거.
-        이 페이지는 항상 정상 안내 카드만 표시한다.
-        에러 카드가 필요한 경우(토큰 만료 등)는 check-email-token.html 에서 처리.
-    -->
     <div class="result-card">
         <div class="mail-icon">
             <i class="fa-solid fa-envelope-open-text"></i>
@@ -59,52 +31,21 @@
         <h1 class="result-title">인증 이메일을 확인해주세요</h1>
         <p class="result-subtitle">아래 주소로 인증 메일을 발송했습니다</p>
 
-        <!--
-            [모노리틱] th:text="${email}" 그대로 유지.
-            Thymeleaf 가 서버에서 ${email} 값을 렌더링해준다.
-            email 이 null 이면 빈 문자열로 표시된다.
-        -->
         <p class="result-email" th:text="${email}">your@email.com</p>
 
-        <!--
-            [모노리틱 제거] th:href="@{/resend-confirm-email}" GET 링크.
-            [MSA 대체]     type="button" + JS fetch() 로 재발송 API 직접 호출.
-
-            재발송 성공/실패 피드백을 #resendMsg 에 표시한다.
-            5초 쿨다운으로 중복 요청을 방지한다.
-        -->
         <button type="button" id="resendBtn" class="btn-resend">
             <i class="fa-solid fa-paper-plane"></i> 인증 이메일 다시 보내기
         </button>
 
-        <!-- 재발송 결과 메시지 (성공/실패 피드백) -->
         <p id="resendMsg" style="margin-top: 1rem; font-size: 0.85rem; display: none;"></p>
     </div>
 
-    <!-- API_BASE 주입 -->
     <script th:inline="javascript">
         const API_BASE = [[${apiBase}]];
-        // Thymeleaf 가 서버에서 렌더링한 이메일 값.
-        // JS 에서 재발송 API 호출 시 email 파라미터로 사용한다.
         const USER_EMAIL = [[${email}]];
     </script>
 
     <script>
-        // ---------------------------------------------------------------
-        // 인증 이메일 재발송
-        //
-        // [모노리틱과의 차이]
-        // 모노리틱: /resend-confirm-email GET 요청 → 서버가 이메일 발송 후 페이지 리렌더링.
-        //           @CurrentUser Account 로 로그인 사용자 정보를 주입받아 이메일을 알았다.
-        //
-        // MSA:      fetch(POST /api/auth/resend-verification-email) 로 직접 호출.
-        //           로그인 상태가 아니어도 email 파라미터만 있으면 재발송 가능.
-        //           (account-service 에서 email 로 계정을 조회해 토큰을 재발송한다.)
-        //
-        // [5초 쿨다운]
-        // 버튼을 연속으로 클릭해 이메일을 스팸처럼 발송하는 것을 방지한다.
-        // ---------------------------------------------------------------
-
         const resendBtn = document.getElementById('resendBtn');
         const resendMsg = document.getElementById('resendMsg');
         let cooldown = false;
@@ -112,7 +53,6 @@
         resendBtn.addEventListener('click', async function () {
             if (cooldown) return;
 
-            // 이메일 값이 없으면 안내 후 종료
             if (!USER_EMAIL) {
                 showMsg('이메일 정보가 없습니다. 회원가입을 다시 시도해주세요.', false);
                 return;
@@ -123,12 +63,15 @@
             resendBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 발송 중...';
 
             try {
-                const response = await fetch(API_BASE + '/api/auth/resend-verification-email', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    // account-service 가 email 로 계정을 조회해 새 토큰을 발송한다.
-                    body: JSON.stringify({ email: USER_EMAIL })
-                });
+                // account-service AuthController: POST /api/auth/resend-confirm-email
+                // @RequestParam 방식이므로 쿼리 파라미터로 email 전달
+                const response = await fetch(
+                    API_BASE + '/api/auth/resend-confirm-email?email=' + encodeURIComponent(USER_EMAIL),
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    }
+                );
 
                 if (response.ok) {
                     showMsg('인증 이메일을 다시 발송했습니다. 메일함을 확인해주세요.', true);
@@ -143,7 +86,6 @@
             } finally {
                 resendBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 인증 이메일 다시 보내기';
 
-                // 5초 쿨다운 후 버튼 재활성화
                 setTimeout(function () {
                     resendBtn.disabled = false;
                     cooldown = false;

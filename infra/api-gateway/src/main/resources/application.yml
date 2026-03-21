@@ -6,15 +6,11 @@ spring:
     name: api-gateway
   cloud:
     gateway:
-      # CORS 설정
-      # 브라우저가 frontend-service(:8090)에서 api-gateway(:8080)로 fetch를 보낼 때
-      # 출처(origin)가 다르므로 브라우저가 CORS preflight(OPTIONS) 요청을 먼저 보낸다.
-      # 이 설정이 없으면 preflight가 거부되어 모든 fetch가 네트워크 오류로 실패한다.
       globalcors:
         cors-configurations:
           '[/**]':
             allowedOrigins:
-              - "http://localhost:8090"   # frontend-service
+              - "http://localhost:8090"
             allowedMethods:
               - GET
               - POST
@@ -25,7 +21,7 @@ spring:
               - "*"
             allowCredentials: true
       routes:
-        # 인증 불필요 - account-service 공개 API
+        # 공개 API - account-service (JWT 검증 없이 통과)
         - id: account-service-public
           uri: lb://ACCOUNT-SERVICE
           predicates:
@@ -38,6 +34,15 @@ spring:
             - Path=/api/accounts/**
           filters:
             - JwtAuthenticationFilter
+
+        # frontend-service 페이지 라우팅 (JWT 검증 없이 통과)
+        # 브라우저가 이메일 인증 링크를 클릭하면 api-gateway(8080)로 들어온다.
+        # api-gateway가 이 경로들을 frontend-service(8090)로 전달한다.
+        # frontend-service의 HTML 페이지가 내려진 뒤 JS가 /api/** 로 실제 API를 호출한다.
+        - id: frontend-service-pages
+          uri: lb://FRONTEND-SERVICE
+          predicates:
+            - Path=/check-email-token,/check-email,/sign-up,/login,/email-login
 
         # 추후 추가
         # - id: study-service
