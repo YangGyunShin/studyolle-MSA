@@ -35,14 +35,19 @@ spring:
           filters:
             - JwtAuthenticationFilter
 
-        # frontend-service 페이지 라우팅 (JWT 검증 없이 통과)
-        # 브라우저가 이메일 인증 링크를 클릭하면 api-gateway(8080)로 들어온다.
-        # api-gateway가 이 경로들을 frontend-service(8090)로 전달한다.
-        # frontend-service의 HTML 페이지가 내려진 뒤 JS가 /api/** 로 실제 API를 호출한다.
-        - id: frontend-service-pages
+        # frontend-service - 모든 페이지와 정적 리소스를 포괄하는 단일 라우트
+        # /css/**, /js/**, /images/** 등 정적 파일도 frontend-service가 서빙한다.
+        # Path=/** 로 설정하면 위의 /api/** 라우트와 충돌하므로
+        # 반드시 api 라우트들을 먼저 선언해야 한다.
+        # Spring Cloud Gateway는 선언 순서대로 매칭하므로
+        # /api/auth/**, /api/accounts/** 가 먼저 매칭된 후
+        # 나머지 요청이 frontend-service로 간다.
+        - id: frontend-service
           uri: lb://FRONTEND-SERVICE
           predicates:
-            - Path=/check-email-token,/check-email,/sign-up,/login,/email-login
+            - Path=/**
+          filters:
+            - OptionalJwtFilter
 
         # 추후 추가
         # - id: study-service

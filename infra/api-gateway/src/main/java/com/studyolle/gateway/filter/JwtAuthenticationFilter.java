@@ -6,6 +6,7 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -35,21 +36,36 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
     public GatewayFilter apply(Config config) {
         return (exchange, chain) -> {
 
+            // 1. Authorization 헤더에서 JWT 추출 시도
+            String token = null;
+
             // 요청 헤더에서 Authorization 값 추출
             // 예: "Authorization: Bearer eyJhbGciOi..."
             String authHeader = exchange.getRequest()
                     .getHeaders()
                     .getFirst(HttpHeaders.AUTHORIZATION);
 
-            // Authorization 헤더가 없거나 "Bearer "로 시작하지 않으면 인증 실패
-            // 401 반환 후 체인 종료 → 하위 서비스까지 요청이 전달되지 않음
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+            }
+
+            // 2. Authorization 헤더가 없으면 쿠키에서 accessToken 추출 시도
+            // 브라우저가 페이지를 요청할 때는 Authorization 헤더 없이 쿠키만 포함된다.
+            // login.html에서 로그인 성공 시 document.cookie로 저장한 accessToken을 여기서 읽는다.
+            if (token == null) {
+                HttpCookie cookie = exchange.getRequest()
+                        .getCookies()
+                        .getFirst("accessToken");
+                if (cookie != null) {
+                    token = cookie.getValue();
+                }
+            }
+
+            // 3. 헤더에도 쿠키에도 없으면 401
+            if (token == null) {
                 exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
                 return exchange.getResponse().setComplete();
             }
-
-            // "Bearer " 이후의 실제 토큰 문자열만 추출
-            String token = authHeader.substring(7);
 
             try {
                 // application.yml의 jwt.secret으로 HMAC-SHA 서명 키 생성

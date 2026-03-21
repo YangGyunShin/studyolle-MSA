@@ -55,7 +55,7 @@ public class SignUpService {
 
     public void sendSignUpConfirmEmail(Account newAccount) {
         Context context = new Context();
-        context.setVariable("link", "/api/auth/check-email-token?token=" + newAccount.getEmailCheckToken() + "&email=" + newAccount.getEmail());
+        context.setVariable("link", "/check-email-token?token=" + newAccount.getEmailCheckToken() + "&email=" + newAccount.getEmail());
         context.setVariable("nickname", newAccount.getNickname());
         context.setVariable("linkName", "이메일 인증하기");
         context.setVariable("message", "스터디올래 서비스를 이용하려면 링크를 클릭하세요.");
