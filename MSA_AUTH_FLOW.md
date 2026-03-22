@@ -37,6 +37,7 @@
 - JWT 검증은 API Gateway에서만 수행한다. 각 서비스는 JWT를 직접 검증하지 않는다.
 - 각 서비스는 API Gateway가 추가한 헤더(`X-Account-Id` 등)를 신뢰한다.
 - 서비스 간 내부 통신은 `/internal/**` 경로를 통해서만 이루어진다.
+- 로그인 상태는 **쿠키(accessToken)**로 유지된다 (브라우저 페이지 이동 시 자동 포함).
 
 ---
 
@@ -56,7 +57,7 @@
 
 | 헤더 이름 | 추가 주체 | 값 예시 | 설명 |
 |----------|----------|--------|------|
-| `X-Internal-Service` | 요청하는 서비스 | `admin-service` | 내부 서비스 간 요청 식별자 |
+| `X-Internal-Service` | 요청하는 서비스 | `frontend-service` | 내부 서비스 간 요청 식별자 |
 
 > **규칙**: 각 서비스는 `X-Internal-Service` 헤더가 없는 `/internal/**` 요청을 403으로 차단한다.
 > 외부에서 `/internal/**`로 직접 접근하는 것은 API Gateway에서 전면 차단한다.
@@ -72,7 +73,7 @@
 ```
 [클라이언트]
      │
-     │  POST /api/auth/login     { email, password }
+     │  POST /api/auth/login     { emailOrNickname, password }
      │  POST /api/auth/signup    { email, password, nickname }
      │  POST /api/auth/refresh   { refreshToken }
      ▼
@@ -87,13 +88,7 @@
      ▼
 [클라이언트]
      응답: { accessToken, refreshToken }
-```
-
-**화이트리스트 경로 목록:**
-```
-POST /api/auth/login
-POST /api/auth/signup
-POST /api/auth/refresh
+     → JS가 localStorage + 쿠키(accessToken, max-age=1800) 모두 저장
 ```
 
 ---
@@ -106,48 +101,58 @@ POST /api/auth/refresh
 [클라이언트]
      │
      │  GET /api/studies/
-     │  Authorization: Bearer {accessToken}
+     │  Authorization: Bearer {accessToken}   ← JS fetch() 호출 시
      ▼
 [API Gateway - JwtAuthenticationFilter]
-     │  1. Authorization 헤더 존재 여부 확인
-     │     없으면 → 401 Unauthorized 반환 (서비스까지 도달하지 않음)
-     │
-     │  2. Bearer {token} 파싱
-     │
-     │  3. JWT 서명 검증 (secret key 사용)
-     │     실패하면 → 401 Unauthorized 반환
-     │
-     │  4. 토큰 만료 여부 확인
-     │     만료되면 → 401 Unauthorized 반환
-     │
+     │  1. Authorization 헤더에서 JWT 추출 시도
+     │  2. 없으면 쿠키(accessToken)에서 추출 시도
+     │  3. 둘 다 없으면 → 401 반환
+     │  4. JWT 서명 검증 + 만료 확인
+     │     실패하면 → 401 반환
      │  5. 검증 성공 → Claims에서 정보 추출 후 헤더 추가
      │     X-Account-Id: 123
-     │     X-Account-Role: ROLE_USER
      │     X-Account-Nickname: 양균
      ▼
 [study-service]
      │  - JWT 라이브러리 사용하지 않음
      │  - X-Account-Id 헤더만 꺼내서 사용자 식별
-     │  - 비즈니스 로직 처리 후 응답 반환
      ▼
 [클라이언트]
      응답: 스터디 목록 등 요청한 데이터
 ```
 
-**각 서비스에서 X-Account-Id 사용 예시 (Java):**
-```java
-@GetMapping("/api/studies")
-public ResponseEntity<?> getStudies(
-        @RequestHeader("X-Account-Id") Long accountId) {
-    // accountId로 바로 비즈니스 로직 처리
-}
+---
+
+### 유형 3 - 페이지 이동 요청 (OptionalJwt — 로그인 여부 선택적)
+
+브라우저가 페이지를 이동할 때 (a 태그 클릭, window.location.href 등).
+JWT가 없어도 접근 가능하지만, 있으면 X-Account-Id가 추가되어 로그인 상태로 처리된다.
+
+```
+[브라우저]
+     │
+     │  GET /  (또는 /login, /sign-up, /css/main.css 등)
+     │  Cookie: accessToken=eyJ...  ← 자동 포함
+     ▼
+[API Gateway - OptionalJwtFilter]
+     │  1. Authorization 헤더에서 JWT 추출 시도
+     │  2. 없으면 쿠키(accessToken)에서 추출 시도
+     │
+     │  [토큰 없음]        [토큰 있음 + 유효]    [토큰 있음 + 만료]
+     │  그냥 통과           X-Account-Id 추가     그냥 통과
+     │  (비로그인)          (로그인 상태)          (비로그인)
+     ▼
+[frontend-service]
+     │  HomeController: X-Account-Id 없음 → 랜딩 페이지
+     │  HomeController: X-Account-Id 있음 → 대시보드
+     ▼
+[브라우저]
+     응답: HTML 페이지
 ```
 
 ---
 
-### 유형 3 - 관리자 요청 (JWT 인증 + ROLE_ADMIN 확인)
-
-관리자 전용 기능에 접근하는 흐름. 두 단계 검증으로 보안 강화.
+### 유형 4 - 관리자 요청 (JWT 인증 + ROLE_ADMIN 확인)
 
 ```
 [관리자 브라우저]
@@ -155,89 +160,61 @@ public ResponseEntity<?> getStudies(
      │  GET /api/admin/members
      │  Authorization: Bearer {accessToken}
      ▼
-[API Gateway - JwtAuthenticationFilter]
-     │  1. JWT 검증 (유형 2와 동일)
-     │     실패하면 → 401 반환
-     ▼
-[API Gateway - AdminRoleFilter]
-     │  2. X-Account-Role 이 ROLE_ADMIN 인지 확인
-     │     ROLE_USER 이면 → 403 Forbidden 반환
-     │     ROLE_ADMIN 이면 → 통과
+[API Gateway - JwtAuthenticationFilter → AdminRoleFilter]
+     │  1. JWT 검증 실패 → 401
+     │  2. X-Account-Role != ROLE_ADMIN → 403
+     │  3. 통과 → admin-service로 라우팅
      ▼
 [admin-service]
-     │  3. X-Account-Role: ROLE_ADMIN 한 번 더 확인 (이중 검증)
-     │     헤더가 없거나 ROLE_ADMIN 이 아니면 → 403 반환
-     │  4. 관리자 비즈니스 로직 처리
+     │  X-Account-Role: ROLE_ADMIN 2차 확인
      ▼
 [관리자 브라우저]
-     응답: 회원 목록 등 관리자 데이터
 ```
-
-> **이중 검증을 하는 이유**: API Gateway가 유일한 방어선이 되면, Gateway 우회 시 모든 서비스가 무방비 상태가 된다.
-> 각 서비스에서도 2차 검증을 수행함으로써 내부 네트워크에서의 비정상 접근도 차단한다.
 
 ---
 
-### 유형 4 - 서비스 간 내부 요청
-
-admin-service가 account-service나 study-service의 데이터를 조회해야 할 때.
-JWT 없이 `X-Internal-Service` 헤더로 식별한다.
+### 유형 5 - 서비스 간 내부 요청
 
 ```
-[admin-service]
+[frontend-service]
      │
      │  GET /internal/accounts/123
-     │  X-Internal-Service: admin-service
+     │  X-Internal-Service: frontend-service
      │  (Authorization 헤더 없음)
      ▼
 [account-service - InternalRequestFilter]
-     │  1. /internal/** 경로 감지
-     │  2. X-Internal-Service 헤더 존재 여부 확인
-     │     헤더 없으면 → 403 Forbidden 반환
-     │  3. 헤더 값이 허용된 서비스인지 확인
-     │     (admin-service, study-service 등 내부 서비스 목록)
-     │  4. 통과 → 내부 전용 데이터 반환
+     │  X-Internal-Service 헤더 확인 → 없으면 403
+     │  통과 → AccountInternalController
      ▼
-[admin-service]
-     응답: 요청한 계정 정보
+[frontend-service]
+     응답: AccountSummaryResponse
 ```
 
 **외부에서 /internal/** 직접 접근 시:**
 ```
-[악의적인 클라이언트]
-     │
-     │  GET /internal/accounts/123
-     ▼
-[API Gateway]
-     │  /internal/** 경로는 전면 차단
-     │  → 403 Forbidden 반환
-     │  (서비스까지 도달하지 않음)
+api-gateway의 OptionalJwtFilter는 /** 라우팅으로
+frontend-service로 보내지만,
+각 서비스는 InternalRequestFilter로 자체 보호한다.
+※ api-gateway에서 /internal/** 별도 차단 라우트를 추가하는 것이 권장됨
 ```
 
 ---
 
-## 4. API Gateway 라우팅 규칙
-
-### 경로별 필터 적용 규칙
-
-| 경로 패턴 | 대상 서비스 | 적용 필터 | 설명 |
-|----------|-----------|---------|------|
-| `POST /api/auth/**` | account-service | 없음 | 공개 API (로그인, 회원가입) |
-| `GET /api/accounts/**` | account-service | JwtAuthenticationFilter | 내 정보 조회 등 인증 필요 |
-| `POST /api/accounts/**` | account-service | JwtAuthenticationFilter | 내 정보 수정 등 인증 필요 |
-| `/api/admin/**` | admin-service | JwtAuthenticationFilter + AdminRoleFilter | 관리자 전용 |
-| `/api/studies/**` | study-service | JwtAuthenticationFilter | 스터디 관련 |
-| `/api/events/**` | event-service | JwtAuthenticationFilter | 이벤트 관련 |
-| `/internal/**` | - | 전면 차단 (403) | 외부 접근 불가 |
-
-### application.yml 구조
+## 4. API Gateway 라우팅 규칙 (2026-03-21 현재)
 
 ```yaml
 spring:
   cloud:
     gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: ["http://localhost:8090"]
+            allowedMethods: [GET, POST, PUT, DELETE, OPTIONS]
+            allowedHeaders: ["*"]
+            allowCredentials: true
       routes:
-        # 공개 API - JWT 검증 없이 통과
+        # 공개 API - 필터 없음
         - id: account-service-public
           uri: lb://ACCOUNT-SERVICE
           predicates:
@@ -251,30 +228,14 @@ spring:
           filters:
             - JwtAuthenticationFilter
 
-        # 관리자 전용 - JWT + ROLE_ADMIN 확인
-        - id: admin-service
-          uri: lb://ADMIN-SERVICE
+        # frontend-service (모든 페이지 + 정적 파일)
+        # /api/** 라우트가 위에 먼저 선언되어 있으므로 API 요청은 각 서비스로 간다
+        - id: frontend-service
+          uri: lb://FRONTEND-SERVICE
           predicates:
-            - Path=/api/admin/**
+            - Path=/**
           filters:
-            - JwtAuthenticationFilter
-            - AdminRoleFilter
-
-        # 스터디 서비스
-        - id: study-service
-          uri: lb://STUDY-SERVICE
-          predicates:
-            - Path=/api/studies/**
-          filters:
-            - JwtAuthenticationFilter
-
-        # 내부 API 외부 접근 전면 차단
-        - id: block-internal
-          uri: no://op
-          predicates:
-            - Path=/internal/**
-          filters:
-            - SetStatus=403
+            - OptionalJwtFilter
 ```
 
 ---
@@ -288,26 +249,27 @@ spring:
   - `POST /api/auth/signup` - 회원가입
   - `POST /api/auth/login` - 로그인 (JWT 발급)
   - `POST /api/auth/refresh` - 토큰 재발급
+  - `GET /api/auth/check-email-token` - 이메일 인증
   - `GET /api/accounts/me` - 내 정보 조회
-  - `GET /internal/accounts/{id}` - 내부 전용 계정 조회
+  - `GET /internal/accounts/{id}` - 내부 전용: 계정 요약 정보 (frontend-service용)
 
 ### api-gateway
 - **역할**: 외부 진입점 + JWT 검증 + 라우팅
 - **JWT 관련**: 검증만 담당 (발급은 account-service에서)
 - **필터**:
-  - `JwtAuthenticationFilter` - JWT 검증 + X-Account-* 헤더 추가
-  - `AdminRoleFilter` - ROLE_ADMIN 여부 확인
+  - `JwtAuthenticationFilter` - JWT 검증 (Authorization 헤더 + 쿠키) + X-Account-* 헤더 추가
+  - `OptionalJwtFilter` - 토큰 없어도 통과, 있으면 X-Account-Id 추가 (frontend 페이지용)
+  - `AdminRoleFilter` - ROLE_ADMIN 여부 확인 (admin 경로용, 미구현)
+
+### frontend-service
+- **역할**: Thymeleaf HTML 서빙 (DB 없음)
+- **인증 처리**: X-Account-Id 헤더로 로그인 여부 판단
+- **내부 통신**: RestTemplate + InternalHeaderHelper로 account-service, study-service 호출
 
 ### study-service / event-service / 기타 서비스
 - **역할**: 각 도메인 비즈니스 로직
 - **JWT 관련**: 직접 검증하지 않음 (JWT 라이브러리 의존성 없음)
 - **인증 처리**: `X-Account-Id` 헤더만 꺼내서 사용
-
-### admin-service
-- **역할**: 플랫폼 관리자 전용 기능
-- **인증 처리**:
-  - 외부 요청: `X-Account-Role: ROLE_ADMIN` 헤더 2차 확인
-  - 내부 요청: Feign Client로 각 서비스의 `/internal/**` 호출
 
 ---
 
@@ -323,26 +285,18 @@ spring:
 /internal/{도메인}/**
 ```
 
-### 내부 API 보호 - 각 서비스 구현 방법
-
-각 서비스에서 `/internal/**` 경로를 보호하는 필터를 추가한다.
+### 내부 API 보호
 
 ```java
-// 각 서비스의 InternalRequestFilter.java
+// InternalRequestFilter.java (각 서비스 공통)
 @Component
 public class InternalRequestFilter implements HandlerInterceptor {
-
-    private static final List<String> ALLOWED_SERVICES =
-            List.of("admin-service", "study-service", "event-service");
-
     @Override
     public boolean preHandle(HttpServletRequest request,
                              HttpServletResponse response, Object handler) throws Exception {
-        String uri = request.getRequestURI();
-
-        if (uri.startsWith("/internal/")) {
+        if (request.getRequestURI().startsWith("/internal/")) {
             String internalService = request.getHeader("X-Internal-Service");
-            if (internalService == null || !ALLOWED_SERVICES.contains(internalService)) {
+            if (internalService == null) {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 return false;
             }
@@ -352,47 +306,70 @@ public class InternalRequestFilter implements HandlerInterceptor {
 }
 ```
 
-### Feign Client 내부 호출 예시 (admin-service에서 account-service 호출)
+### frontend-service 내부 호출 패턴 (RestTemplate)
 
 ```java
-// admin-service의 AccountFeignClient.java
-@FeignClient(name = "account-service")
-public interface AccountFeignClient {
-
-    @GetMapping("/internal/accounts/{id}")
-    AccountDto getAccount(@PathVariable Long id,
-                          @RequestHeader("X-Internal-Service") String serviceName);
+// InternalHeaderHelper.java
+public static HttpEntity<Void> build(Long accountId) {
+    HttpHeaders headers = new HttpHeaders();
+    headers.set("X-Internal-Service", "frontend-service");
+    if (accountId != null) {
+        headers.set("X-Account-Id", String.valueOf(accountId));
+    }
+    return new HttpEntity<>(headers);
 }
 
-// 사용 시
-AccountDto account = accountFeignClient.getAccount(id, "admin-service");
+// 사용 예시
+restTemplate.exchange(
+    "lb://ACCOUNT-SERVICE/internal/accounts/" + id,
+    HttpMethod.GET,
+    InternalHeaderHelper.build(accountId),
+    AccountSummaryDto.class
+);
 ```
 
 ---
 
 ## 7. 필터 구조
 
-### API Gateway 필터 처리 순서
+### JwtAuthenticationFilter (인증 필수 경로용)
 
 ```
 요청 수신
     │
     ▼
-JwtAuthenticationFilter
-    │  - Authorization 헤더 파싱
-    │  - JWT 서명/만료 검증
-    │  - 실패 → 401 반환
-    │  - 성공 → X-Account-Id, X-Account-Role, X-Account-Nickname 헤더 추가
+1. Authorization 헤더에서 Bearer 토큰 추출 시도
+    │ 없으면
     ▼
-AdminRoleFilter (관리자 경로만 적용)
-    │  - X-Account-Role == ROLE_ADMIN 확인
-    │  - 실패 → 403 반환
-    │  - 성공 → 통과
+2. 쿠키(accessToken)에서 토큰 추출 시도
+    │ 둘 다 없으면 → 401 반환
     ▼
-각 서비스로 라우팅
+3. JWT 서명 검증 + 만료 확인
+    │ 실패 → 401 반환
+    ▼
+4. X-Account-Id, X-Account-Nickname 헤더 추가
+    ▼
+하위 서비스로 라우팅
 ```
 
-### JWT Claims 구조 (account-service에서 발급)
+### OptionalJwtFilter (frontend 페이지용)
+
+```
+요청 수신
+    │
+    ▼
+1. Authorization 헤더 또는 쿠키에서 토큰 추출 시도
+    │
+    ├── 토큰 없음 → 그냥 통과 (비로그인)
+    │
+    ├── 토큰 있음 + 유효 → X-Account-Id 헤더 추가 후 통과 (로그인)
+    │
+    └── 토큰 있음 + 만료/오류 → 그냥 통과 (비로그인)
+    ▼
+frontend-service로 라우팅
+```
+
+### JWT Claims 구조
 
 ```json
 {
@@ -408,14 +385,12 @@ AdminRoleFilter (관리자 경로만 적용)
 |-----|------|----------------|
 | `sub` | Account DB PK | → `X-Account-Id` 헤더 |
 | `nickname` | 닉네임 | → `X-Account-Nickname` 헤더 |
-| `role` | 권한 | → `X-Account-Role` 헤더 |
+| `role` | 권한 | → `X-Account-Role` 헤더 (AdminRoleFilter용) |
 | `exp` | 만료 시각 | 만료 여부 검증 |
 
 ---
 
 ## 8. 신규 서비스 추가 시 체크리스트
-
-새로운 마이크로서비스를 추가할 때 반드시 확인해야 할 항목.
 
 ### API Gateway 수정 (application.yml)
 - [ ] 새 서비스 라우트 추가 (`lb://NEW-SERVICE`)
@@ -429,11 +404,16 @@ AdminRoleFilter (관리자 경로만 적용)
 - [ ] `/internal/**` 경로에 `InternalRequestFilter` 적용
 - [ ] 내부 API는 `X-Internal-Service` 헤더 검증
 
-### Feign Client (다른 서비스 호출 시)
-- [ ] 호출할 서비스의 `/internal/**` 경로 사용
-- [ ] `X-Internal-Service: {현재-서비스-이름}` 헤더 포함
+### 내부 API 제공 시 (다른 서비스가 호출)
+- [ ] `/internal/{도메인}/{경로}` 형태로 엔드포인트 설계
+- [ ] `@RequestHeader("X-Internal-Service") String internalService` 파라미터 추가
+
+### 내부 API 호출 시 (다른 서비스를 호출)
+- [ ] `InternalHeaderHelper.build(accountId)` 로 헤더 구성
+- [ ] `lb://SERVICE-NAME/internal/...` URL 형태 사용
+- [ ] `@LoadBalanced RestTemplate` 또는 `@FeignClient` 사용
 
 ---
 
-*최종 확정일: 2026-03-09*
+*최종 확정일: 2026-03-21*
 *작성: StudyOlle MSA 전환 프로젝트*
