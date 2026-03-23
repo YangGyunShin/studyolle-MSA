@@ -99,6 +99,7 @@ public class AccountController {
     }
 
     // POST /api/accounts/settings/tags/remove
+    @PostMapping("/settings/tags/remove")
     public ResponseEntity<CommonApiResponse<Void>> removeTag(
             @RequestHeader("X-Account-Id") Long accountId,
             @Valid @RequestBody TagRequest request) {
