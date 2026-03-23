@@ -1,12 +1,17 @@
 package com.studyolle.frontend.account.client;
 
+import com.studyolle.frontend.account.dto.AccountSettingsDto;
 import com.studyolle.frontend.account.dto.AccountSummaryDto;
 import com.studyolle.frontend.common.InternalHeaderHelper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.Collections;
+import java.util.List;
 
 @Component
 public class AccountInternalClient {
@@ -46,6 +51,58 @@ public class AccountInternalClient {
         }
     }
 
+    public AccountSettingsDto getAccountSettings(Long accountId) {
+        if (accountId == null) {
+            return null;
+        }
+
+        String url = accountServiceBaseUrl + "/internal/accounts/" + accountId + "/full";
+        try {
+            ResponseEntity<AccountSettingsDto> response = restTemplate.exchange(
+                    url, HttpMethod.GET,
+                    InternalHeaderHelper.build(accountId),
+                    AccountSettingsDto.class
+            );
+            return response.getBody();
+        } catch (HttpClientErrorException e) {
+            return null;
+        }
+    }
+
+    public List<String> getAccountTags(Long accountId) {
+        if (accountId == null) {
+            return Collections.emptyList();
+        }
+        String url = accountServiceBaseUrl + "/internal/accounts/" + accountId + "/tags";
+        try {
+            ResponseEntity<List<String>> response = restTemplate.exchange(
+                    url, HttpMethod.GET,
+                    InternalHeaderHelper.build(accountId),
+                    new ParameterizedTypeReference<List<String>>() {}
+            );
+            return response.getBody() != null ? response.getBody() : Collections.emptyList();
+        } catch (HttpClientErrorException e) {
+            return Collections.emptyList();
+        }
+    }
+
+    public List<String> getAccountZones(Long accountId) {
+        if (accountId == null) {
+            return Collections.emptyList();
+        }
+        String url = accountServiceBaseUrl + "/internal/accounts/" + accountId + "/zones";
+        try {
+            ResponseEntity<List<String>> response = restTemplate.exchange(
+                    url, HttpMethod.GET,
+                    InternalHeaderHelper.build(accountId),
+                    new ParameterizedTypeReference<List<String>>() {
+                    }
+            );
+            return response.getBody() != null ? response.getBody() : Collections.emptyList();
+        } catch (HttpClientErrorException e) {
+            return Collections.emptyList();
+        }
+    }
     /*
      * ====================================================================
      * [설계 해설] AccountInternalClient 는 왜 이렇게 간단한가
