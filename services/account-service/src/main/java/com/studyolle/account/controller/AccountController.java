@@ -1,9 +1,6 @@
 package com.studyolle.account.controller;
 
-import com.studyolle.account.dto.request.UpdateNicknameRequest;
-import com.studyolle.account.dto.request.UpdateNotificationsRequest;
-import com.studyolle.account.dto.request.UpdatePasswordRequest;
-import com.studyolle.account.dto.request.UpdateProfileRequest;
+import com.studyolle.account.dto.request.*;
 import com.studyolle.account.dto.response.AccountResponse;
 import com.studyolle.account.dto.response.CommonApiResponse;
 import com.studyolle.account.entity.Account;
@@ -12,6 +9,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 // api-gateway에서 검증 완료 후 X-Account-Id 헤더가 주입된다.
 // 이 헤더가 없으면 api-gateway 단에서 이미 401로 차단됐으므로,
@@ -77,5 +78,58 @@ public class AccountController {
             @Valid @RequestBody UpdateNotificationsRequest request) {
         accountSettingsService.updateNotifications(accountId, request);
         return ResponseEntity.ok(CommonApiResponse.ok("알림 설정을 변경했습니다."));
+    }
+
+    // GET /api/accounts/settings/tags — 내 태그 목록 조회
+    @GetMapping("/settings/tags")
+    public ResponseEntity<CommonApiResponse<List<String>>> getTags(
+            @RequestHeader("X-Account-Id") Long accountId) {
+        Set<String> tag = accountSettingsService.getTags(accountId);
+        List<String> tags = new ArrayList<>(tag);
+        return ResponseEntity.ok(CommonApiResponse.ok(tags));
+    }
+
+    // POST /api/accounts/settings/tags/add
+    @PostMapping("/settings/tags/add")
+    public ResponseEntity<CommonApiResponse<Void>> addTag(
+            @RequestHeader("X-Account-Id") Long accountId,
+            @Valid @RequestBody TagRequest request) {
+        accountSettingsService.addTag(accountId, request.getTagTitle());
+        return ResponseEntity.ok(CommonApiResponse.ok("태그를 추가했습니다."));
+    }
+
+    // POST /api/accounts/settings/tags/remove
+    public ResponseEntity<CommonApiResponse<Void>> removeTag(
+            @RequestHeader("X-Account-Id") Long accountId,
+            @Valid @RequestBody TagRequest request) {
+        accountSettingsService.removeTag(accountId, request.getTagTitle());
+        return ResponseEntity.ok(CommonApiResponse.ok("태그를 삭제했습니다."));
+    }
+
+    // GET /api/accounts/settings/zones — 내 지역 목록 조회
+    @GetMapping("/settings/zones")
+    public ResponseEntity<CommonApiResponse<List<String>>> getZones(
+            @RequestHeader("X-Account-Id") Long accountId) {
+        Set<String> zone = accountSettingsService.getZones(accountId);
+        List<String> zones = new ArrayList<>(zone);
+        return ResponseEntity.ok(CommonApiResponse.ok(zones));
+    }
+
+    // POST /api/accounts/settings/zones/add
+    @PostMapping("/settings/zones/add")
+    public ResponseEntity<CommonApiResponse<Void>> addZone(
+            @RequestHeader("X-Account-Id") Long accountId,
+            @Valid @RequestBody ZoneRequest request) {
+        accountSettingsService.addZone(accountId, request.getZoneName());
+        return ResponseEntity.ok(CommonApiResponse.ok("지역을 추가했습니다."));
+    }
+
+    // POST /api/accounts/settings/zones/remove
+    @PostMapping("/settings/zones/remove")
+    public ResponseEntity<CommonApiResponse<Void>> removeZone(
+            @RequestHeader("X-Account-Id") Long accountId,
+            @Valid @RequestBody ZoneRequest request) {
+        accountSettingsService.removeZone(accountId, request.getZoneName());
+        return ResponseEntity.ok(CommonApiResponse.ok("지역을 삭제했습니다."));
     }
 }

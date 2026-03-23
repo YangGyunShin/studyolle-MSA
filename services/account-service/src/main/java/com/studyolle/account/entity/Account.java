@@ -59,6 +59,64 @@ public class Account {
     @Basic(fetch = FetchType.EAGER)
     private String profileImage;
 
+    /*
+     * =============================================
+     * 관심 태그 목록
+     * =============================================
+     *
+     * @ElementCollection
+     * Account 엔티티 안에 String 값들의 컬렉션을 저장하는 방법이다.
+     * 일반적인 @OneToMany 는 별도 엔티티 클래스가 필요하지만,
+     * @ElementCollection 은 엔티티 없이 단순 값(String, Integer 등)을 컬렉션으로 저장할 수 있다.
+     * 내부적으로 JPA 가 별도 테이블(account_tags)을 만들어서 관리한다.
+     *
+     * @CollectionTable(name = "account_tags", joinColumns = @JoinColumn(name = "account_id"))
+     * 이 컬렉션이 저장될 테이블 이름과 외래 키를 지정한다.
+     * joinColumns = @JoinColumn(name = "account_id") 는 account_tags 테이블에서 Account 를 참조하는 외래 키 컬럼 이름을 "account_id" 로 설정한다.
+     * 결과적으로 account_tags 테이블은 (account_id, tag_title) 두 컬럼으로 구성된다.
+     *
+     * @Column(name = "tag_title")
+     * 컬렉션 원소(String) 가 저장될 컬럼 이름을 "tag_title" 로 지정한다.
+     * 이 설정이 없으면 JPA 가 기본 이름("tags")을 사용한다.
+     *
+     * fetch = FetchType.EAGER
+     * Account 를 조회할 때 태그 목록도 함께(즉시) 로딩한다.
+     * 설정 페이지에서 Account 를 가져오는 즉시 tags 를 사용하므로 EAGER 가 적합하다.
+     * (LAZY 로 설정하면 트랜잭션 밖에서 tags 에 접근할 때 LazyInitializationException 이 발생한다.)
+     *
+     * @Builder.Default
+     * Lombok @Builder 를 사용할 때 필드 기본값을 적용하기 위해 필요하다.
+     * 이 애너테이션이 없으면 Account.builder().build() 로 생성 시 tags 가 null 이 된다.
+     * @Builder.Default 가 있으면 new HashSet<>() 로 초기화된 상태로 생성된다.
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "account_tags", joinColumns = @JoinColumn(name = "account_id"))
+    @Column(name = "tag_title")
+    @Builder.Default
+    private Set<String> tags = new HashSet<>();
+
+    /*
+     * =============================================
+     * 활동 지역 목록
+     * =============================================
+     *
+     * tags 와 동일한 구조이며, 저장되는 값의 형식만 다르다.
+     * tags  : 태그 이름 문자열 (예: "Java", "Spring Boot")
+     * zones : 지역 표시 문자열 (예: "Seoul(서울)/서울특별시")
+     *
+     * [모노리틱과의 차이]
+     * 모노리틱에서는 Tag, Zone 이라는 별도 엔티티가 있었고, Account 와 @ManyToMany 관계를 맺었다.
+     * MSA 로 전환하면서 Tag/Zone 엔티티를 제거하고 문자열 컬렉션으로 단순화했다.
+     * 메타데이터(전체 태그·지역 목록)는 metadata-service 또는 study-service 의 MetadataFeignClient 를 통해 별도 관리한다.
+     *
+     * account_zones 테이블 구조: (account_id, zone_name)
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "account_zones", joinColumns = @JoinColumn(name = "account_id"))
+    @Column(name = "zone_name")
+    @Builder.Default
+    private Set<String> zones = new HashSet<>();
+
     // 알림 설정 - 기본값은 웹 알림만 on
     @Builder.Default private boolean studyCreatedByEmail = false;
     @Builder.Default private boolean studyCreatedByWeb = true;

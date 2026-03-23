@@ -9,6 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Set;
+
 // [모노리틱과의 차이]
 // - @CurrentUser Account (Detached) → accountId Long (X-Account-Id 헤더에서 추출)
 // - findById()로 영속 상태의 Account를 조회하므로 save() 없이 Dirty Checking으로 DB 반영
@@ -68,5 +70,41 @@ public class AccountSettingsService {
         account.setStudyEnrollmentResultByWeb(request.isStudyEnrollmentResultByWeb());
         account.setStudyUpdatedByEmail(request.isStudyUpdatedByEmail());
         account.setStudyUpdatedByWeb(request.isStudyUpdatedByWeb());
+    }
+
+    // ============================
+    // 관심 태그
+    // ============================
+
+    @Transactional(readOnly = true)
+    public Set<String> getTags(Long accountId) {
+        return getAccount(accountId).getTags();
+    }
+
+    public void addTag(Long accountId, String tagTitle) {
+        getAccount(accountId).getTags().add(tagTitle);
+        // Dirty Checking 으로 자동 저장
+    }
+
+    public void removeTag(Long accountId, String tagTitle) {
+        getAccount(accountId).getTags().remove(tagTitle);
+    }
+
+
+    // ============================
+    // 활동 지역
+    // ============================
+
+    @Transactional(readOnly = true)
+    public Set<String> getZones(Long accountId) {
+        return getAccount(accountId).getZones();
+    }
+
+    public void addZone(Long accountId, String zoneName) {
+        getAccount(accountId).getZones().add(zoneName);
+    }
+
+    public void removeZone(Long accountId, String zoneName) {
+        getAccount(accountId).getZones().remove(zoneName);
     }
 }

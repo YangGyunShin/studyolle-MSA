@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<!--
+    settings/zones.html
+
+    [API 엔드포인트]
+    - 지역 추가: POST /api/accounts/settings/zones/add    { zoneName: "Seoul(서울)/서울특별시" }
+    - 지역 제거: POST /api/accounts/settings/zones/remove { zoneName: "Seoul(서울)/서울특별시" }
+
+    enforceWhitelist: true — 시스템에 등록된 지역만 선택 가능.
+
+    [model 속성]
+    - account        : AccountSummaryDto  (nav 바)
+    - accountSettings: AccountSettingsDto
+    - zones          : String             현재 등록된 지역 목록 JSON (Tagify 형식)
+    - whitelist      : String             전체 지역 whitelist JSON
+    - apiBase        : String
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head('활동 지역')}"></head>
+
+<body class="bg-light">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+
+<div class="border-bottom bg-white">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <nav class="nav py-2">
+                    <a class="nav-link rounded-pill px-3 text-muted" href="/"
+                       style="font-size: 0.9rem;">
+                        <i class="fa-solid fa-house me-1"></i> 홈
+                    </a>
+                    <span class="nav-link px-3 fw-semibold"
+                          style="color: #8e85b0; font-size: 0.9rem;">
+                        <i class="fa-solid fa-gear me-1"></i> 계정 설정
+                    </span>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="row g-4">
+
+                <div class="col-md-3">
+                    <div th:replace="~{fragments.html :: account-settings-menu('zones')}"></div>
+                </div>
+
+                <div class="col-md-9">
+                    <div class="card border-0 shadow-sm rounded-3">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-map-location-dot text-danger me-2"></i>활동 지역
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="alert alert-primary border-0 rounded-3 mb-4" role="alert">
+                                <i class="fa-solid fa-circle-info me-2"></i>
+                                주로 활동하는 지역을 등록하세요.
+                                활동 지역 기반으로 주변 스터디를 추천해 드립니다.
+                                시스템에 등록된 지역만 선택할 수 있습니다.
+                            </div>
+
+                            <input id="zones" type="text" class="form-control"
+                                   placeholder="지역을 입력하여 검색하세요...">
+
+                            <div id="zoneFeedback" class="mt-2 small" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+<script th:inline="javascript">
+    const WHITELIST_JSON  = /*[[${whitelist}]]*/ '[]';
+    const CURRENT_ZONES   = /*[[${zones}]]*/     [];
+</script>
+
+<script>
+    let whitelist = [];
+    try {
+        const parsed = JSON.parse(WHITELIST_JSON);
+        whitelist = parsed.length > 0 && typeof parsed[0] === 'string'
+            ? parsed.map(function (z) { return { value: z }; })
+            : parsed;
+    } catch (e) { whitelist = []; }
+
+    const tagify = new Tagify(document.getElementById('zones'), {
+        whitelist: whitelist,
+        enforceWhitelist: true,   // 사전 등록된 지역 외 입력 불가
+        dropdown: { maxItems: 20, enabled: 1, closeOnSelect: true }
+    });
+
+    if (CURRENT_ZONES && CURRENT_ZONES.length > 0) {
+        tagify.addTags(CURRENT_ZONES);
+    }
+
+    tagify.on('add', async function (e) {
+        const zoneName = e.detail.data.value;
+        try {
+            const res = await fetch(API_BASE + '/api/accounts/settings/zones/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ zoneName })
+            });
+            if (!res.ok) {
+                tagify.removeTags(zoneName);
+                const data = await res.json();
+                showFeedback(data.message || '지역 추가 실패', 'error');
+            } else {
+                showFeedback('"' + zoneName + '" 이(가) 추가되었습니다.', 'success');
+            }
+        } catch (err) {
+            tagify.removeTags(zoneName);
+            showFeedback('서버 연결 오류', 'error');
+        }
+    });
+
+    tagify.on('remove', async function (e) {
+        const zoneName = e.detail.data.value;
+        try {
+            const res = await fetch(API_BASE + '/api/accounts/settings/zones/remove', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ zoneName })
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                showFeedback(data.message || '지역 제거 실패', 'error');
+            } else {
+                showFeedback('"' + zoneName + '" 이(가) 제거되었습니다.', 'success');
+            }
+        } catch (err) {
+            showFeedback('서버 연결 오류', 'error');
+        }
+    });
+
+    function showFeedback(msg, type) {
+        const el = document.getElementById('zoneFeedback');
+        el.textContent = msg;
+        el.style.color = (type === 'error') ? '#b05a3a' : '#4a8a62';
+        el.style.display = 'block';
+        setTimeout(function () { el.style.display = 'none'; }, 2000);
+    }
+</script>
+
+</body>
+</html>

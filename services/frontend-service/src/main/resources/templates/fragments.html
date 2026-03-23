@@ -331,6 +331,45 @@
 
 
 <!-- ============================================================
+     account-settings-menu fragment
+     계정 설정 페이지의 좌측 사이드바 메뉴.
+
+     currentMenu 파라미터: profile | password | notifications | tags | zones
+
+     [스터디 설정 메뉴와의 차이]
+     스터디 설정은 경로 변수(study.path)가 링크에 필요하지만,
+     계정 설정은 /settings/* 으로 URL 이 고정되어 있어 단순하다.
+     ============================================================ -->
+<div th:fragment="account-settings-menu(currentMenu)" class="list-group rounded-3 shadow-sm border-0">
+    <a href="/settings/profile"
+       th:classappend="${currentMenu == 'profile'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 mb-1 px-3 py-2">
+        <i class="fa-solid fa-user-pen me-2"></i>프로필
+    </a>
+    <a href="/settings/password"
+       th:classappend="${currentMenu == 'password'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 mb-1 px-3 py-2">
+        <i class="fa-solid fa-lock me-2"></i>비밀번호
+    </a>
+    <a href="/settings/notifications"
+       th:classappend="${currentMenu == 'notifications'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 mb-1 px-3 py-2">
+        <i class="fa-solid fa-bell me-2"></i>알림
+    </a>
+    <a href="/settings/tags"
+       th:classappend="${currentMenu == 'tags'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 mb-1 px-3 py-2">
+        <i class="fa-solid fa-tags me-2"></i>관심 주제
+    </a>
+    <a href="/settings/zones"
+       th:classappend="${currentMenu == 'zones'} ? 'active' : ''"
+       class="list-group-item list-group-item-action border-0 rounded-3 px-3 py-2">
+        <i class="fa-solid fa-map-location-dot me-2"></i>활동 지역
+    </a>
+</div>
+
+
+<!-- ============================================================
      study-settings-menu fragment
      설정 페이지의 좌측 사이드바 메뉴.
 

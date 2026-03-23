@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<!--
+    settings/tags.html
+
+    [API 엔드포인트]
+    - 태그 추가: POST /api/accounts/settings/tags/add    { tagTitle: "Java" }
+    - 태그 제거: POST /api/accounts/settings/tags/remove { tagTitle: "Java" }
+
+    [model 속성]
+    - account        : AccountSummaryDto  (nav 바)
+    - accountSettings: AccountSettingsDto
+    - tags           : String             현재 등록된 태그 목록 JSON (Tagify 형식)
+    - whitelist      : String             전체 태그 whitelist JSON
+    - apiBase        : String
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head('관심 주제')}"></head>
+
+<body class="bg-light">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+
+<div class="border-bottom bg-white">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <nav class="nav py-2">
+                    <a class="nav-link rounded-pill px-3 text-muted" href="/"
+                       style="font-size: 0.9rem;">
+                        <i class="fa-solid fa-house me-1"></i> 홈
+                    </a>
+                    <span class="nav-link px-3 fw-semibold"
+                          style="color: #8e85b0; font-size: 0.9rem;">
+                        <i class="fa-solid fa-gear me-1"></i> 계정 설정
+                    </span>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="row g-4">
+
+                <div class="col-md-3">
+                    <div th:replace="~{fragments.html :: account-settings-menu('tags')}"></div>
+                </div>
+
+                <div class="col-md-9">
+                    <div class="card border-0 shadow-sm rounded-3">
+                        <div class="card-header bg-white border-bottom pt-3 pb-2">
+                            <h6 class="fw-bold text-dark mb-0">
+                                <i class="fa-solid fa-tags text-primary me-2"></i>관심 주제
+                            </h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="alert alert-primary border-0 rounded-3 mb-4" role="alert">
+                                <i class="fa-solid fa-circle-info me-2"></i>
+                                관심 있는 스터디 주제를 태그로 등록하세요.
+                                태그를 기반으로 맞춤 스터디를 추천해 드립니다.
+                                태그를 입력하고 콤마(,) 또는 엔터를 입력하면 추가됩니다.
+                            </div>
+
+                            <input id="tags" type="text" class="form-control"
+                                   placeholder="예) Java, Spring Boot, 알고리즘">
+
+                            <div id="tagFeedback" class="mt-2 small" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+<script th:inline="javascript">
+    const WHITELIST_JSON = /*[[${whitelist}]]*/ '[]';
+    const CURRENT_TAGS   = /*[[${tags}]]*/      [];
+</script>
+
+<script>
+    let whitelist = [];
+    try {
+        const parsed = JSON.parse(WHITELIST_JSON);
+        whitelist = parsed.length > 0 && typeof parsed[0] === 'string'
+            ? parsed.map(function (t) { return { value: t }; })
+            : parsed;
+    } catch (e) { whitelist = []; }
+
+    const tagify = new Tagify(document.getElementById('tags'), {
+        whitelist: whitelist,
+        enforceWhitelist: false,
+        dropdown: { maxItems: 20, classname: 'tags-look', enabled: 0, closeOnSelect: false }
+    });
+
+    if (CURRENT_TAGS && CURRENT_TAGS.length > 0) {
+        tagify.addTags(CURRENT_TAGS);
+    }
+
+    tagify.on('add', async function (e) {
+        const tagTitle = e.detail.data.value;
+        try {
+            const res = await fetch(API_BASE + '/api/accounts/settings/tags/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ tagTitle })
+            });
+            if (!res.ok) {
+                tagify.removeTags(tagTitle);
+                const data = await res.json();
+                showFeedback(data.message || '태그 추가 실패', 'error');
+            } else {
+                showFeedback('"' + tagTitle + '" 태그가 추가되었습니다.', 'success');
+            }
+        } catch (err) {
+            tagify.removeTags(tagTitle);
+            showFeedback('서버 연결 오류', 'error');
+        }
+    });
+
+    tagify.on('remove', async function (e) {
+        const tagTitle = e.detail.data.value;
+        try {
+            const res = await fetch(API_BASE + '/api/accounts/settings/tags/remove', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                },
+                body: JSON.stringify({ tagTitle })
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                showFeedback(data.message || '태그 제거 실패', 'error');
+            } else {
+                showFeedback('"' + tagTitle + '" 태그가 제거되었습니다.', 'success');
+            }
+        } catch (err) {
+            showFeedback('서버 연결 오류', 'error');
+        }
+    });
+
+    function showFeedback(msg, type) {
+        const el = document.getElementById('tagFeedback');
+        el.textContent = msg;
+        el.style.color = (type === 'error') ? '#b05a3a' : '#4a8a62';
+        el.style.display = 'block';
+        setTimeout(function () { el.style.display = 'none'; }, 2000);
+    }
+</script>
+
+</body>
+</html>
