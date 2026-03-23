@@ -88,14 +88,20 @@
                     </p>
                     <div class="row g-2">
                         <div class="col-md-6 col-lg-4" th:each="manager : ${study.managers}">
-                            <a th:href="@{'/profile/' + ${manager.nickname}}" class="text-decoration-none">
+                            <!--
+                                nickname 이 null 이면 /profile/null 링크가 생기지 않도록
+                                # 로 fallback. Phase 5 에서 account-service batch 추가 후 링크 활성화.
+                                Jdenticon: nickname 대신 id 를 항상 사용 — null 없는 값으로 아이콘 생성 보장.
+                            -->
+                            <a th:href="${#strings.isEmpty(manager.nickname)} ? '#' : '/profile/' + manager.nickname"
+                               class="text-decoration-none">
                                 <div class="card border-0 shadow-sm rounded-3 h-100"
                                      style="transition: transform 0.15s; cursor: pointer;"
                                      onmouseover="this.style.transform='translateY(-2px)'"
                                      onmouseout="this.style.transform='translateY(0)'">
                                     <div class="card-body d-flex align-items-center p-3">
                                         <svg th:if="${#strings.isEmpty(manager.profileImage)}"
-                                             th:data-jdenticon-value="${manager.nickname}"
+                                             th:data-jdenticon-value="${manager.id}"
                                              width="48" height="48"
                                              class="rounded-circle border flex-shrink-0 me-3"></svg>
                                         <img th:if="${!#strings.isEmpty(manager.profileImage)}"
@@ -105,7 +111,7 @@
                                              alt="프로필"/>
                                         <div>
                                             <span class="fw-semibold text-dark"
-                                                  th:text="${manager.nickname}">닉네임</span>
+                                                  th:text="${manager.nickname ?: ''}">닉네임</span>
                                             <span class="badge rounded-pill ms-1"
                                                   style="background: #f0ece8; color: #bfa473; font-size: 0.7rem;">관리자</span>
                                         </div>
@@ -123,14 +129,15 @@
                     </p>
                     <div class="row g-2">
                         <div class="col-md-6 col-lg-4" th:each="member : ${study.members}">
-                            <a th:href="@{'/profile/' + ${member.nickname}}" class="text-decoration-none">
+                            <a th:href="${#strings.isEmpty(member.nickname)} ? '#' : '/profile/' + member.nickname"
+                               class="text-decoration-none">
                                 <div class="card border-0 shadow-sm rounded-3 h-100"
                                      style="transition: transform 0.15s; cursor: pointer;"
                                      onmouseover="this.style.transform='translateY(-2px)'"
                                      onmouseout="this.style.transform='translateY(0)'">
                                     <div class="card-body d-flex align-items-center p-3">
                                         <svg th:if="${#strings.isEmpty(member.profileImage)}"
-                                             th:data-jdenticon-value="${member.nickname}"
+                                             th:data-jdenticon-value="${member.id}"
                                              width="48" height="48"
                                              class="rounded-circle border flex-shrink-0 me-3"></svg>
                                         <img th:if="${!#strings.isEmpty(member.profileImage)}"
@@ -140,7 +147,7 @@
                                              alt="프로필"/>
                                         <div>
                                             <span class="fw-semibold text-dark"
-                                                  th:text="${member.nickname}">닉네임</span>
+                                                  th:text="${member.nickname ?: ''}">닉네임</span>
                                         </div>
                                     </div>
                                 </div>

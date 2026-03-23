@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<!--
+    error/404.html
+
+    Spring Boot BasicErrorController 가 자동으로 인식하는 404 전용 에러 페이지.
+    별도 컨트롤러 없이 이 파일만 두면 모든 404 응답에 자동 적용된다.
+
+    [BasicErrorController 탐색 우선순위]
+    templates/error/404.html  ->  templates/error/4xx.html  ->  templates/error/error.html
+    404.html 이 있으면 가장 먼저 선택된다.
+
+    [모델에 자동 주입되는 속성]
+    - status    : HTTP 상태 코드 (404)
+    - error     : 상태 설명 ("Not Found")
+    - message   : 상세 메시지
+    - path      : 요청 경로 ("/study/없는경로")
+    - timestamp : 오류 발생 시각
+
+    [주의] footer 프래그먼트는 사용하지 않는다.
+    footer 에 const API_BASE = [[${apiBase}]] 가 있는데,
+    에러 페이지 모델에는 apiBase 가 없으므로 Thymeleaf 예외가 발생한다.
+    Bootstrap JS 와 Jdenticon 은 이 파일에 직접 인라인으로 포함한다.
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head('페이지를 찾을 수 없습니다')}"></head>
+
+<body class="bg-light">
+
+<!--
+    main-nav 프래그먼트: 에러 페이지에서는 account 가 모델에 없다.
+    프래그먼트 내부가 th:if="${account != null}" 으로 분기하므로
+    account = null 상태로 자연스럽게 비로그인 네비게이션이 렌더링된다.
+-->
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8 text-center">
+
+            <!-- 숫자 장식 -->
+            <div class="mb-3" style="line-height: 1; user-select: none;">
+                <span style="font-size: 7rem; font-weight: 700; letter-spacing: -4px;
+                             color: #e8e4dd;">404</span>
+            </div>
+
+            <!-- 아이콘 -->
+            <div class="mb-3">
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle"
+                     style="width: 72px; height: 72px; background: #f0ece8;">
+                    <i class="fa-solid fa-map-pin" style="color: #8e85b0; font-size: 1.8rem;"></i>
+                </div>
+            </div>
+
+            <!-- 메시지 -->
+            <h2 class="fw-bold mb-2" style="color: #2c2843; font-size: 1.5rem;">
+                페이지를 찾을 수 없어요
+            </h2>
+            <p class="text-muted mb-1" style="font-size: 0.95rem;">
+                요청하신 주소가 사라졌거나 잘못 입력된 것 같습니다.
+            </p>
+
+            <!-- 요청 경로 표시 (path 가 있을 때만) -->
+            <p th:if="${path != null}" class="mb-4">
+                <code class="rounded-2 px-2 py-1 small"
+                      style="background: #f0ece8; color: #8e85b0; font-family: monospace;"
+                      th:text="${path}">경로</code>
+            </p>
+            <div th:if="${path == null}" class="mb-4"></div>
+
+            <!-- 액션 버튼 -->
+            <div class="d-flex justify-content-center gap-3 flex-wrap mb-5">
+                <a href="/"
+                   class="btn rounded-pill px-4 py-2 text-white fw-semibold"
+                   style="background: #8e85b0; border: none; font-size: 0.9rem;">
+                    <i class="fa-solid fa-house me-2"></i>홈으로 이동
+                </a>
+                <a href="/search"
+                   class="btn rounded-pill px-4 py-2"
+                   style="border: 1.5px solid #8e85b0; color: #8e85b0;
+                          background: transparent; font-size: 0.9rem;">
+                    <i class="fa-solid fa-magnifying-glass me-2"></i>스터디 검색
+                </a>
+            </div>
+
+            <!-- 구분선 -->
+            <hr style="border-color: #e8e4dd; max-width: 320px; margin: 0 auto 2rem;">
+
+            <!-- 빠른 링크 -->
+            <p class="text-muted small mb-3">혹시 이걸 찾고 계셨나요?</p>
+            <div class="d-flex justify-content-center gap-4 flex-wrap">
+                <a href="/new-study"
+                   class="text-decoration-none small fw-semibold"
+                   style="color: #7fac8e;">
+                    <i class="fa-solid fa-plus me-1"></i>새 스터디 개설
+                </a>
+                <a href="/sign-up"
+                   class="text-decoration-none small fw-semibold"
+                   style="color: #bfa473;">
+                    <i class="fa-solid fa-user-plus me-1"></i>회원가입
+                </a>
+                <a href="/login"
+                   class="text-decoration-none small fw-semibold"
+                   style="color: #c4917e;">
+                    <i class="fa-solid fa-right-to-bracket me-1"></i>로그인
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- footer 프래그먼트 대신 필수 JS 만 직접 포함 -->
+<div class="border-top bg-white mt-5 py-4">
+    <div class="container">
+        <div class="text-center text-muted small">
+            &copy; 2025 StudyOlle. All rights reserved.
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jdenticon@3.2.0/dist/jdenticon.min.js"></script>
+
+<script>
+    /*
+     * 로그아웃 함수는 main-nav 프래그먼트의 드롭다운에서 호출된다.
+     * 에러 페이지에서도 네비게이션 드롭다운이 동작해야 하므로 포함한다.
+     * 비로그인 상태에서는 드롭다운 자체가 렌더링되지 않으므로 문제없다.
+     */
+    function handleLogout(e) {
+        e.preventDefault();
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/';
+    }
+</script>
+
+</body>
+</html>

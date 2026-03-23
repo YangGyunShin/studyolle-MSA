@@ -56,14 +56,15 @@
                 </h6>
                 <div class="row g-3">
                     <div class="col-md-6 col-lg-4" th:each="manager : ${study.managers}">
-                        <a th:href="@{'/profile/' + ${manager.nickname}}" class="text-decoration-none">
+                        <a th:href="${#strings.isEmpty(manager.nickname)} ? '#' : '/profile/' + manager.nickname"
+                           class="text-decoration-none">
                             <div class="card border-0 shadow-sm rounded-3 h-100"
                                  style="transition: transform 0.15s;"
                                  onmouseover="this.style.transform='translateY(-2px)'"
                                  onmouseout="this.style.transform='translateY(0)'">
                                 <div class="card-body d-flex align-items-center p-3">
                                     <svg th:if="${#strings.isEmpty(manager.profileImage)}"
-                                         th:data-jdenticon-value="${manager.nickname}"
+                                         th:data-jdenticon-value="${manager.id}"
                                          width="52" height="52"
                                          class="rounded-circle border flex-shrink-0 me-3"></svg>
                                     <img th:if="${!#strings.isEmpty(manager.profileImage)}"
@@ -73,7 +74,7 @@
                                          alt="프로필"/>
                                     <div>
                                         <span class="fw-semibold text-dark"
-                                              th:text="${manager.nickname}">닉네임</span>
+                                              th:text="${manager.nickname ?: ''}">닉네임</span>
                                         <span class="badge rounded-pill ms-1"
                                               style="background: #f8f5ee; color: #bfa473; font-size: 0.7rem;">관리자</span>
                                         <p class="text-muted small mb-0 mt-1 text-truncate"
@@ -97,14 +98,15 @@
                 </h6>
                 <div class="row g-3">
                     <div class="col-md-6 col-lg-4" th:each="member : ${study.members}">
-                        <a th:href="@{'/profile/' + ${member.nickname}}" class="text-decoration-none">
+                        <a th:href="${#strings.isEmpty(member.nickname)} ? '#' : '/profile/' + member.nickname"
+                           class="text-decoration-none">
                             <div class="card border-0 shadow-sm rounded-3 h-100"
                                  style="transition: transform 0.15s;"
                                  onmouseover="this.style.transform='translateY(-2px)'"
                                  onmouseout="this.style.transform='translateY(0)'">
                                 <div class="card-body d-flex align-items-center p-3">
                                     <svg th:if="${#strings.isEmpty(member.profileImage)}"
-                                         th:data-jdenticon-value="${member.nickname}"
+                                         th:data-jdenticon-value="${member.id}"
                                          width="52" height="52"
                                          class="rounded-circle border flex-shrink-0 me-3"></svg>
                                     <img th:if="${!#strings.isEmpty(member.profileImage)}"
@@ -114,7 +116,7 @@
                                          alt="프로필"/>
                                     <div>
                                         <span class="fw-semibold text-dark"
-                                              th:text="${member.nickname}">닉네임</span>
+                                              th:text="${member.nickname ?: ''}">닉네임</span>
                                         <p class="text-muted small mb-0 mt-1 text-truncate"
                                            style="max-width: 180px;"
                                            th:text="${member.bio ?: ''}"></p>

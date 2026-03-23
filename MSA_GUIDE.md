@@ -12,14 +12,14 @@
 | Phase 2 | account-service | ✅ 완료 (통합 테스트 완료) |
 | Phase 3 | frontend-service (인증 페이지 + study 페이지 전체) | ✅ 완료 |
 | Phase 4 | study-service 소스코드 | ✅ 완료 |
-| Phase 4 | study-service InternalStudyController 추가 엔드포인트 | 🔲 **다음 작업** |
+| Phase 4 | study-service InternalStudyController 추가 엔드포인트 | ✅ 완료 (8개 엔드포인트 구현) |
 | Phase 4 | event-service | 🔲 예정 |
 | Phase 5 | notification-service | 🔲 예정 |
 | Phase 6 | admin-service | 🔲 예정 |
 
 **다음 즉시 할 일:**
-1. study-service `InternalStudyController` 추가 엔드포인트 구현 (8개)
-2. 스터디 페이지 통합 테스트
+1. 전체 서비스 재기동 후 스터디 페이지 통합 테스트 (Phase 4 전체 실통)
+2. event-service 개발 (Phase 4 다음 단계)
 
 자세한 TODO는 `MSA_TODO.txt` 참고.
 
