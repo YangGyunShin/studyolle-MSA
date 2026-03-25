@@ -415,5 +415,7 @@ frontend-service로 라우팅
 
 ---
 
-*최종 확정일: 2026-03-21*
+*최종 확정일: 2026-03-23*
+*변경 이력: account-service /internal/accounts/{id}/full|tags|zones 엔드포인트 추가,
+ study-service /internal/studies/** 8개 엔드포인트 전체 완성*
 *작성: StudyOlle MSA 전환 프로젝트*

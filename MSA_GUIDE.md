@@ -4,22 +4,23 @@
 
 ---
 
-## 현재 진행 상황 (2026-03-21 기준)
+## 현재 진행 상황 (2026-03-23 기준)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
 | Phase 1 | 인프라 (Eureka, Config, API Gateway) | ✅ 완료 |
 | Phase 2 | account-service | ✅ 완료 (통합 테스트 완료) |
 | Phase 3 | frontend-service (인증 페이지 + study 페이지 전체) | ✅ 완료 |
-| Phase 4 | study-service 소스코드 | ✅ 완료 |
-| Phase 4 | study-service InternalStudyController 추가 엔드포인트 | ✅ 완료 (8개 엔드포인트 구현) |
-| Phase 4 | event-service | 🔲 예정 |
+| Phase 4 | study-service 소스코드 + InternalStudyController 8개 엔드포인트 | ✅ 완료 |
+| Phase 4 | 에러 페이지 (404.html, error.html) | ✅ 완료 |
+| Phase 4 | 계정 설정 페이지 5개 + account-service 태그/지역 API | ✅ 완료 |
+| Phase 4 | event-service | 🔲 다음 작업 |
 | Phase 5 | notification-service | 🔲 예정 |
 | Phase 6 | admin-service | 🔲 예정 |
 
 **다음 즉시 할 일:**
-1. 전체 서비스 재기동 후 스터디 페이지 통합 테스트 (Phase 4 전체 실통)
-2. event-service 개발 (Phase 4 다음 단계)
+1. 전체 서비스 재기동 후 스터디 페이지 + 계정 설정 페이지 통합 테스트
+2. event-service 개발 시작 (Phase 4 마지막 단계)
 
 자세한 TODO는 `MSA_TODO.txt` 참고.
 
@@ -33,15 +34,16 @@
     ▼
 [api-gateway :8080]   JWT 검증(쿠키/헤더), 라우팅, X-Account-Id 헤더 추가
     │
-    ├── [account-service  :8081]   회원가입/로그인/JWT 발급
+    ├── [account-service  :8081]   회원가입/로그인/JWT 발급/계정 설정
     ├── [study-service    :8083]   스터디 CRUD/설정/가입
-    ├── [event-service    :8084]   모임 생성/신청 (예정)
+    ├── [event-service    :8084]   모임 생성/신청 (다음 작업)
     └── [notification-service :8085] 알림 (예정)
 
 [frontend-service :8090]   Thymeleaf HTML 서빙 (DB 없음)
     │  브라우저 렌더링 전 RestTemplate 으로 내부 API 호출
-    ├── StudyInternalClient   lb://STUDY-SERVICE/internal/**
-    └── AccountInternalClient  lb://ACCOUNT-SERVICE/internal/**
+    ├── AccountInternalClient  lb://ACCOUNT-SERVICE/internal/**
+    ├── StudyInternalClient    lb://STUDY-SERVICE/internal/**
+    └── (EventInternalClient  — event-service 완성 후 추가)
 
 [eureka-server :8761]   서비스 디스커버리
 [config-server :8888]   중앙 설정 관리
@@ -56,7 +58,7 @@
 
 ---
 
-## api-gateway 필터 구조 (2026-03-21 현재)
+## api-gateway 필터 구조 (현재)
 
 ```
 [브라우저 요청]
@@ -76,7 +78,6 @@
             └── OptionalJwtFilter
                   토큰 없으면 → 그냥 통과 (비로그인 상태)
                   토큰 있으면 → X-Account-Id 헤더 추가 (로그인 상태)
-                  ※ /login, /sign-up, /css/**, /js/** 등 모두 포함
 ```
 
 ---
@@ -95,76 +96,38 @@
    → 쿠키에서 accessToken 읽기 → JWT 검증
    → X-Account-Id: 123 헤더 추가
 
-④ frontend-service HomeController
+④ frontend-service HomeController / AccountPageController
    → accountId = 123 → AccountInternalClient.getAccountSummary(123)
    → account-service GET /internal/accounts/123 호출
-   → AccountSummaryResponse 반환 → 대시보드 렌더링
+   → 대시보드 또는 설정 페이지 렌더링
 ```
 
 ---
 
-## 이메일 인증 흐름 (2026-03-21 현재)
-
-```
-① 회원가입 성공
-   → account-service SignUpService
-   → app.host(http://localhost:8080) + link(/check-email-token?token=...&email=...)
-   → ConsoleEmailService: 콘솔에 HTML 출력 (local 프로파일)
-   → "직접 복사 링크:" 줄 = th:utext로 &amp; 없이 출력
-
-② 인증 링크 클릭
-   → http://localhost:8080/check-email-token?token=...&email=...
-   → api-gateway → OptionalJwtFilter → frontend-service
-   → check-email-token.html 로드
-
-③ check-email-token.html JS
-   → fetch(API_BASE + '/api/auth/check-email-token?token=...&email=...')
-   → api-gateway → account-service
-   → 인증 성공 → 성공 화면 표시 + 로그인 버튼
-   (JWT 발급 없음 — checkEmailToken이 CommonApiResponse<Void> 반환)
-```
-
----
-
-## 내부 서비스 통신 구조
-
-```
-[frontend-service]
-    │
-    │  X-Internal-Service: frontend-service
-    │  X-Account-Id: {id}
-    ▼
-[account-service]  GET /internal/accounts/{id}
-    → AccountInternalController → AccountSummaryResponse 반환
-
-[frontend-service]
-    │
-    │  X-Internal-Service: frontend-service
-    │  X-Account-Id: {id}
-    ▼
-[study-service]  GET /internal/studies/dashboard?accountId={id}
-                 GET /internal/studies/{path}/page-data?accountId={id}
-                 GET /internal/studies/recent
-                 ... (8개 엔드포인트, 미구현)
-```
-
----
-
-## account-service 주요 파일 목록 (2026-03-21 기준)
+## account-service 주요 파일 목록 (2026-03-23 기준)
 
 ```
 account-service/src/main/java/com/studyolle/account/
 ├── AccountServiceApplication.java
 ├── config/
 ├── controller/
-│     AuthController.java          POST /api/auth/signup, /login, /refresh, /check-email-token
-│     AccountController.java       GET/PUT /api/accounts/**
-│     AccountInternalController.java   GET /internal/accounts/{id}  ← 2026-03-21 추가
+│     AuthController.java               POST /api/auth/signup, /login, /refresh, /check-email-token
+│     AccountController.java            GET/PUT /api/accounts/**
+│                                       GET/POST /api/accounts/settings/tags/**
+│                                       GET/POST /api/accounts/settings/zones/**
+│     AccountInternalController.java    GET /internal/accounts/{id}
+│                                       GET /internal/accounts/{id}/full
+│                                       GET /internal/accounts/{id}/tags
+│                                       GET /internal/accounts/{id}/zones
 ├── dto/
-│     request/  SignUpRequest, LoginRequest, ...
-│     response/ CommonApiResponse, AccountResponse, AccountSummaryResponse  ← 추가
-│               JwtTokenResponse, ...
+│     request/  SignUpRequest, LoginRequest, UpdateProfileRequest,
+│               UpdatePasswordRequest, UpdateNicknameRequest,
+│               UpdateNotificationsRequest, TagRequest, ZoneRequest
+│     response/ CommonApiResponse, AccountResponse, AccountSummaryResponse,
+│               JwtTokenResponse
 ├── entity/  Account.java
+│             ├── tags  (@ElementCollection → account_tags 테이블)
+│             └── zones (@ElementCollection → account_zones 테이블)
 ├── exception/  GlobalExceptionHandler.java
 ├── infra/mail/  ConsoleEmailService(@Profile("local")), HtmlEmailService
 ├── repository/  AccountRepository.java
@@ -174,17 +137,50 @@ account-service/src/main/java/com/studyolle/account/
 
 ---
 
-## api-gateway 주요 파일 목록 (2026-03-21 기준)
+## frontend-service 주요 파일 목록 (2026-03-23 기준)
 
 ```
-api-gateway/src/main/java/com/studyolle/gateway/
-├── ApiGatewayApplication.java
-└── filter/
-      JwtAuthenticationFilter.java   Authorization 헤더 + 쿠키(accessToken) JWT 읽기
-      OptionalJwtFilter.java         토큰 없어도 통과, 있으면 X-Account-Id 추가  ← 추가
+frontend-service/src/main/
+├── java/com/studyolle/frontend/
+│     ├── FrontendServiceApplication.java
+│     ├── HomeController.java
+│     ├── config/RestTemplateConfig.java
+│     ├── common/InternalHeaderHelper.java
+│     ├── account/
+│     │     controller/
+│     │         AuthPageController.java      /login, /sign-up, /check-email 등
+│     │         AccountPageController.java   /settings/** (신규 추가)
+│     │     client/
+│     │         AccountInternalClient.java   getAccountSummary, getAccountSettings,
+│     │                                      getAccountTags, getAccountZones
+│     │     dto/
+│     │         AccountSummaryDto.java
+│     │         AccountSettingsDto.java      (신규 추가)
+│     └── study/
+│           controller/StudyPageController.java
+│           client/StudyInternalClient.java
+│           dto/ (StudyPageDataDto, MemberDto, JoinRequestDto,
+│                 DashboardDto, StudySummaryDto, EventSummaryDto)
+│
+└── resources/
+      templates/
+          fragments.html          account-settings-menu 프래그먼트 추가
+          index.html, login.html
+          account/ (sign-up, check-email, check-email-token, email-login)
+          study/   (form, view, members, settings/*)
+          settings/               (신규 추가)
+              profile.html, password.html, notifications.html
+              tags.html, zones.html
+          error/                  (신규 추가)
+              404.html, error.html
+      static/css/ (auth-style.css, main-style.css)
+      static/js/  (glass-validation.js)
 ```
 
-`application.yml` 라우팅 (현재):
+---
+
+## api-gateway application.yml 라우팅 (현재)
+
 ```yaml
 routes:
   - id: account-service-public
@@ -212,12 +208,12 @@ routes:
 ## 전체 서비스 기동 순서
 
 ```
-1. eureka-server  (8761)
-2. config-server  (8888)
-3. api-gateway    (8080)
-4. account-service (8081)  ← IntelliJ Run Config: Active profiles = local
-5. study-service  (8083)
-6. frontend-service (8090)
+1. eureka-server   (:8761)
+2. config-server   (:8888)
+3. api-gateway     (:8080)
+4. account-service (:8081)  — IntelliJ Active profiles: local
+5. study-service   (:8083)
+6. frontend-service (:8090)
 
 접속: http://localhost:8080
 ```
