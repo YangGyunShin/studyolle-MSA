@@ -15,7 +15,7 @@
 | Phase 4 | 에러 페이지 (404.html, error.html) | ✅ 완료 |
 | Phase 4 | 계정 설정 페이지 5개 + account-service 태그/지역 API | ✅ 완료 |
 | Phase 4 | event-service 백엔드 (Entity/Repository/Service/Controller/Config/Filter) | ✅ 완료 |
-| Phase 4 | event-service frontend 템플릿 (form.html, view.html) | 🔲 다음 작업 |
+| Phase 4 | event-service frontend 템플릿 (form.html, view.html) | ✅ 완료 |
 | Phase 5 | notification-service | 🔲 예정 |
 | Phase 6 | admin-service | 🔲 예정 |
 

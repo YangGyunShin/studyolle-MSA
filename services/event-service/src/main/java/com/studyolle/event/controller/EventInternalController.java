@@ -39,4 +39,12 @@ public class EventInternalController {
                         .toList()
         );
     }
+
+    // - EventService.getEventWithEnrollments(eventId) 가 enrollment 포함해서 조회함
+    @GetMapping("/internal/events/{eventId}")
+    public ResponseEntity<EventResponse> getEventById(@PathVariable Long eventId) {
+        return ResponseEntity.ok(
+                EventResponse.from(eventService.getEventWithEnrollments(eventId))
+        );
+    }
 }

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<!--
+    event/view.html  (MSA 버전)
+
+    [역할]
+    모임 상세 페이지. 참가 신청/취소 + 관리자 enrollment 관리(수락/거절/출석체크)를 포함한다.
+
+    [필요한 model 속성]
+    - study           : StudyPageDataDto
+    - account         : AccountSummaryDto
+    - event           : EventSummaryDto (enrollments 포함)
+    - isManager       : boolean
+    - isMember        : boolean
+    - hasPendingRequest : boolean
+    - myEnrollment    : EnrollmentDto (null = 미신청)
+    - isEnrollable    : boolean (신청 가능 여부)
+    - isDisenrollable : boolean (취소 가능 여부)
+    - apiBase         : String
+
+    [신청/취소/관리 API 흐름]
+    브라우저 fetch() -> api-gateway (JWT 검증) -> event-service
+    각 버튼의 fetch() 에 Authorization: Bearer {accessToken} 헤더 포함
+
+    [모임 종류]
+    FCFS        (선착순) : 신청 즉시 accepted=true
+    CONFIRMATIVE (관리자 확인) : 신청 후 관리자가 수락/거절
+
+    [출석 체크]
+    관리자만 가능. 모임 당일 수락된 참가자에게 출석 표시.
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head(${event.title})}"></head>
+
+<body class="bg-light">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+<div th:replace="~{fragments.html :: study-info}"></div>
+
+<!-- 본문 -->
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+
+            <!-- ========== 상단 breadcrumb ========== -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb small">
+                    <li class="breadcrumb-item">
+                        <a th:href="@{'/study/' + ${study.path}}" class="text-decoration-none"
+                           style="color: #8e85b0;" th:text="${study.title}">스터디</a>
+                    </li>
+                    <li class="breadcrumb-item active text-muted">모임</li>
+                </ol>
+            </nav>
+
+            <!-- ========== 모임 헤더 카드 ========== -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <div class="row align-items-start g-3">
+
+                        <!-- 좌: 제목 + 메타 정보 -->
+                        <div class="col-md-8">
+
+                            <!-- 종류 배지 + 제목 -->
+                            <div class="mb-2">
+                                <span class="badge rounded-pill me-2"
+                                      th:if="${event.eventType == 'FCFS'}"
+                                      style="background: #f0ece8; color: #bfa473; font-size: 0.75rem;">
+                                    <i class="fa-solid fa-bolt me-1"></i>선착순
+                                </span>
+                                <span class="badge rounded-pill me-2"
+                                      th:if="${event.eventType == 'CONFIRMATIVE'}"
+                                      style="background: #ede8f5; color: #8e85b0; font-size: 0.75rem;">
+                                    <i class="fa-solid fa-user-check me-1"></i>관리자 확인
+                                </span>
+                            </div>
+                            <h3 class="fw-bold mb-3" style="color: #2c2843; font-size: 1.4rem;"
+                                th:text="${event.title}">모임 이름</h3>
+
+                            <!-- 일정 정보 -->
+                            <div class="d-flex flex-column gap-2">
+                                <div class="d-flex align-items-center gap-2 text-muted small">
+                                    <i class="fa-solid fa-clock-rotate-left" style="color: #8e85b0; width: 16px;"></i>
+                                    <span>
+                                        모집 마감:
+                                        <strong class="text-dark"
+                                                th:text="${#temporals.format(event.endEnrollmentDateTime, 'yyyy.MM.dd HH:mm')}">
+                                            마감일시
+                                        </strong>
+                                    </span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 text-muted small">
+                                    <i class="fa-solid fa-calendar-check" style="color: #7fac8e; width: 16px;"></i>
+                                    <span>
+                                        모임 시작:
+                                        <strong class="text-dark"
+                                                th:text="${#temporals.format(event.startDateTime, 'yyyy.MM.dd HH:mm')}">
+                                            시작일시
+                                        </strong>
+                                    </span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 text-muted small">
+                                    <i class="fa-solid fa-calendar-xmark" style="color: #c4917e; width: 16px;"></i>
+                                    <span>
+                                        모임 종료:
+                                        <strong class="text-dark"
+                                                th:text="${#temporals.format(event.endDateTime, 'yyyy.MM.dd HH:mm')}">
+                                            종료일시
+                                        </strong>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 우: 인원 현황 + 신청 버튼 -->
+                        <div class="col-md-4">
+
+                            <!-- 인원 현황 카드 -->
+                            <div class="rounded-3 p-3 text-center mb-3"
+                                 style="background: #f8f7fc; border: 1px solid #e8e5f0;">
+                                <div class="d-flex justify-content-around">
+                                    <div>
+                                        <div class="fw-bold fs-4" style="color: #8e85b0;"
+                                             th:text="${event.acceptedCount}">0</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">수락됨</div>
+                                    </div>
+                                    <div class="border-start" style="border-color: #e8e5f0 !important;"></div>
+                                    <div>
+                                        <div class="fw-bold fs-4"
+                                             th:style="${event.remainSpots > 0} ? 'color: #7fac8e;' : 'color: #c4917e;'"
+                                             th:text="${event.remainSpots}">0</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">남은 자리</div>
+                                    </div>
+                                    <div class="border-start" style="border-color: #e8e5f0 !important;"></div>
+                                    <div>
+                                        <div class="fw-bold fs-4 text-dark"
+                                             th:text="${event.limitOfEnrollments}">0</div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">정원</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 신청/취소 버튼 -->
+                            <div class="d-grid gap-2">
+
+                                <!-- 신청하기 -->
+                                <button th:if="${isEnrollable}"
+                                        class="btn rounded-pill text-white"
+                                        style="background: #7fac8e; border: none;"
+                                        onclick="enrollEvent()">
+                                    <i class="fa-solid fa-user-plus me-1"></i>참가 신청하기
+                                </button>
+
+                                <!-- 신청 취소 -->
+                                <button th:if="${isDisenrollable}"
+                                        class="btn rounded-pill"
+                                        style="border: 2px solid #c4917e; color: #c4917e;"
+                                        th:onclick="'cancelEnrollment(' + ${myEnrollment?.id} + ')'">
+                                    <i class="fa-solid fa-user-minus me-1"></i>참가 취소
+                                </button>
+
+                                <!-- 대기 중 (CONFIRMATIVE, 미수락) -->
+                                <div th:if="${myEnrollment != null && !myEnrollment.accepted}"
+                                     class="text-center py-2 rounded-pill"
+                                     style="background: #f0ece8; color: #bfa473; font-size: 0.85rem; border: 1.5px solid #e8d9cc;">
+                                    <i class="fa-solid fa-hourglass-half me-1"></i>승인 대기 중
+                                </div>
+
+                                <!-- 수락됨 -->
+                                <div th:if="${myEnrollment != null && myEnrollment.accepted && !myEnrollment.attended}"
+                                     class="text-center py-2 rounded-pill"
+                                     style="background: #e8f4ee; color: #7fac8e; font-size: 0.85rem; border: 1.5px solid #c8e6d4;">
+                                    <i class="fa-solid fa-circle-check me-1"></i>참가 확정
+                                </div>
+
+                                <!-- 출석 완료 -->
+                                <div th:if="${myEnrollment != null && myEnrollment.attended}"
+                                     class="text-center py-2 rounded-pill"
+                                     style="background: #ede8f5; color: #8e85b0; font-size: 0.85rem; border: 1.5px solid #d0ccdf;">
+                                    <i class="fa-solid fa-stamp me-1"></i>출석 완료
+                                </div>
+
+                                <!-- 비로그인 -->
+                                <a th:if="${account == null}"
+                                   href="/login"
+                                   class="btn btn-outline-secondary rounded-pill"
+                                   style="font-size: 0.85rem;">
+                                    <i class="fa-solid fa-right-to-bracket me-1"></i>로그인 후 신청
+                                </a>
+
+                                <!-- 모임 만료 -->
+                                <div th:if="${account != null && !isEnrollable && !isDisenrollable
+                                             && myEnrollment == null
+                                             && !isManager}"
+                                     class="text-center py-2 rounded-pill text-muted"
+                                     style="background: #f5f5f5; font-size: 0.85rem; border: 1.5px solid #ddd;">
+                                    <i class="fa-solid fa-lock me-1"></i>신청 마감됨
+                                </div>
+
+                                <!-- 관리자 수정 버튼 -->
+                                <a th:if="${isManager}"
+                                   th:href="@{'/study/' + ${study.path} + '/events/' + ${event.id} + '/edit'}"
+                                   class="btn rounded-pill"
+                                   style="border: 1.5px solid #8e85b0; color: #8e85b0; font-size: 0.85rem;">
+                                    <i class="fa-solid fa-pen me-1"></i>모임 수정
+                                </a>
+                                <button th:if="${isManager}"
+                                        class="btn rounded-pill"
+                                        style="border: 1.5px solid #c4917e; color: #c4917e; font-size: 0.85rem;"
+                                        onclick="deleteEvent()">
+                                    <i class="fa-solid fa-trash me-1"></i>모임 삭제
+                                </button>
+
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== 모임 소개 ========== -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4"
+                 th:if="${!#strings.isEmpty(event.description)}">
+                <div class="card-header bg-white border-bottom-0 rounded-top-4 py-3 px-4">
+                    <h6 class="fw-bold mb-0" style="color: #2c2843;">
+                        <i class="fa-solid fa-file-lines me-2" style="color: #8e85b0;"></i>모임 소개
+                    </h6>
+                </div>
+                <div class="card-body px-4 pb-4 pt-2">
+                    <!--
+                        th:utext: Summernote 가 저장한 HTML 을 그대로 렌더링.
+                        XSS 방어는 event-service 저장 시 처리됨을 전제로 한다.
+                    -->
+                    <div class="summernote-output" th:utext="${event.description}">
+                        모임 소개
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== 참가자 목록 ========== -->
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-header bg-white border-bottom rounded-top-4 py-3 px-4"
+                     style="border-color: #e8e5f0 !important;">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <h6 class="fw-bold mb-0" style="color: #2c2843;">
+                            <i class="fa-solid fa-users me-2" style="color: #8e85b0;"></i>참가자 목록
+                            <span class="badge rounded-pill ms-1 fw-normal"
+                                  style="background: #f0ece8; color: #6d6484; font-size: 0.75rem;"
+                                  th:text="${event.enrollments != null ? event.enrollments.size() : 0} + '명'">0명</span>
+                        </h6>
+                        <span class="small text-muted" th:if="${isManager}">
+                            <i class="fa-solid fa-circle-info me-1"></i>관리자: 수락/거절/출석 관리 가능
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+
+                    <!-- 신청자 없을 때 -->
+                    <div th:if="${event.enrollments == null || event.enrollments.isEmpty()}"
+                         class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-user-group fa-2x mb-2" style="color: #d0ccdf;"></i>
+                        <p class="mb-0 small">아직 신청한 참가자가 없습니다.</p>
+                    </div>
+
+                    <!-- 참가자 테이블 -->
+                    <div th:if="${event.enrollments != null && !event.enrollments.isEmpty()}"
+                         class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-4 py-3 fw-semibold" style="font-size: 0.85rem;">#</th>
+                                    <th class="py-3 fw-semibold" style="font-size: 0.85rem;">참가자</th>
+                                    <th class="py-3 fw-semibold" style="font-size: 0.85rem;">신청 일시</th>
+                                    <th class="py-3 fw-semibold" style="font-size: 0.85rem;">상태</th>
+                                    <!--
+                                        관리자 열: 수락/거절/출석체크 버튼.
+                                        isManager=false 면 이 열 전체가 렌더링되지 않는다.
+                                    -->
+                                    <th th:if="${isManager}" class="pe-4 py-3 fw-semibold"
+                                        style="font-size: 0.85rem;">관리</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="enrollment, stat : ${event.enrollments}">
+                                    <td class="ps-4 text-muted small" th:text="${stat.count}">1</td>
+                                    <td>
+                                        <!--
+                                            참가자 닉네임은 현재 account-service batch API 가 없어
+                                            accountId 만 표시한다.
+                                            Phase 5 에서 batch API 추가 후 닉네임으로 교체 예정.
+                                        -->
+                                        <div class="d-flex align-items-center gap-2">
+                                            <svg th:data-jdenticon-value="${enrollment.accountId}"
+                                                 width="32" height="32"
+                                                 class="rounded-circle border flex-shrink-0"></svg>
+                                            <span class="small fw-semibold text-dark"
+                                                  th:text="'#' + ${enrollment.accountId}">참가자</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-muted small"
+                                        th:text="${enrollment.enrolledAt != null
+                                                   ? #temporals.format(enrollment.enrolledAt, 'yyyy.MM.dd HH:mm')
+                                                   : '-'}">신청일시</td>
+                                    <td>
+                                        <!-- 수락 + 출석 -->
+                                        <span th:if="${enrollment.accepted && enrollment.attended}"
+                                              class="badge rounded-pill"
+                                              style="background: #ede8f5; color: #8e85b0; font-size: 0.75rem;">
+                                            <i class="fa-solid fa-stamp me-1"></i>출석
+                                        </span>
+                                        <!-- 수락 + 미출석 -->
+                                        <span th:if="${enrollment.accepted && !enrollment.attended}"
+                                              class="badge rounded-pill"
+                                              style="background: #e8f4ee; color: #7fac8e; font-size: 0.75rem;">
+                                            <i class="fa-solid fa-circle-check me-1"></i>수락됨
+                                        </span>
+                                        <!-- 대기 중 -->
+                                        <span th:if="${!enrollment.accepted}"
+                                              class="badge rounded-pill"
+                                              style="background: #f0ece8; color: #bfa473; font-size: 0.75rem;">
+                                            <i class="fa-solid fa-hourglass-half me-1"></i>대기
+                                        </span>
+                                    </td>
+                                    <!-- 관리자 액션 버튼 열 -->
+                                    <td th:if="${isManager}" class="pe-4">
+                                        <div class="d-flex gap-1 flex-wrap">
+                                            <!-- 수락 (대기 중인 경우) -->
+                                            <button th:if="${!enrollment.accepted}"
+                                                    class="btn btn-sm rounded-pill px-2 py-1"
+                                                    style="border: 1px solid #7fac8e; color: #7fac8e; font-size: 0.75rem;"
+                                                    th:onclick="'acceptEnrollment(' + ${enrollment.id} + ')'">
+                                                수락
+                                            </button>
+                                            <!-- 거절 (대기 중인 경우) -->
+                                            <button th:if="${!enrollment.accepted}"
+                                                    class="btn btn-sm rounded-pill px-2 py-1"
+                                                    style="border: 1px solid #c4917e; color: #c4917e; font-size: 0.75rem;"
+                                                    th:onclick="'rejectEnrollment(' + ${enrollment.id} + ')'">
+                                                거절
+                                            </button>
+                                            <!-- 출석 체크 (수락됨 + 미출석) -->
+                                            <button th:if="${enrollment.accepted && !enrollment.attended}"
+                                                    class="btn btn-sm rounded-pill px-2 py-1"
+                                                    style="border: 1px solid #8e85b0; color: #8e85b0; font-size: 0.75rem;"
+                                                    th:onclick="'checkIn(' + ${enrollment.id} + ')'">
+                                                출석
+                                            </button>
+                                            <!-- 출석 취소 (출석됨) -->
+                                            <button th:if="${enrollment.attended}"
+                                                    class="btn btn-sm rounded-pill px-2 py-1"
+                                                    style="border: 1px solid #999; color: #999; font-size: 0.75rem;"
+                                                    th:onclick="'cancelCheckIn(' + ${enrollment.id} + ')'">
+                                                출석취소
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    var STUDY_PATH = [[${study.path}]];
+    var EVENT_ID   = [[${event.id}]];
+
+    // ------------------------------------------------------------------
+    // 참가 신청
+    // ------------------------------------------------------------------
+    async function enrollEvent() {
+        try {
+            var res = await fetch(
+                API_BASE + '/api/studies/' + STUDY_PATH + '/events/' + EVENT_ID + '/enroll',
+                { method: 'POST', headers: authHeaders() }
+            );
+            if (res.ok) {
+                location.reload();
+            } else {
+                var data = await res.json().catch(() => ({}));
+                alert(data.message || '신청 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            alert('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 참가 취소
+    // ------------------------------------------------------------------
+    async function cancelEnrollment(enrollmentId) {
+        if (!confirm('참가 신청을 취소하시겠습니까?')) return;
+        try {
+            var res = await fetch(
+                API_BASE + '/api/studies/' + STUDY_PATH + '/events/' + EVENT_ID + '/leave',
+                { method: 'POST', headers: authHeaders() }
+            );
+            if (res.ok) {
+                location.reload();
+            } else {
+                var data = await res.json().catch(() => ({}));
+                alert(data.message || '취소 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            alert('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 관리자: 수락
+    // ------------------------------------------------------------------
+    async function acceptEnrollment(enrollmentId) {
+        try {
+            var res = await fetch(
+                API_BASE + '/api/studies/' + STUDY_PATH + '/events/' + EVENT_ID
+                    + '/enrollments/' + enrollmentId + '/accept',
+                { method: 'POST', headers: authHeaders() }
+            );
+            if (res.ok) {
+                location.reload();
+            } else {
+                var data = await res.json().catch(() => ({}));
+                alert(data.message || '수락 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            alert('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 관리자: 거절
+    // ------------------------------------------------------------------
+    async function rejectEnrollment(enrollmentId) {
+        if (!confirm('이 신청을 거절하시겠습니까?')) return;
+        try {
+            var res = await fetch(
+                API_BASE + '/api/studies/' + STUDY_PATH + '/events/' + EVENT_ID
+                    + '/enrollments/' + enrollmentId + '/reject',
+                { method: 'POST', headers: authHeaders() }
+            );
+            if (res.ok) {
+                location.reload();
+            } else {
+                var data = await res.json().catch(() => ({}));
+                alert(data.message || '거절 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            alert('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 관리자: 출석 체크
+    // ------------------------------------------------------------------
+    async function checkIn(enrollmentId) {
+        try {
+            var res = await fetch(
+                API_BASE + '/api/studies/' + STUDY_PATH + '/events/' + EVENT_ID
+                    + '/enrollments/' + enrollmentId + '/checkin',
+                { method: 'POST', headers: authHeaders() }
+            );
+            if (res.ok) {
+                location.reload();
+            } else {
+                var data = await res.json().catch(() => ({}));
+                alert(data.message || '출석 체크 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            alert('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 관리자: 출석 취소
+    // ------------------------------------------------------------------
+    async function cancelCheckIn(enrollmentId) {
+        if (!confirm('출석 체크를 취소하시겠습니까?')) return;
+        try {
+            var res = await fetch(
+                API_BASE + '/api/studies/' + STUDY_PATH + '/events/' + EVENT_ID
+                    + '/enrollments/' + enrollmentId + '/cancel-checkin',
+                { method: 'POST', headers: authHeaders() }
+            );
+            if (res.ok) {
+                location.reload();
+            } else {
+                var data = await res.json().catch(() => ({}));
+                alert(data.message || '출석 취소 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            alert('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 관리자: 모임 삭제
+    // ------------------------------------------------------------------
+    async function deleteEvent() {
+        if (!confirm('정말 이 모임을 삭제하시겠습니까?\n삭제된 모임은 복구할 수 없습니다.')) return;
+        try {
+            var res = await fetch(
+                API_BASE + '/api/studies/' + STUDY_PATH + '/events/' + EVENT_ID,
+                { method: 'DELETE', headers: authHeaders() }
+            );
+            if (res.ok) {
+                window.location.href = '/study/' + STUDY_PATH;
+            } else {
+                var data = await res.json().catch(() => ({}));
+                alert(data.message || '삭제 중 오류가 발생했습니다.');
+            }
+        } catch (e) {
+            alert('서버와 연결할 수 없습니다.');
+            console.error(e);
+        }
+    }
+    /*]]>*/
+</script>
+
+</body>
+</html>

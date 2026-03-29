@@ -2,455 +2,382 @@
 <!--
     event/form.html  (MSA 버전)
 
-    [용도]
-    - 모임 생성: GET /study/{path}/events/new         event 모델이 null
-    - 모임 수정: GET /study/{path}/events/{id}/edit   event 모델에 기존 데이터 있음
+    [역할]
+    모임 생성 및 수정을 위한 폼 페이지.
+    EventPageController 가 isEdit=false 면 생성, true 면 수정 모드로 렌더링한다.
 
-    [모노리틱과의 핵심 차이]
-    1. <form th:action> 제거 -> fetch(POST or PUT) + Authorization: Bearer
-    2. CSRF 제거
-    3. sec:authorize 제거 -> th:if="${isManager}"
-    4. datetime-local input 사용 (LocalDateTime 직렬화)
+    [인증/권한]
+    EventPageController 에서 isManager=false 이면 403 반환 -> 이 페이지는 항상 관리자 전용.
+
+    [데이터 저장 방식]
+    - 생성: fetch() POST  /api/studies/{path}/events       (Bearer 토큰)
+    - 수정: fetch() PUT   /api/studies/{path}/events/{id}  (Bearer 토큰)
+    - api-gateway -> event-service (JWT 검증 후 X-Account-Id 헤더로 전달)
 
     [필요한 model 속성]
-    - study   : StudyPageDataDto  (path, title -- study-info 헤더용)
-    - account : AccountSummaryDto or null
-    - event   : EventResponse or null
-                null   -> 생성 모드
-                non-null -> 수정 모드 (기존 값 pre-fill)
-    - isManager : boolean  (관리자 아니면 이 페이지에 진입 불가)
-    - apiBase : String
+    - study       : StudyPageDataDto
+    - account     : AccountSummaryDto
+    - event       : EventSummaryDto (수정 시 기본값 바인딩, 생성 시 null)
+    - isEdit      : boolean
+    - isManager   : boolean  (항상 true — 컨트롤러에서 보장)
+    - isMember    : boolean
+    - hasPendingRequest : boolean
+    - apiBase     : String
+
+    [Summernote]
+    description 필드에 Summernote 에디터를 사용한다.
+    저장 시 summernote('code') 로 HTML 을 추출해 JSON body 에 포함한다.
+
+    [datetime-local 포맷]
+    브라우저의 datetime-local input 은 "yyyy-MM-ddTHH:mm" 형식을 반환한다.
+    event-service Jackson 은 이 형식을 LocalDateTime 으로 자동 파싱한다.
+    Thymeleaf 에서 기존 값을 바인딩할 때는 #temporals.format() 으로 동일 포맷 출력.
 -->
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 
-<head th:replace="~{fragments.html :: head(${event == null ? '새 모임 만들기' : '모임 수정'})}"></head>
-<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.css" rel="stylesheet">
+<head th:replace="~{fragments.html :: head(${isEdit ? '모임 수정' : '모임 만들기'})}"></head>
 
 <body class="bg-light">
 
 <nav th:replace="~{fragments.html :: main-nav}"></nav>
 <div th:replace="~{fragments.html :: study-info}"></div>
 
+<!-- Summernote CSS -->
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.css" rel="stylesheet">
+
+<!-- 본문 -->
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-lg-8 col-md-10">
+        <div class="col-lg-8">
 
-            <!-- 헤더 -->
-            <div class="text-center mb-4">
-                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
-                     style="width: 72px; height: 72px; background: linear-gradient(135deg, #8e85b0 0%, #a099bd 100%);">
-                    <i class="fa-solid fa-calendar-plus text-white" style="font-size: 1.8rem;"></i>
+            <!-- 페이지 헤더 -->
+            <div class="d-flex align-items-center mb-4">
+                <a th:href="@{'/study/' + ${study.path}}"
+                   class="btn btn-sm btn-outline-secondary rounded-pill me-3 px-3">
+                    <i class="fa-solid fa-arrow-left me-1"></i>스터디로
+                </a>
+                <div>
+                    <h4 class="fw-bold mb-0" style="color: #2c2843;">
+                        <i class="fa-solid fa-calendar-plus me-2" style="color: #8e85b0;"></i>
+                        <span th:text="${isEdit ? '모임 수정' : '새 모임 만들기'}">모임</span>
+                    </h4>
+                    <small class="text-muted" th:text="${study.title}">스터디명</small>
                 </div>
-                <h2 class="fw-bold mb-1"
-                    th:text="${event == null ? '새 모임 만들기' : '모임 수정'}">새 모임 만들기</h2>
-                <p class="text-muted small"
-                   th:text="${study.title}">스터디 이름</p>
             </div>
 
-            <!-- 공통 에러 박스 -->
-            <div id="errorGeneral" class="alert alert-danger border-0 rounded-3 mb-4"
-                 role="alert" style="display:none;">
-                <i class="fa-solid fa-circle-exclamation me-2"></i>
-                <span id="errorGeneralMsg"></span>
-            </div>
+            <!-- 폼 카드 -->
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-body p-4 p-md-5">
 
-            <!-- 기본 정보 -->
-            <div class="card border-0 shadow-sm rounded-3 mb-4">
-                <div class="card-header bg-white border-bottom pt-3 pb-2">
-                    <h6 class="fw-bold text-dark mb-0">
-                        <i class="fa-solid fa-circle-info text-primary me-2"></i>기본 정보
-                    </h6>
-                </div>
-                <div class="card-body p-4">
-
-                    <!-- 모임 제목 -->
+                    <!-- 모임 이름 -->
                     <div class="mb-4">
-                        <label for="title" class="form-label fw-semibold">
-                            모임 제목 <span class="text-danger">*</span>
+                        <label for="title" class="form-label fw-semibold"
+                               style="color: #2c2843; font-size: 0.9rem;">
+                            <i class="fa-solid fa-pen me-1" style="color: #8e85b0;"></i>
+                            모임 이름 <span class="text-danger">*</span>
                         </label>
-                        <input id="title" type="text" class="form-control"
-                               placeholder="예) 1회차 모임 - 1~3장 리뷰"
+                        <input type="text" id="title" class="form-control rounded-3"
+                               placeholder="모임 이름을 입력하세요"
                                maxlength="50"
-                               th:value="${event?.title}">
-                        <div class="form-text">50자 이내로 입력하세요.</div>
-                        <div id="titleError" class="text-danger small mt-1" style="display:none;"></div>
+                               th:value="${event?.title}"
+                               style="border-color: #d0ccdf; font-size: 0.9rem;">
+                        <div class="form-text">최대 50자</div>
                     </div>
 
-                    <!-- 모임 유형 -->
+                    <!-- 모임 종류 -->
                     <div class="mb-4">
-                        <label class="form-label fw-semibold">
-                            모집 방법 <span class="text-danger">*</span>
+                        <label class="form-label fw-semibold d-block"
+                               style="color: #2c2843; font-size: 0.9rem;">
+                            <i class="fa-solid fa-sliders me-1" style="color: #8e85b0;"></i>
+                            모임 종류 <span class="text-danger">*</span>
                         </label>
-                        <div class="d-flex gap-3">
+                        <div class="d-flex gap-3 flex-wrap">
                             <!--
-                                FCFS       : 선착순 (먼저 신청하면 자동 수락)
-                                CONFIRMATIVE: 관리자 확인 (관리자가 수동 수락/거절)
-                                수정 모드일 때 기존 eventType 으로 selected
+                                FCFS: 선착순 — limitOfEnrollments 까지 자동 수락
+                                CONFIRMATIVE: 관리자 확인 — 관리자가 수동으로 수락/거절
                             -->
-                            <div class="form-check flex-fill">
-                                <input class="form-check-input" type="radio"
+                            <div class="form-check d-flex align-items-center p-0">
+                                <input class="form-check-input visually-hidden" type="radio"
                                        name="eventType" id="typeFCFS" value="FCFS"
                                        th:checked="${event == null || event.eventType == 'FCFS'}">
-                                <label class="form-check-label fw-semibold text-dark" for="typeFCFS">
-                                    <i class="fa-solid fa-bolt text-warning me-1"></i> 선착순
-                                    <span class="d-block text-muted small fw-normal mt-1">
-                                        신청 즉시 자동으로 수락됩니다.
-                                    </span>
+                                <label class="event-type-label rounded-3 px-4 py-2 me-0"
+                                       for="typeFCFS"
+                                       style="cursor: pointer; border: 2px solid #d0ccdf;
+                                              font-size: 0.85rem; color: #666; transition: all 0.15s;">
+                                    <i class="fa-solid fa-bolt me-1" style="color: #bfa473;"></i>선착순
                                 </label>
                             </div>
-                            <div class="form-check flex-fill">
-                                <input class="form-check-input" type="radio"
+                            <div class="form-check d-flex align-items-center p-0">
+                                <input class="form-check-input visually-hidden" type="radio"
                                        name="eventType" id="typeCONFIRMATIVE" value="CONFIRMATIVE"
-                                       th:checked="${event != null && event.eventType == 'CONFIRMATIVE'}">
-                                <label class="form-check-label fw-semibold text-dark" for="typeCONFIRMATIVE">
-                                    <i class="fa-solid fa-user-check text-primary me-1"></i> 관리자 확인
-                                    <span class="d-block text-muted small fw-normal mt-1">
-                                        관리자가 신청자를 직접 수락/거절합니다.
-                                    </span>
+                                       th:checked="${event?.eventType == 'CONFIRMATIVE'}">
+                                <label class="event-type-label rounded-3 px-4 py-2 me-0"
+                                       style="cursor: pointer; border: 2px solid #d0ccdf;
+                                              font-size: 0.85rem; color: #666; transition: all 0.15s;"
+                                       for="typeCONFIRMATIVE">
+                                    <i class="fa-solid fa-user-check me-1" style="color: #8e85b0;"></i>관리자 확인
                                 </label>
                             </div>
+                        </div>
+                        <div class="form-text mt-1">
+                            <span id="typeHint">
+                                선착순: 신청 순서대로 자동 수락됩니다.
+                            </span>
                         </div>
                     </div>
 
                     <!-- 모집 인원 -->
-                    <div class="mb-0">
-                        <label for="limitOfEnrollments" class="form-label fw-semibold">
+                    <div class="mb-4">
+                        <label for="limitOfEnrollments" class="form-label fw-semibold"
+                               style="color: #2c2843; font-size: 0.9rem;">
+                            <i class="fa-solid fa-users me-1" style="color: #8e85b0;"></i>
                             모집 인원 <span class="text-danger">*</span>
                         </label>
-                        <div class="input-group" style="max-width: 200px;">
-                            <input id="limitOfEnrollments" type="number"
-                                   class="form-control" placeholder="0"
-                                   min="2" max="999"
-                                   th:value="${event?.limitOfEnrollments}">
-                            <span class="input-group-text bg-light">명</span>
+                        <div class="input-group" style="max-width: 180px;">
+                            <input type="number" id="limitOfEnrollments"
+                                   class="form-control rounded-start-3 text-center"
+                                   min="2" max="500"
+                                   th:value="${event?.limitOfEnrollments ?: 2}"
+                                   style="border-color: #d0ccdf; font-size: 0.9rem;">
+                            <span class="input-group-text bg-white rounded-end-3"
+                                  style="border-color: #d0ccdf; font-size: 0.85rem; color: #8e85b0;">명</span>
                         </div>
-                        <div class="form-text">최소 2명 이상 입력하세요.</div>
-                        <div id="limitError" class="text-danger small mt-1" style="display:none;"></div>
+                        <div class="form-text">최소 2명</div>
                     </div>
 
-                </div>
-            </div>
-
-            <!-- 일정 -->
-            <div class="card border-0 shadow-sm rounded-3 mb-4">
-                <div class="card-header bg-white border-bottom pt-3 pb-2">
-                    <h6 class="fw-bold text-dark mb-0">
-                        <i class="fa-solid fa-calendar-days text-warning me-2"></i>일정
-                    </h6>
-                </div>
-                <div class="card-body p-4">
-
-                    <!-- 모집 마감 일시 -->
+                    <!-- 일정 (3개 날짜) -->
                     <div class="mb-4">
-                        <label for="endEnrollmentDateTime" class="form-label fw-semibold">
-                            모집 마감 일시 <span class="text-danger">*</span>
+                        <label class="form-label fw-semibold d-block"
+                               style="color: #2c2843; font-size: 0.9rem;">
+                            <i class="fa-solid fa-calendar-days me-1" style="color: #8e85b0;"></i>
+                            일정 <span class="text-danger">*</span>
                         </label>
-                        <input id="endEnrollmentDateTime" type="datetime-local"
-                               class="form-control"
-                               th:value="${event?.endEnrollmentDateTime}">
-                        <div class="form-text">
-                            <i class="fa-solid fa-circle-info me-1 text-muted"></i>
-                            이 날짜 이후에는 참가 신청을 받지 않습니다.
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="endEnrollmentDateTime"
+                                       class="form-label small text-muted mb-1">모집 마감 일시</label>
+                                <input type="datetime-local" id="endEnrollmentDateTime"
+                                       class="form-control rounded-3"
+                                       style="border-color: #d0ccdf; font-size: 0.85rem;"
+                                       th:value="${event?.endEnrollmentDateTime != null
+                                                  ? #temporals.format(event.endEnrollmentDateTime, 'yyyy-MM-dd''T''HH:mm')
+                                                  : ''}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="startDateTime"
+                                       class="form-label small text-muted mb-1">모임 시작 일시</label>
+                                <input type="datetime-local" id="startDateTime"
+                                       class="form-control rounded-3"
+                                       style="border-color: #d0ccdf; font-size: 0.85rem;"
+                                       th:value="${event?.startDateTime != null
+                                                  ? #temporals.format(event.startDateTime, 'yyyy-MM-dd''T''HH:mm')
+                                                  : ''}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="endDateTime"
+                                       class="form-label small text-muted mb-1">모임 종료 일시</label>
+                                <input type="datetime-local" id="endDateTime"
+                                       class="form-control rounded-3"
+                                       style="border-color: #d0ccdf; font-size: 0.85rem;"
+                                       th:value="${event?.endDateTime != null
+                                                  ? #temporals.format(event.endDateTime, 'yyyy-MM-dd''T''HH:mm')
+                                                  : ''}">
+                            </div>
                         </div>
-                        <div id="endEnrollmentError" class="text-danger small mt-1" style="display:none;"></div>
+                        <div class="form-text mt-1">
+                            모집 마감 → 모임 시작 → 모임 종료 순서여야 합니다.
+                        </div>
                     </div>
 
-                    <!-- 시작 / 종료 -->
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="startDateTime" class="form-label fw-semibold">
-                                모임 시작 일시 <span class="text-danger">*</span>
-                            </label>
-                            <input id="startDateTime" type="datetime-local"
-                                   class="form-control"
-                                   th:value="${event?.startDateTime}">
-                            <div id="startDateError" class="text-danger small mt-1" style="display:none;"></div>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="endDateTime" class="form-label fw-semibold">
-                                모임 종료 일시 <span class="text-danger">*</span>
-                            </label>
-                            <input id="endDateTime" type="datetime-local"
-                                   class="form-control"
-                                   th:value="${event?.endDateTime}">
-                            <div id="endDateError" class="text-danger small mt-1" style="display:none;"></div>
-                        </div>
+                    <!-- 모임 소개 (Summernote) -->
+                    <div class="mb-5">
+                        <label for="description" class="form-label fw-semibold"
+                               style="color: #2c2843; font-size: 0.9rem;">
+                            <i class="fa-solid fa-file-lines me-1" style="color: #8e85b0;"></i>
+                            모임 소개
+                        </label>
+                        <!--
+                            th:utext: 수정 모드에서 Summernote 가 저장한 HTML 을 그대로 주입.
+                            Summernote 초기화 시 이 내용이 에디터 본문이 된다.
+                        -->
+                        <textarea id="description" class="form-control"
+                                  style="display: none;"
+                                  th:utext="${event?.description}"></textarea>
+                    </div>
+
+                    <!-- 유효성 에러 메시지 -->
+                    <div id="errorAlert" class="alert alert-danger rounded-3 d-none mb-3" role="alert">
+                        <i class="fa-solid fa-circle-exclamation me-2"></i>
+                        <span id="errorMsg"></span>
+                    </div>
+
+                    <!-- 버튼 -->
+                    <div class="d-flex gap-3 justify-content-end">
+                        <a th:href="@{'/study/' + ${study.path}}"
+                           class="btn btn-outline-secondary rounded-pill px-4"
+                           style="font-size: 0.9rem;">취소</a>
+                        <button type="button" id="submitBtn"
+                                class="btn rounded-pill px-4 text-white"
+                                style="background: #8e85b0; border: none; font-size: 0.9rem;"
+                                onclick="submitEvent()">
+                            <i class="fa-solid fa-floppy-disk me-1"></i>
+                            <span th:text="${isEdit ? '수정 완료' : '모임 만들기'}">저장</span>
+                        </button>
                     </div>
 
                 </div>
             </div>
-
-            <!-- 모임 설명 -->
-            <div class="card border-0 shadow-sm rounded-3 mb-4">
-                <div class="card-header bg-white border-bottom pt-3 pb-2">
-                    <h6 class="fw-bold text-dark mb-0">
-                        <i class="fa-solid fa-pen-fancy text-warning me-2"></i>모임 설명
-                    </h6>
-                </div>
-                <div class="card-body p-4">
-                    <label for="description" class="form-label fw-semibold">
-                        설명 <span class="text-danger">*</span>
-                    </label>
-                    <!--
-                        Summernote 에디터 대상 textarea.
-                        수정 모드: th:utext 로 기존 HTML 내용을 pre-fill.
-                        제출 시 JS 가 $('#description').summernote('code') 로 읽음.
-                    -->
-                    <textarea id="description" class="form-control" rows="8"
-                              placeholder="모임 목적, 준비물, 진행 방식 등을 입력하세요."
-                              th:utext="${event?.description}"></textarea>
-                    <div id="descError" class="text-danger small mt-1" style="display:none;"></div>
-                </div>
-            </div>
-
-            <!-- 버튼 영역 -->
-            <div class="d-flex justify-content-between align-items-center">
-                <a th:href="@{'/study/' + ${study.path}}"
-                   class="text-muted text-decoration-none">
-                    <i class="fa-solid fa-arrow-left me-1"></i> 스터디로 돌아가기
-                </a>
-                <div class="d-flex gap-2">
-                    <!--
-                        수정 모드일 때만 삭제 버튼 표시
-                        삭제는 별도 confirm 후 DELETE /api/studies/{path}/events/{id} 호출
-                    -->
-                    <button th:if="${event != null}"
-                            id="deleteBtn" type="button"
-                            class="btn btn-outline-danger rounded-pill px-4">
-                        <i class="fa-solid fa-trash me-1"></i> 삭제
-                    </button>
-                    <button id="submitBtn" type="button"
-                            class="btn btn-lg rounded-pill px-5 shadow-sm text-white"
-                            style="background: linear-gradient(135deg, #8e85b0 0%, #a099bd 100%); border: none;">
-                        <i class="fa-solid fa-check me-2" th:if="${event != null}"></i>
-                        <i class="fa-solid fa-rocket me-2" th:if="${event == null}"></i>
-                        <span th:text="${event == null ? '모임 만들기' : '수정 완료'}">모임 만들기</span>
-                    </button>
-                </div>
-            </div>
-
         </div>
     </div>
 </div>
 
 <div th:replace="~{fragments.html :: footer}"></div>
 
-<!-- Summernote -->
+<!-- Summernote JS (jQuery 이후에 로드됨 — footer Bootstrap Bundle 이후) -->
 <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/lang/summernote-ko-KR.min.js"></script>
 
-<!--
-    th:inline="javascript" 로 서버 변수를 JS 에 주입.
-    studyPath  : 현재 스터디 경로
-    eventId    : 수정 모드일 때 모임 ID (생성 모드일 때 null)
-    isEditMode : boolean
--->
 <script th:inline="javascript">
-    var STUDY_PATH  = /*[[${study.path}]]*/ '';
-    var EVENT_ID    = /*[[${event?.id}]]*/ null;
-    var IS_EDIT_MODE = (EVENT_ID !== null);
-</script>
+    /*<![CDATA[*/
+    const STUDY_PATH = [[${study.path}]];
+    const EVENT_ID   = [[${event?.id}]];  // null = 신규 생성
+    const IS_EDIT    = [[${isEdit}]];
 
-<script>
-    // ---------------------------------------------------------------
     // Summernote 초기화
-    // ---------------------------------------------------------------
-    $(document).ready(function () {
+    document.addEventListener('DOMContentLoaded', function () {
         $('#description').summernote({
-            height: 250,
             lang: 'ko-KR',
-            placeholder: '모임 목적, 준비물, 진행 방식 등을 입력하세요.',
+            height: 200,
             toolbar: [
-                ['style',  ['style']],
-                ['font',   ['bold', 'italic', 'underline', 'clear']],
-                ['fontsize', ['fontsize']],
-                ['color',  ['color']],
-                ['para',   ['ul', 'ol', 'paragraph']],
+                ['style', ['bold', 'italic', 'underline', 'clear']],
+                ['para',  ['ul', 'ol', 'paragraph']],
                 ['insert', ['link']],
-                ['view',   ['fullscreen', 'codeview']]
-            ]
+                ['view',  ['fullscreen', 'codeview']]
+            ],
+            placeholder: '모임에 대해 설명해 주세요 (선택사항)',
+            callbacks: {
+                onInit: function () {
+                    // Summernote 툴바 border 스타일 통일
+                    $('.note-toolbar').css('border-color', '#d0ccdf');
+                }
+            }
+        });
+
+        // 모임 종류 라벨 스타일 초기화
+        updateTypeLabel();
+        document.querySelectorAll('input[name="eventType"]').forEach(function (radio) {
+            radio.addEventListener('change', updateTypeLabel);
         });
     });
 
-    // ---------------------------------------------------------------
-    // 모임 생성 / 수정 제출
-    //
-    // [생성] POST /api/studies/{path}/events
-    //        Content-Type: application/json
-    //        Authorization: Bearer {accessToken}
-    //        Body: { title, description, eventType, limitOfEnrollments,
-    //                startDateTime, endEnrollmentDateTime, endDateTime }
-    //
-    // [수정] PUT /api/studies/{path}/events/{eventId}
-    //        동일 필드
-    //
-    // [날짜 형식] datetime-local input -> "2025-01-15T19:00"
-    //             backend LocalDateTime.parse() 가능 (ISO 8601)
-    //
-    // [예상 errorCode]
-    //   VALIDATION_ERROR  : @Valid 실패
-    //   STUDY_NOT_FOUND   : 스터디 없음
-    //   EVENT_NOT_FOUND   : 수정 대상 모임 없음
-    //   NOT_MANAGER       : 권한 없음
-    // ---------------------------------------------------------------
-    document.getElementById('submitBtn').addEventListener('click', async function () {
-        clearAllErrors();
+    // 선택된 모임 종류에 따라 라벨 강조 + 힌트 텍스트 변경
+    function updateTypeLabel() {
+        var selected = document.querySelector('input[name="eventType"]:checked');
+        document.querySelectorAll('.event-type-label').forEach(function (label) {
+            label.style.borderColor = '#d0ccdf';
+            label.style.background = 'white';
+            label.style.color = '#666';
+        });
+        if (selected) {
+            var label = document.querySelector('label[for="' + selected.id + '"]');
+            if (label) {
+                label.style.borderColor = '#8e85b0';
+                label.style.background = '#f5f4fb';
+                label.style.color = '#8e85b0';
+            }
+            document.getElementById('typeHint').textContent =
+                selected.value === 'FCFS'
+                    ? '선착순: 신청 순서대로 자동 수락됩니다.'
+                    : '관리자 확인: 관리자가 신청자를 직접 수락/거절합니다.';
+        }
+    }
 
-        var title                 = document.getElementById('title').value.trim();
-        var description           = $('#description').summernote('code');
-        var eventType             = document.querySelector('input[name="eventType"]:checked')?.value;
-        var limitOfEnrollments    = parseInt(document.getElementById('limitOfEnrollments').value) || 0;
-        var startDateTime         = document.getElementById('startDateTime').value;
-        var endEnrollmentDateTime = document.getElementById('endEnrollmentDateTime').value;
-        var endDateTime           = document.getElementById('endDateTime').value;
+    // 폼 유효성 검사
+    function validateForm(data) {
+        if (!data.title || data.title.trim().length === 0) {
+            return '모임 이름을 입력해 주세요.';
+        }
+        if (data.title.length > 50) {
+            return '모임 이름은 50자 이하여야 합니다.';
+        }
+        if (!data.limitOfEnrollments || data.limitOfEnrollments < 2) {
+            return '모집 인원은 최소 2명 이상이어야 합니다.';
+        }
+        if (!data.endEnrollmentDateTime) {
+            return '모집 마감 일시를 입력해 주세요.';
+        }
+        if (!data.startDateTime) {
+            return '모임 시작 일시를 입력해 주세요.';
+        }
+        if (!data.endDateTime) {
+            return '모임 종료 일시를 입력해 주세요.';
+        }
+        if (data.endEnrollmentDateTime >= data.startDateTime) {
+            return '모집 마감 일시는 모임 시작 전이어야 합니다.';
+        }
+        if (data.startDateTime >= data.endDateTime) {
+            return '모임 시작 일시는 종료 전이어야 합니다.';
+        }
+        return null;
+    }
 
-        // 클라이언트 검증
-        var hasError = false;
-        if (!title) {
-            showFieldError('titleError', '모임 제목을 입력해주세요.');
-            hasError = true;
-        }
-        if (!description || description === '<p><br></p>') {
-            showFieldError('descError', '모임 설명을 입력해주세요.');
-            hasError = true;
-        }
-        if (!limitOfEnrollments || limitOfEnrollments < 2) {
-            showFieldError('limitError', '모집 인원은 2명 이상이어야 합니다.');
-            hasError = true;
-        }
-        if (!endEnrollmentDateTime) {
-            showFieldError('endEnrollmentError', '모집 마감 일시를 입력해주세요.');
-            hasError = true;
-        }
-        if (!startDateTime) {
-            showFieldError('startDateError', '모임 시작 일시를 입력해주세요.');
-            hasError = true;
-        }
-        if (!endDateTime) {
-            showFieldError('endDateError', '모임 종료 일시를 입력해주세요.');
-            hasError = true;
-        }
-        if (hasError) return;
+    // 에러 표시 헬퍼
+    function showError(msg) {
+        document.getElementById('errorMsg').textContent = msg;
+        document.getElementById('errorAlert').classList.remove('d-none');
+        document.getElementById('errorAlert').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 
+    // 제출 메인 함수
+    async function submitEvent() {
         var btn = document.getElementById('submitBtn');
         btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>처리 중...';
+
+        var data = {
+            title: document.getElementById('title').value.trim(),
+            description: $('#description').summernote('code'),
+            eventType: document.querySelector('input[name="eventType"]:checked')?.value || 'FCFS',
+            limitOfEnrollments: parseInt(document.getElementById('limitOfEnrollments').value, 10),
+            endEnrollmentDateTime: document.getElementById('endEnrollmentDateTime').value,
+            startDateTime: document.getElementById('startDateTime').value,
+            endDateTime: document.getElementById('endDateTime').value
+        };
+
+        // 유효성 검사
+        var err = validateForm(data);
+        if (err) { showError(err); btn.disabled = false; return; }
+        document.getElementById('errorAlert').classList.add('d-none');
+
+        // API 호출
+        var url    = IS_EDIT
+            ? API_BASE + '/api/studies/' + STUDY_PATH + '/events/' + EVENT_ID
+            : API_BASE + '/api/studies/' + STUDY_PATH + '/events';
+        var method = IS_EDIT ? 'PUT' : 'POST';
 
         try {
-            var url    = IS_EDIT_MODE
-                ? API_BASE + '/api/studies/' + STUDY_PATH + '/events/' + EVENT_ID
-                : API_BASE + '/api/studies/' + STUDY_PATH + '/events';
-            var method = IS_EDIT_MODE ? 'PUT' : 'POST';
-
-            var response = await fetch(url, {
+            var res = await fetch(url, {
                 method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
-                },
-                body: JSON.stringify({
-                    title:                 title,
-                    description:           description,
-                    eventType:             eventType,
-                    limitOfEnrollments:    limitOfEnrollments,
-                    startDateTime:         startDateTime,
-                    endEnrollmentDateTime: endEnrollmentDateTime,
-                    endDateTime:           endDateTime
-                })
+                headers: authHeaders(),
+                body: JSON.stringify(data)
             });
 
-            var result = await response.json();
-
-            if (response.ok) {
-                // 성공: 모임 상세 페이지로 이동
-                var targetId = IS_EDIT_MODE ? EVENT_ID : result.id;
-                window.location.href = '/study/' + STUDY_PATH + '/events/' + targetId;
+            if (res.ok) {
+                var result = await res.json();
+                // 생성 응답의 data.id 로 이동, 수정이면 기존 eventId 로 이동
+                var savedId = result.data?.id || EVENT_ID;
+                window.location.href = '/study/' + STUDY_PATH + '/events/' + savedId;
             } else {
-                var errorCode = result.errorCode || '';
-                var message   = result.message   || '처리 중 오류가 발생했습니다.';
-                if (errorCode === 'VALIDATION_ERROR') {
-                    showGeneralError(message);
-                } else if (errorCode === 'NOT_MANAGER') {
-                    showGeneralError('관리자만 모임을 생성/수정할 수 있습니다.');
-                } else {
-                    showGeneralError(message);
-                }
+                var errData = await res.json().catch(() => ({}));
+                showError(errData.message || '저장 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+                btn.disabled = false;
             }
         } catch (e) {
-            showGeneralError('서버와 연결할 수 없습니다. 잠시 후 다시 시도해주세요.');
-            console.error('모임 저장 실패:', e);
-        } finally {
+            showError('서버와 연결할 수 없습니다.');
             btn.disabled = false;
-            btn.innerHTML = IS_EDIT_MODE
-                ? '<i class="fa-solid fa-check me-2"></i>수정 완료'
-                : '<i class="fa-solid fa-rocket me-2"></i>모임 만들기';
+            console.error(e);
         }
-    });
-
-    // ---------------------------------------------------------------
-    // 모임 삭제 (수정 모드에서만 노출)
-    //
-    // DELETE /api/studies/{path}/events/{eventId}
-    // 성공 시 스터디 상세 페이지로 이동
-    // ---------------------------------------------------------------
-    var deleteBtn = document.getElementById('deleteBtn');
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', async function () {
-            if (!confirm('정말로 이 모임을 삭제하시겠습니까?\n참가 신청 내역도 함께 삭제됩니다.')) return;
-
-            deleteBtn.disabled = true;
-            deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>삭제 중...';
-
-            try {
-                var response = await fetch(
-                    API_BASE + '/api/studies/' + STUDY_PATH + '/events/' + EVENT_ID,
-                    {
-                        method: 'DELETE',
-                        headers: {
-                            'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
-                        }
-                    }
-                );
-
-                if (response.ok) {
-                    window.location.href = '/study/' + STUDY_PATH;
-                } else {
-                    var result = await response.json();
-                    showGeneralError(result.message || '모임 삭제 중 오류가 발생했습니다.');
-                    deleteBtn.disabled = false;
-                    deleteBtn.innerHTML = '<i class="fa-solid fa-trash me-1"></i> 삭제';
-                }
-            } catch (e) {
-                showGeneralError('서버와 연결할 수 없습니다.');
-                deleteBtn.disabled = false;
-                deleteBtn.innerHTML = '<i class="fa-solid fa-trash me-1"></i> 삭제';
-            }
-        });
     }
-
-    // --- 헬퍼 ---
-
-    function showFieldError(id, message) {
-        var el = document.getElementById(id);
-        el.textContent = message;
-        el.style.display = 'block';
-    }
-
-    function showGeneralError(message) {
-        document.getElementById('errorGeneralMsg').textContent = message;
-        document.getElementById('errorGeneral').style.display = 'block';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function clearAllErrors() {
-        ['titleError', 'descError', 'limitError',
-         'endEnrollmentError', 'startDateError', 'endDateError'].forEach(function (id) {
-            var el = document.getElementById(id);
-            if (el) { el.textContent = ''; el.style.display = 'none'; }
-        });
-        document.getElementById('errorGeneralMsg').textContent = '';
-        document.getElementById('errorGeneral').style.display = 'none';
-    }
+    /*]]>*/
 </script>
 
 </body>
