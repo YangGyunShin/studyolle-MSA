@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 @Getter @Setter
 @EqualsAndHashCode(of = "id")
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Enrollment {
 
     @Id @GeneratedValue
@@ -17,7 +19,6 @@ public class Enrollment {
     @ManyToOne
     private Event event;
 
-    // MSA: Account 엔티티 대신 accountId로 참조
     @Column(nullable = false)
     private Long accountId;
 

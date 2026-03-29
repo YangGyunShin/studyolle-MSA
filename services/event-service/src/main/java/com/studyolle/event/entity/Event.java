@@ -1,5 +1,6 @@
 package com.studyolle.event.entity;
 
+import com.studyolle.event.dto.request.UpdateEventRequest;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -12,16 +13,16 @@ import java.util.stream.Collectors;
 @Getter @Setter
 @EqualsAndHashCode(of = "id")
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Event {
 
     @Id @GeneratedValue
     private Long id;
 
-    // MSA: Study 엔티티 대신 studyPath(문자열)로 참조
     @Column(nullable = false)
     private String studyPath;
 
-    // MSA: Account 엔티티 대신 accountId(Long)로 참조
     @Column(nullable = false)
     private Long createdByAccountId;
 
@@ -48,12 +49,26 @@ public class Event {
     @Enumerated(EnumType.STRING)
     private EventType eventType;
 
+    @Builder.Default
     @OneToMany(mappedBy = "event", cascade = CascadeType.REMOVE, orphanRemoval = true)
     @OrderBy("enrolledAt")
     private List<Enrollment> enrollments = new ArrayList<>();
 
     // ====================================================================
-    // 도메인 메서드 (모노리틱에서 UserAccount 의존성 제거 → accountId로 대체)
+    // 수정 도메인 메서드
+    // ====================================================================
+
+    public void update(UpdateEventRequest req) {
+        this.title = req.getTitle();
+        this.description = req.getDescription();
+        this.limitOfEnrollments = req.getLimitOfEnrollments();
+        this.endEnrollmentDateTime = req.getEndEnrollmentDateTime();
+        this.startDateTime = req.getStartDateTime();
+        this.endDateTime = req.getEndDateTime();
+    }
+
+    // ====================================================================
+    // 참가 신청 가능 여부 판단
     // ====================================================================
 
     public boolean isEnrollableFor(Long accountId) {
@@ -73,6 +88,7 @@ public class Event {
             if (e.getAccountId().equals(accountId) && e.isAttended()) {
                 return true;
             }
+
         }
         return false;
     }
@@ -82,11 +98,19 @@ public class Event {
             if (e.getAccountId().equals(accountId)) {
                 return true;
             }
+
         }
         return false;
     }
 
+    // ====================================================================
+    // 참가 인원 조회
+    // ====================================================================
+
     public int numberOfRemainSpots() {
+        if (this.limitOfEnrollments == null) {
+            return 0;
+        }
         return this.limitOfEnrollments - (int) this.enrollments.stream()
                 .filter(Enrollment::isAccepted).count();
     }
@@ -94,6 +118,10 @@ public class Event {
     public long getNumberOfAcceptedEnrollments() {
         return this.enrollments.stream().filter(Enrollment::isAccepted).count();
     }
+
+    // ====================================================================
+    // 양방향 연관관계 편의 메서드
+    // ====================================================================
 
     public void addEnrollment(Enrollment enrollment) {
         this.enrollments.add(enrollment);
@@ -104,6 +132,10 @@ public class Event {
         this.enrollments.remove(enrollment);
         enrollment.setEvent(null);
     }
+
+    // ====================================================================
+    // FCFS 자동 승인
+    // ====================================================================
 
     public boolean isAbleToAcceptWaitingEnrollment() {
         return this.eventType == EventType.FCFS
@@ -141,9 +173,14 @@ public class Event {
             if (!e.isAccepted()) {
                 return e;
             }
+
         }
         return null;
     }
+
+    // ====================================================================
+    // CONFIRMATIVE 수동 승인/거절
+    // ====================================================================
 
     public boolean canAccept(Enrollment enrollment) {
         return this.eventType == EventType.CONFIRMATIVE

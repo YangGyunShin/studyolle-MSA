@@ -1,19 +1,40 @@
 package com.studyolle.event.dto.response;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.Builder;
+import lombok.Getter;
 
-@Data
-@AllArgsConstructor
-public class CommonApiResponse {
-    private boolean success;
-    private String message;
+@Getter
+@Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class CommonApiResponse<T> {
 
-    public static CommonApiResponse ok(String message) {
-        return new CommonApiResponse(true, message);
+    private final boolean success;
+    private final String message;
+    private final T data;
+
+    // 데이터만 반환
+    public static <T> CommonApiResponse<T> ok(T data) {
+        return CommonApiResponse.<T>builder()
+                .success(true)
+                .data(data)
+                .build();
     }
 
-    public static CommonApiResponse fail(String message) {
-        return new CommonApiResponse(false, message);
+    // 메시지 + 데이터 반환
+    public static <T> CommonApiResponse<T> ok(String message, T data) {
+        return CommonApiResponse.<T>builder()
+                .success(true)
+                .message(message)
+                .data(data)
+                .build();
+    }
+
+    // 메시지만 반환 (데이터 없는 처리 완료)
+    public static CommonApiResponse<Void> ok(String message) {
+        return CommonApiResponse.<Void>builder()
+                .success(true)
+                .message(message)
+                .build();
     }
 }
