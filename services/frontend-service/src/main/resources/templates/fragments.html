@@ -671,8 +671,12 @@
         // 로그아웃
         function handleLogout(e) {
             e.preventDefault();
+            // localStorage 제거 (JS fetch 호출용 토큰)
             localStorage.removeItem('accessToken');
             localStorage.removeItem('refreshToken');
+            // 쿠키 제거 (api-gateway OptionalJwtFilter가 읽는 토큰)
+            // max-age=0 으로 설정하면 브라우저가 즉시 쿠키를 삭제한다
+            document.cookie = 'accessToken=; path=/; max-age=0; SameSite=Strict';
             window.location.href = '/';
         }
     </script>

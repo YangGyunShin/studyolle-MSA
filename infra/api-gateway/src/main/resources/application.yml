@@ -10,6 +10,7 @@ spring:
         cors-configurations:
           '[/**]':
             allowedOrigins:
+              - "http://localhost:8080"
               - "http://localhost:8090"
             allowedMethods:
               - GET
