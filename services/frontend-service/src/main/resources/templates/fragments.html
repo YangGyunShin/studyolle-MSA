@@ -595,7 +595,10 @@
         study-service 는 X-Account-Id 헤더로 사용자 식별 (JWT 라이브러리 없음).
     -->
     <script th:inline="javascript">
-        const API_BASE = [[${apiBase}]];
+        // var 사용: index.html 등 각 페이지에서 이미 const API_BASE 를 선언한 경우
+        // const 는 중복 선언 시 SyntaxError 가 발생해 이 스크립트 블록 전체가 실행되지 않는다.
+        // var 는 중복 선언을 허용하므로 안전하다.
+        var API_BASE = [[${apiBase}]];
 
         // 토큰 가져오기 헬퍼
         function getToken() {
@@ -669,15 +672,14 @@
         }
 
         // 로그아웃
+        // JS의 document.cookie 삭제는 브라우저마다 동작이 불안정하다.
+        // 서버의 /logout 엔드포인트가 Set-Cookie: accessToken=; max-age=0 헤더를 응답해
+        // 브라우저가 쿠키를 반드시 삭제하도록 한다.
         function handleLogout(e) {
             e.preventDefault();
-            // localStorage 제거 (JS fetch 호출용 토큰)
             localStorage.removeItem('accessToken');
             localStorage.removeItem('refreshToken');
-            // 쿠키 제거 (api-gateway OptionalJwtFilter가 읽는 토큰)
-            // max-age=0 으로 설정하면 브라우저가 즉시 쿠키를 삭제한다
-            document.cookie = 'accessToken=; path=/; max-age=0; SameSite=Strict';
-            window.location.href = '/';
+            window.location.href = '/logout';
         }
     </script>
 </div>

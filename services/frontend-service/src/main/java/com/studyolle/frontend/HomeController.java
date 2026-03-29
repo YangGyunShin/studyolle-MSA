@@ -4,6 +4,8 @@ import com.studyolle.frontend.account.client.AccountInternalClient;
 import com.studyolle.frontend.account.dto.AccountSummaryDto;
 import com.studyolle.frontend.study.client.StudyInternalClient;
 import com.studyolle.frontend.study.dto.DashboardDto;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
@@ -13,13 +15,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 /**
  * 메인 홈 페이지 컨트롤러.
- *
+ * <p>
  * GET / -> templates/index.html
- *
+ * <p>
  * index.html 은 account 가 null 인지에 따라 두 화면으로 분기한다.
- *   - null:      비로그인 랜딩 (히어로 + 기능 소개 + 최근 스터디)
- *   - not null:  로그인 대시보드 (내 스터디 + 캘린더 + 추천 스터디)
- *
+ * - null:      비로그인 랜딩 (히어로 + 기능 소개 + 최근 스터디)
+ * - not null:  로그인 대시보드 (내 스터디 + 캘린더 + 추천 스터디)
+ * <p>
  * [왜 이 컨트롤러가 account/ 나 study/ 패키지 안에 없는가]
  * account-service(AccountInternalClient)와 study-service(StudyInternalClient)
  * 양쪽 모두에서 데이터를 가져오기 때문에 특정 도메인 패키지에 귀속시키기 어렵다.
@@ -60,11 +62,11 @@ public class HomeController {
         // 2. 대시보드 집계 (내 스터디 + 예정 모임 + 추천 스터디)
         //    study-service 의 /internal/studies/dashboard 가 한 번에 모아서 반환한다.
         DashboardDto dashboard = studyInternalClient.getDashboard(accountId);
-        model.addAttribute("studyManagerOf",   dashboard.getStudyManagerOf());
-        model.addAttribute("studyMemberOf",    dashboard.getStudyMemberOf());
-        model.addAttribute("studyEventsMap",   dashboard.getStudyEventsMap());
+        model.addAttribute("studyManagerOf", dashboard.getStudyManagerOf());
+        model.addAttribute("studyMemberOf", dashboard.getStudyMemberOf());
+        model.addAttribute("studyEventsMap", dashboard.getStudyEventsMap());
         model.addAttribute("enrolledEventIds", dashboard.getEnrolledEventIds());
-        model.addAttribute("studyList",        dashboard.getStudyList());
+        model.addAttribute("studyList", dashboard.getStudyList());
 
         // 3. 프로필 완성도 계산 (0~100)
         //    모노리틱에서는 MainService.calculateProfileCompletion() 이 담당했던 로직.
@@ -84,12 +86,24 @@ public class HomeController {
                 completion += 25;
             }
 
-            if (account.getZoneCount() > 0){
+            if (account.getZoneCount() > 0) {
                 completion += 25;
             }
         }
         model.addAttribute("profileCompletion", completion);
 
         return "index";
+    }
+
+    @GetMapping("/logout")
+    public String logout(HttpServletResponse response) {
+        // 서버에서 쿠키를 만료시켜 브라우저가 반드시 삭제하게 한다.
+        // JS의 document.cookie 방식보다 확실하다.
+        Cookie cookie = new Cookie("accessToken", "");
+        cookie.setPath("/");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+        return "redirect:/";
+
     }
 }
