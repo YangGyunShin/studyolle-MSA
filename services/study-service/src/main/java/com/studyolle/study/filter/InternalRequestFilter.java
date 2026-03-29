@@ -46,7 +46,7 @@ public class InternalRequestFilter implements HandlerInterceptor {
     // study-service 의 /internal/** 에 접근을 허용할 서비스 이름 목록
     // 새로운 서비스가 추가되면 이 목록에 추가해야 한다
     private static final List<String> ALLOWED_SERVICES =
-            List.of("admin-service", "event-service", "notification-service");
+            List.of("frontend-service", "admin-service", "event-service", "notification-service");
 
     /**
      * 컨트롤러 실행 전에 호출된다.

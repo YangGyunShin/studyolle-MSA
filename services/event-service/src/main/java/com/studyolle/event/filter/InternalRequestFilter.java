@@ -61,7 +61,7 @@ public class InternalRequestFilter implements HandlerInterceptor {
      * 예: notification-service 가 추가되면 "notification-service" 를 목록에 넣는다.
      */
     private static final List<String> ALLOWED_SERVICES =
-            List.of("frontend-service", "study-service", "admin-service");
+            List.of("frontend-service", "admin-service", "event-service", "notification-service");
 
     /**
      * 요청 전처리 — 내부 서비스 헤더 검증
