@@ -152,6 +152,22 @@ public class EventPageController {
         boolean isMember = study.isMember();
 
         // 내 enrollment 탐색
+        // event-service 가 반환하는 event.enrollments 는 이 모임에 신청한 모든 사람의 목록이다.
+        // view.html 에서 현재 로그인한 사용자의 상태에 따라 버튼이 달라지기 때문에
+        // 전체 목록 중 "내 것"만 꺼내야 한다.
+        //
+        //   신청 안 함  (myEnrollment == null)           → "참가 신청하기" 버튼
+        //   신청했고 대기 중 (accepted == false)          → "승인 대기 중" 표시
+        //   신청했고 수락됨  (accepted == true)           → "참가 확정" + "참가 취소" 버튼
+        //   출석까지 완료   (attended == true)            → "출석 완료" 표시
+        //
+        // stream().filter() 로 accountId 가 일치하는 항목만 골라내고,
+        // findFirst() 로 딱 하나만 꺼낸다. (중복 신청은 불가하므로 항상 0개 or 1개)
+        // orElse(null) 은 신청 내역이 없는 상태(= 미신청)를 null 로 표현한다.
+        //
+        // 별도 API (ex. GET /events/{id}/my-enrollment) 를 만들지 않는 이유:
+        // 어차피 관리자의 수락/거절/출석체크를 위해 enrollments 전체가 필요하므로
+        // 이미 받아온 데이터에서 Java stream 으로 걸러내는 것이 추가 네트워크 호출 없이 효율적이다.
         EnrollmentDto myEnrollment = null;
         if (accountId != null && event.getEnrollments() != null) {
             myEnrollment = event.getEnrollments().stream()
