@@ -1,7 +1,7 @@
 package com.studyolle.frontend.study.dto;
 
+import com.studyolle.frontend.event.dto.EventSummaryDto;
 import lombok.Data;
-import lombok.Getter;
 
 import java.util.List;
 import java.util.Map;
