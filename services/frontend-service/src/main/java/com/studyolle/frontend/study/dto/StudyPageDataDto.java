@@ -1,5 +1,7 @@
 package com.studyolle.frontend.study.dto;
 
+import lombok.Data;
+
 import java.util.List;
 
 /**
@@ -13,6 +15,7 @@ import java.util.List;
  *   각각 별도 API 를 호출하면 N번의 라운드트립이 발생하므로,
  *   하나의 집계 엔드포인트로 묶어 한 번에 받아온다 (BFF 패턴).
  */
+@Data
 public class StudyPageDataDto {
 
     // ---- 스터디 기본 정보 ----
@@ -39,56 +42,4 @@ public class StudyPageDataDto {
     private boolean manager;            // 현재 사용자가 관리자인가
     private boolean member;             // 현재 사용자가 멤버인가
     private boolean hasPendingRequest;  // 현재 사용자의 대기 중 가입 신청 존재 여부
-
-    // Lombok 대신 직접 getter/setter (프로젝트 설정에 맞게 교체 가능)
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
-    public String getPath() { return path; }
-    public void setPath(String path) { this.path = path; }
-
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-
-    public String getShortDescription() { return shortDescription; }
-    public void setShortDescription(String shortDescription) { this.shortDescription = shortDescription; }
-
-    public String getFullDescription() { return fullDescription; }
-    public void setFullDescription(String fullDescription) { this.fullDescription = fullDescription; }
-
-    public String getImage() { return image; }
-    public void setImage(String image) { this.image = image; }
-
-    public boolean isPublished() { return published; }
-    public void setPublished(boolean published) { this.published = published; }
-
-    public boolean isClosed() { return closed; }
-    public void setClosed(boolean closed) { this.closed = closed; }
-
-    public boolean isRecruiting() { return recruiting; }
-    public void setRecruiting(boolean recruiting) { this.recruiting = recruiting; }
-
-    public String getJoinType() { return joinType; }
-    public void setJoinType(String joinType) { this.joinType = joinType; }
-
-    public boolean isRemovable() { return removable; }
-    public void setRemovable(boolean removable) { this.removable = removable; }
-
-    public int getMemberCount() { return memberCount; }
-    public void setMemberCount(int memberCount) { this.memberCount = memberCount; }
-
-    public List<MemberDto> getManagers() { return managers; }
-    public void setManagers(List<MemberDto> managers) { this.managers = managers; }
-
-    public List<MemberDto> getMembers() { return members; }
-    public void setMembers(List<MemberDto> members) { this.members = members; }
-
-    public boolean isManager() { return manager; }
-    public void setManager(boolean manager) { this.manager = manager; }
-
-    public boolean isMember() { return member; }
-    public void setMember(boolean member) { this.member = member; }
-
-    public boolean isHasPendingRequest() { return hasPendingRequest; }
-    public void setHasPendingRequest(boolean hasPendingRequest) { this.hasPendingRequest = hasPendingRequest; }
 }

@@ -3,6 +3,8 @@ package com.studyolle.frontend.study.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.studyolle.frontend.account.client.AccountInternalClient;
+import com.studyolle.frontend.event.client.EventInternalClient;
+import com.studyolle.frontend.event.dto.EventSummaryDto;
 import com.studyolle.frontend.study.client.StudyInternalClient;
 import com.studyolle.frontend.study.dto.*;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -140,6 +143,7 @@ public class StudyPageController {
 
     private final StudyInternalClient studyInternalClient;
     private final AccountInternalClient accountInternalClient;
+    private final EventInternalClient eventInternalClient;
     private final ObjectMapper objectMapper;
 
     @Value("${app.api-base-url}")
@@ -210,9 +214,18 @@ public class StudyPageController {
         addCommonAttributes(model, accountId, study);
         model.addAttribute("hasPendingRequest", study.isHasPendingRequest());
 
-        // 모임 목록: event-service 연동 전까지 빈 리스트로 초기화
-        model.addAttribute("newEvents", List.of());
-        model.addAttribute("oldEvents", List.of());
+        // 모임 목록
+        List<EventSummaryDto> allEvents = eventInternalClient.getEventsByStudy(path);
+        LocalDateTime now = LocalDateTime.now();
+
+        List<EventSummaryDto> newEvents = allEvents.stream()
+                .filter(e -> e.getEndDateTime() == null || e.getEndDateTime().isAfter(now))
+                .collect(Collectors.toList());
+        List<EventSummaryDto> oldEvents = allEvents.stream()
+                .filter(e -> e.getEndDateTime() != null && !e.getEndDateTime().isAfter(now))
+                .collect(Collectors.toList());
+        model.addAttribute("newEvents", newEvents);
+        model.addAttribute("oldEvents", oldEvents);
         return "study/view";
     }
 
