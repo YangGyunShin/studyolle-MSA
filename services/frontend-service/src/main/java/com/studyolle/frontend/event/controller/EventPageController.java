@@ -93,7 +93,7 @@ public class EventPageController {
             Model model,
             HttpServletResponse response) throws IOException {
 
-        StudyPageDataDto study = studyInternalClient.getStudyPageData(path, eventId);
+        StudyPageDataDto study = studyInternalClient.getStudyPageData(path, accountId);
 
         if (study == null) {
             response.sendError(404);
@@ -135,7 +135,7 @@ public class EventPageController {
             Model model,
             HttpServletResponse response) throws IOException {
 
-        StudyPageDataDto study = studyInternalClient.getStudyPageData(path, eventId);
+        StudyPageDataDto study = studyInternalClient.getStudyPageData(path, accountId);
         if (study == null) {
             response.sendError(404);
             return null;

@@ -1,5 +1,8 @@
 package com.studyolle.frontend.study.dto;
 
+import lombok.Data;
+import lombok.Getter;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -9,6 +12,7 @@ import java.util.Set;
  *
  * study-service 의 GET /internal/studies/dashboard?accountId={id} 가 반환한다.
  */
+@Data
 public class DashboardDto {
 
     /** 관리중인 스터디 목록 */
@@ -28,19 +32,4 @@ public class DashboardDto {
 
     /** 추천 스터디 목록 (태그/지역 기반) */
     private List<StudySummaryDto> studyList;
-
-    public List<StudySummaryDto> getStudyManagerOf() { return studyManagerOf; }
-    public void setStudyManagerOf(List<StudySummaryDto> studyManagerOf) { this.studyManagerOf = studyManagerOf; }
-
-    public List<StudySummaryDto> getStudyMemberOf() { return studyMemberOf; }
-    public void setStudyMemberOf(List<StudySummaryDto> studyMemberOf) { this.studyMemberOf = studyMemberOf; }
-
-    public Map<Long, List<EventSummaryDto>> getStudyEventsMap() { return studyEventsMap; }
-    public void setStudyEventsMap(Map<Long, List<EventSummaryDto>> studyEventsMap) { this.studyEventsMap = studyEventsMap; }
-
-    public Set<Long> getEnrolledEventIds() { return enrolledEventIds; }
-    public void setEnrolledEventIds(Set<Long> enrolledEventIds) { this.enrolledEventIds = enrolledEventIds; }
-
-    public List<StudySummaryDto> getStudyList() { return studyList; }
-    public void setStudyList(List<StudySummaryDto> studyList) { this.studyList = studyList; }
 }
