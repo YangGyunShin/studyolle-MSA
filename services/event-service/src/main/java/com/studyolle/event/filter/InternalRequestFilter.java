@@ -56,12 +56,12 @@ public class InternalRequestFilter implements HandlerInterceptor {
 
     /**
      * /internal/** 호출을 허용하는 내부 서비스 목록
-     *
+     * <p>
      * 새로운 서비스가 event-service 의 내부 API 를 호출해야 한다면 이 목록에 추가한다.
      * 예: notification-service 가 추가되면 "notification-service" 를 목록에 넣는다.
      */
     private static final List<String> ALLOWED_SERVICES =
-            List.of("frontend-service", "admin-service", "event-service", "notification-service");
+            List.of("frontend-service", "admin-service", "event-service", "notification-service", "study-service");
 
     /**
      * 요청 전처리 — 내부 서비스 헤더 검증
