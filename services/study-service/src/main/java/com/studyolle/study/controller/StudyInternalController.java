@@ -1,6 +1,8 @@
 package com.studyolle.study.controller;
 
+import com.studyolle.study.client.EventFeignClient;
 import com.studyolle.study.client.MetadataFeignClient;
+import com.studyolle.study.client.dto.EventSummaryDto;
 import com.studyolle.study.client.dto.ZoneDto;
 import com.studyolle.study.dto.response.*;
 import com.studyolle.study.entity.JoinRequestStatus;
@@ -13,8 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -62,6 +64,7 @@ public class StudyInternalController {
     private final JoinRequestRepository joinRequestRepository;
     private final MetadataFeignClient metadataFeignClient;
     private final StudyService studyService;
+    private final EventFeignClient eventFeignClient;
 
     /*
      * GET /internal/studies/{path}
@@ -332,13 +335,74 @@ public class StudyInternalController {
                 .map(StudySummaryResponse::from)
                 .collect(Collectors.toList());
 
+        // ---------------------------------------------------------------
+        // event-service 에서 내가 신청한 모임 목록 가져오기
+        //
+        // [왜 event-service 를 직접 호출하는가]
+        // 모임(Event) 데이터는 event-service 가 소유한다.
+        // study-service DB 에는 모임 정보가 없으므로
+        // Feign Client 로 event-service 에 물어봐야 한다.
+        //
+        // [왜 /internal/events/calendar 인가]
+        // 이 엔드포인트는 "특정 사용자가 enrollment 한 모임 전체"를 반환한다.
+        // 즉, 내가 신청한 모임 목록 = 대시보드에서 보여줄 모임 목록.
+        //
+        // [studyPath → studyId 변환이 필요한 이유]
+        // index.html 의 studyEventsMap 은 Map<studyId, List<EventDto>> 구조다.
+        // study.id(Long) 로 containsKey() 를 해야 하므로 studyPath → studyId 로 변환해야 한다.
+        // event-service 의 EventResponse 에는 studyPath 가 있고 studyId 는 없다.
+        // study-service 는 studyPath 로 studyId 를 알 수 있으므로 여기서 변환한다.
+        // ---------------------------------------------------------------
+        // 대시보드 모임 표시 로직
+        //
+        // [기존 방식의 문제]
+        // /internal/events/calendar 는 "내가 enrollment 한 모임"만 반환한다.
+        // 관리자는 자기 스터디 모임에 enrollment 를 하지 않으므로 항상 빈 목록이 된다.
+        //
+        // [올바른 방식]
+        // 관리중인 스터디 + 참여중인 스터디 각각에 대해
+        // /internal/events/by-study/{path} 로 그 스터디의 모임 전체를 가져온다.
+        // enrolledEventIds 는 별도로 calendar 엔드포인트로 가져온다.
+        // ---------------------------------------------------------------
+
+        Map<Long, List<Object>> studyEventsMap = new HashMap<>();
+        Set<Long> enrolledEventIds = new HashSet<>();
+        LocalDateTime now = LocalDateTime.now();
+
+        // 관리중인 스터디 + 참여중인 스터디 합쳐서 처리
+        List<Study> myStudies = new ArrayList<>();
+        myStudies.addAll(studyService.getStudiesAsMember(accountId));
+        myStudies.addAll(studyService.getStudiesAsManager(accountId));
+
+        try {
+            for (Study study : myStudies) {
+                List<EventSummaryDto> events = eventFeignClient.getEventsByStudy(study.getPath(), "study-service");
+
+                // 종료된 모임 제외, 예정된 모임만
+                List<Object> upcomingEvents = events.stream()
+                        .filter(e -> e.getEndDateTime() == null || e.getEndDateTime().isAfter(now))
+                        .collect(Collectors.toList());
+
+                if (!upcomingEvents.isEmpty()) {
+                    studyEventsMap.put(study.getId(), upcomingEvents);
+                }
+            }
+
+            // enrolledEventIds: 내가 신청(enrollment)한 모임 ID 수집
+            // 대시보드에서 캘린더 아이콘 vs 초록 체크 표시 구분용
+            List<EventSummaryDto> myEnrolledEvents = eventFeignClient.getCalendarEvents(accountId, "study-service");
+            myEnrolledEvents.forEach(e -> enrolledEventIds.add(e.getId()));
+
+        } catch (Exception e) {
+            // event-service 장애 시 대시보드는 정상 표시, 모임만 빈 상태
+        }
 
         DashboardResponse response = DashboardResponse.builder()
                 .studyManagerOf(managerOf)
                 .studyMemberOf(memberOf)
                 .studyList(recommended)
-                .studyEventsMap(Collections.emptyMap())  // Phase 5 TODO
-                .enrolledEventIds(Collections.emptySet()) // Phase 5 TODO
+                .studyEventsMap(studyEventsMap)
+                .enrolledEventIds(enrolledEventIds)
                 .build();
 
         return ResponseEntity.ok(response);

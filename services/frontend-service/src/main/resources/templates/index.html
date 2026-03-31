@@ -443,8 +443,34 @@
                         <i class="fa-solid fa-wand-magic-sparkles" style="color: #bfa473;"></i> 추천 스터디
                     </h6>
 
-                    <div th:if="${studyList != null and !#lists.isEmpty(studyList)}">
-                        <div th:replace="~{fragments.html :: study-list (studyList=${studyList})}"></div>
+                    <div th:if="${studyList != null and !#lists.isEmpty(studyList)}"
+                         class="d-flex flex-column gap-2">
+                        <a th:each="s : ${studyList}"
+                           th:href="@{'/study/' + ${s.path}}"
+                           class="text-decoration-none">
+                            <div class="card border-0 shadow-sm rounded-3"
+                                 style="transition: transform 0.15s;"
+                                 onmouseover="this.style.transform='translateY(-2px)'"
+                                 onmouseout="this.style.transform='translateY(0)'">
+                                <div class="card-body p-2 d-flex align-items-center gap-2">
+                                    <div th:if="${#strings.isEmpty(s.image)}"
+                                         class="rounded-2 flex-shrink-0"
+                                         style="width:44px; height:44px;
+                                                background: linear-gradient(135deg, #8e85b0, #b8b3cc);"></div>
+                                    <div th:if="${!#strings.isEmpty(s.image)}"
+                                         th:style="'background-image:url(' + ${s.image} + '); background-size:cover; background-position:center; width:44px; height:44px;'"
+                                         class="rounded-2 flex-shrink-0"></div>
+                                    <div class="overflow-hidden">
+                                        <div class="fw-semibold text-truncate"
+                                             style="color:#2c2843; font-size:0.82rem;"
+                                             th:text="${s.title}">스터디명</div>
+                                        <div class="text-muted text-truncate"
+                                             style="font-size:0.72rem;"
+                                             th:text="${s.shortDescription}">소개</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
                     </div>
 
                     <div th:if="${studyList == null or #lists.isEmpty(studyList)}"
