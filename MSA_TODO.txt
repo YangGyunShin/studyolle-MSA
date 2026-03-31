@@ -3,8 +3,8 @@ StudyOlle MSA 전환 — TODO 리스트
 ================================================
 
 최초 작성일: 2026-03-10
-최종 수정일: 2026-03-29
-기준: event-service 백엔드 완성 시점
+최종 수정일: 2026-03-30
+기준: event-service frontend 연동 완성 시점
 
 
 ================================================
@@ -85,47 +85,94 @@ StudyOlle MSA 전환 — TODO 리스트
 
 
 ================================================
+완료된 작업 (2026-03-30 추가)
+================================================
+
+[Phase 4] event-service frontend 연동 — ✅ 완료 (2026-03-30)
+  - event/dto/EnrollmentDto.java           @Data
+  - event/dto/EventSummaryDto.java         @Data, EventResponse 필드 전체 매핑
+  - event/client/EventInternalClient.java  getEventsByStudy, getEventById
+  - event/controller/EventPageController.java
+      GET /study/{path}/events/new           모임 생성 폼 (관리자 전용)
+      GET /study/{path}/events/{eventId}/edit 모임 수정 폼 (관리자 전용)
+      GET /study/{path}/events/{eventId}      모임 상세 (myEnrollment, isEnrollable, isDisenrollable 계산)
+  - templates/event/form.html              생성/수정 통합 폼, Summernote, datetime-local
+  - templates/event/view.html              참가자 목록, 신청/취소/출석 버튼, 관리자 enrollment 관리
+  - EventInternalController.java           GET /internal/events/{eventId} 추가
+  - StudyPageController.studyView()        eventInternalClient 연동, newEvents/oldEvents 분리
+  - study/view.html                        모임 만들기 링크 /new-event → /events/new 수정
+  - 전체 frontend-service DTO Lombok @Data 전환 완료
+  - study/dto/EventSummaryDto.java (구버전) 삭제, DashboardDto import 수정
+
+================================================
 즉시 해야 할 작업 (다음 세션 최우선)
 ================================================
 
-[1] frontend-service event 패키지 추가 (양균님 Java 작성)
-    - event/client/EventInternalClient.java
-        getEventsByStudy(studyPath)   → GET /internal/events/by-study/{path}
-        getCalendarEvents(accountId)  → GET /internal/events/calendar?accountId={id}
-        getEventDetail(eventId)       → GET /api/studies/{path}/events/{eventId}
-    - event/dto/EventSummaryDto.java   (id, title, startDateTime, endEnrollmentDateTime, endDateTime, acceptedCount, remainSpots)
-    - event/dto/EventPageDataDto.java  (event: EventResponse, study: StudyPageDataDto, isManager, isMember, isEnrollable, isDisenrollable)
-    - event/controller/EventPageController.java
-        GET /study/{path}/events/new           모임 생성 폼 (관리자 전용)
-        GET /study/{path}/events/{eventId}/edit 모임 수정 폼 (관리자 전용)
-        GET /study/{path}/events/{eventId}      모임 상세 페이지
+[1] E2E 통합 테스트 (event-service 플로우)
+    - 모임 생성: GET /study/{path}/events/new → form.html → POST /api/studies/{path}/events
+    - 모임 수정: GET /study/{path}/events/{id}/edit → PUT
+    - 모임 상세: GET /study/{path}/events/{id} → view.html
+    - 참가 신청/취소: POST /api/studies/{path}/events/{id}/enroll, /leave
+    - 관리자 수락/거절/출석: /enrollments/{enrollmentId}/accept, /reject, /checkin
 
-[2] frontend-service event 템플릿 추가 (Claude 담당)
-    - templates/event/form.html    모임 생성/수정 폼 (제목, 설명, 유형, 정원, 일정)
-    - templates/event/view.html    모임 상세 (참가자 목록, 신청/취소/출석 버튼)
-
-[3] study/view.html 모임 목록 탭 event-service 연동
-    - StudyPageController.studyView()에서 EventInternalClient.getEventsByStudy() 호출
-    - newEvents (endDateTime 미래), oldEvents (endDateTime 과거) 분리
-    - view.html의 모임 목록 카드 렌더링 (현재 하드코딩 또는 비어있는 상태)
+[2] Phase 5 — notification-service 개발 시작
 
 
 ================================================
 Phase 5 — notification-service
 ================================================
 
-[ ] 모듈 생성: services/notification-service/ (:8085)
-[ ] 기술 스택: MongoDB + RabbitMQ
-[ ] 역할:
-    - study-service / event-service 가 RabbitMQ 로 이벤트 발행
-    - notification-service 가 이벤트 소비 후 알림 저장
-    - GET  /api/notifications       읽지 않은 알림 목록
-    - PATCH /api/notifications      알림 읽음 처리
+[공부 목적] Kafka + RabbitMQ 혼용 설계
+  - study-service  → Kafka    → notification-service  (스터디 이벤트)
+  - event-service  → RabbitMQ → notification-service  (모임/enrollment 이벤트)
+  - 배우는 것:
+      Kafka:    Topic, Partition, Consumer Group, Offset, KafkaTemplate
+      RabbitMQ: Exchange, Queue, Binding, Routing Key, RabbitTemplate
+
+[ ] Docker 기동
+    docker run -d --name zookeeper \
+      -e ZOOKEEPER_CLIENT_PORT=2181 -p 2181:2181 \
+      confluentinc/cp-zookeeper:7.5.0
+    docker run -d --name kafka \
+      -e KAFKA_BROKER_ID=1 \
+      -e KAFKA_ZOOKEEPER_CONNECT=host.docker.internal:2181 \
+      -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+      -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+      -p 9092:9092 confluentinc/cp-kafka:7.5.0
+    docker run -d --name rabbitmq \
+      -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+    docker run -d --name notification-db \
+      -p 27017:27017 mongo:7
+
+[ ] study-service — Kafka Producer 추가
+    - 이벤트: 스터디 생성, 공개, 모집 시작/종료
+    - Topic: study-events
+    - 의존성: spring-kafka
+    - KafkaTemplate<String, StudyEvent> 으로 발행
+
+[ ] event-service — RabbitMQ Producer 추가
+    - 이벤트: 참가 신청, 수락, 거절, 출석
+    - Exchange: event.notification (Topic Exchange)
+    - Routing Key: enrollment.accepted / enrollment.rejected 등
+    - 의존성: spring-boot-starter-amqp
+    - RabbitTemplate 으로 발행
+
+[ ] notification-service 신규 생성 (:8085)
+    - 기술 스택: MongoDB + Kafka Consumer + RabbitMQ Consumer
+    - Kafka Consumer:    @KafkaListener(topics = "study-events")
+    - RabbitMQ Consumer: @RabbitListener(queues = "enrollment.queue")
+    - 알림 저장: MongoDB (Notification 도큐먼트)
+    - API:
+        GET   /api/notifications       읽지 않은 알림 목록
+        PATCH /api/notifications        전체 읽음 처리
+        PATCH /api/notifications/{id}   단건 읽음 처리
+
 [ ] api-gateway 라우팅: /api/notifications/** → lb://NOTIFICATION-SERVICE
+
 [ ] frontend-service 알림 페이지 추가 (Claude 담당)
     - HomeController: GET /notifications → templates/notifications.html
     - nav 바 종 아이콘 → /notifications 연결 (현재 404)
-[ ] nav 바 알림 아이콘 뱃지 연동 (읽지 않은 알림 수)
+    - nav 바 알림 아이콘 뱃지 연동 (읽지 않은 알림 수)
 
 
 ================================================

@@ -305,7 +305,7 @@
         clearAlerts();
 
         try {
-            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/study/' + action, {
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/' + action, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -374,13 +374,13 @@
         }
 
         try {
-            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/study/path', {
-                method: 'POST',
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/path', {
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
                 },
-                body: JSON.stringify({ newPath: newPath })
+                body: newPath
             });
 
             if (res.ok) {
@@ -417,13 +417,13 @@
         }
 
         try {
-            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/study/title', {
-                method: 'POST',
+            const res = await fetch(API_BASE + '/api/studies/' + STUDY_PATH + '/settings/title', {
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
                 },
-                body: JSON.stringify({ newTitle: newTitle })
+                body: newTitle
             });
 
             if (res.ok) {

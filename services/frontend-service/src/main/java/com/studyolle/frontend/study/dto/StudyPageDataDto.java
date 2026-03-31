@@ -28,6 +28,7 @@ public class StudyPageDataDto {
     private boolean published;
     private boolean closed;
     private boolean recruiting;
+    private boolean useBanner;
     private String joinType;            // "OPEN" | "APPROVAL_REQUIRED"
     private boolean removable;          // 스터디 삭제 가능 여부 (멤버/모임 없을 때)
     private int memberCount;

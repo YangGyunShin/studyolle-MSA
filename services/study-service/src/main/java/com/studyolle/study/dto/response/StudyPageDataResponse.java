@@ -22,6 +22,7 @@ public class StudyPageDataResponse {
     private String image;
     private boolean published;
     private boolean closed;
+    private boolean useBanner;
     private boolean recruiting;
     private String joinType;        // JoinType enum -> 문자열("OPEN", "APPROVAL_REQUIRED")
     private boolean removable;
