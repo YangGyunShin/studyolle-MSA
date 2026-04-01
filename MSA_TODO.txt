@@ -3,8 +3,8 @@ StudyOlle MSA 전환 — TODO 리스트
 ================================================
 
 최초 작성일: 2026-03-10
-최종 수정일: 2026-03-30
-기준: event-service frontend 연동 완성 시점
+최종 수정일: 2026-04-01
+기준: Phase 4 전체 완성 + 통합 테스트 완료
 
 
 ================================================
@@ -12,110 +12,77 @@ StudyOlle MSA 전환 — TODO 리스트
 ================================================
 
 [Phase 1] 인프라 서비스 — ✅ 완료
-  - infra/eureka-server   :8761  서비스 디스커버리
-  - infra/config-server   :8888  중앙 설정 관리
+  - infra/eureka-server   :8761
+  - infra/config-server   :8888
   - infra/api-gateway     :8080  JWT 검증 / 라우팅 / 필터
 
 [Phase 2] account-service — ✅ 완료
   - 포트: 8081, PostgreSQL :5433 (account_db)
   - 회원가입, 로그인, 토큰 재발급, 이메일 인증, 이메일 로그인
   - JWT 발급 (검증은 api-gateway 전담)
-  - ConsoleEmailService (local 프로파일), HtmlEmailService (dev)
-  - Account.java: tags, zones @ElementCollection
-    → account_tags(account_id, tag_title), account_zones(account_id, zone_name) 테이블
-  - AccountController: 태그/지역 엔드포인트 (add/remove)
   - AccountInternalController: /internal/accounts/{id}, /full, /tags, /zones
-  - filter/InternalRequestFilter.java     ← 2026-03-29 추가
-  - config/WebMvcConfig.java              ← 2026-03-29 추가
+  - GET /internal/accounts/by-nickname/{nickname}  ← 2026-04-01 추가
+  - AccountRepository.findByNickname()             ← 2026-04-01 추가
+  - InternalRequestFilter (ALLOWED: frontend-service, study-service, admin-service, event-service)
 
 [Phase 2] api-gateway — ✅ 완료
   - JwtAuthenticationFilter: Authorization 헤더 + 쿠키(accessToken) 모두 지원
   - OptionalJwtFilter: 비로그인 허용, 토큰 있으면 X-Account-Id 추가
-  - event-service 라우팅 추가: /api/studies/*/events/** → EVENT-SERVICE
+  - event-service 라우팅: /api/studies/*/events/** → EVENT-SERVICE
 
 [Phase 3] frontend-service — ✅ 완료
   - 포트: 8090
   - 인증 페이지: login, sign-up, check-email, check-email-token, email-login
-  - 스터디 페이지: form, view, members, settings/*
   - 홈 대시보드: 비로그인 랜딩 + 로그인 대시보드 통합 (index.html)
   - 계정 설정: profile, password, notifications, tags, zones
-  - 에러 페이지: error/404.html, error/error.html
-  - HomeController.java: GET /logout 엔드포인트 추가 (서버 사이드 쿠키 삭제)
-  - fragments.html: var API_BASE (const → var, 중복 선언 SyntaxError 수정)
-  - fragments.html: handleLogout → window.location.href = '/logout'
-  - index.html: var API_BASE (const → var)
+  - 에러 페이지: 404.html, error.html
+  - HomeController: GET /, GET /logout
 
 [Phase 4] study-service — ✅ 완료
   - 포트: 8083, PostgreSQL :5434 (study_db)
-  - entity/ Study, JoinRequest, JoinType, JoinRequestStatus
-  - repository/ StudyRepository(QueryDSL), JoinRequestRepository
-  - service/ StudyService, StudySettingsService
-  - controller/ StudyController, StudySettingsController, StudyInternalController
-  - filter/ InternalRequestFilter (frontend-service 포함 ← 2026-03-29 수정)
-  - client/ MetadataFeignClient
-  - InternalStudyController 8개 엔드포인트 전체 구현
+  - StudyController, StudySettingsController, StudyInternalController
+  - EventFeignClient 추가 (getDashboard에서 event-service 호출)  ← 2026-04-01
+  - client/dto/EventSummaryDto.java 추가                        ← 2026-04-01
+  - getDashboard(): studyEventsMap 실제 데이터 채움 (기존 빈 Map) ← 2026-04-01
 
-[Phase 4] event-service 백엔드 — ✅ 완료 (2026-03-29)
+[Phase 4] event-service — ✅ 완료
   - 포트: 8084, PostgreSQL :5435 (event_db)
-  - 패키지: com.studyolle.event
-  - entity/
-      Event.java        (studyPath, createdByAccountId, @Builder, @Builder.Default enrollments)
-      Enrollment.java   (accountId, @Builder)
-      EventType.java    (FCFS, CONFIRMATIVE)
-  - repository/
-      EventRepository.java       (findByStudyPath, findWithEnrollmentsById - @EntityGraph)
-      EnrollmentRepository.java  (existsByEventAndAccountId, findByEventAndAccountId, findByAccountId)
-  - service/
-      EventService.java          (createEvent, getEventsByStudy, getEventWithEnrollments, updateEvent, deleteEvent)
-                                  validateManager() — package-private, EnrollmentService에서 접근
-      EnrollmentService.java     (enroll, cancelEnrollment, acceptEnrollment, rejectEnrollment, checkIn, cancelCheckIn)
-  - controller/
-      EventController.java       11개 엔드포인트, CommonApiResponse<T> 래퍼
-      EventInternalController.java  /internal/events/by-study/{path}, /internal/events/calendar
-  - dto/
-      request/  CreateEventRequest, UpdateEventRequest
-      response/ EventResponse (from() 정적 팩토리), EnrollmentResponse, CommonApiResponse<T>
-  - config/
-      SecurityConfig.java   csrf disable, anyRequest permitAll
-      WebMvcConfig.java     InternalRequestFilter 등록 (/internal/**)
-  - filter/
-      InternalRequestFilter.java  (ALLOWED: frontend-service, study-service, admin-service)
-  - exception/
-      GlobalExceptionHandler.java
+  - EventController (11개 엔드포인트)
+  - EventInternalController (3개: by-study, calendar, {eventId})
+  - InternalRequestFilter ALLOWED에 study-service 추가  ← 2026-04-01
 
-
-================================================
-완료된 작업 (2026-03-30 추가)
-================================================
-
-[Phase 4] event-service frontend 연동 — ✅ 완료 (2026-03-30)
-  - event/dto/EnrollmentDto.java           @Data
-  - event/dto/EventSummaryDto.java         @Data, EventResponse 필드 전체 매핑
-  - event/client/EventInternalClient.java  getEventsByStudy, getEventById
+[Phase 4] event-service frontend 연동 — ✅ 완료
+  - event/dto/EnrollmentDto.java, EventSummaryDto.java (@Data)
+  - event/client/EventInternalClient.java
   - event/controller/EventPageController.java
-      GET /study/{path}/events/new           모임 생성 폼 (관리자 전용)
-      GET /study/{path}/events/{eventId}/edit 모임 수정 폼 (관리자 전용)
-      GET /study/{path}/events/{eventId}      모임 상세 (myEnrollment, isEnrollable, isDisenrollable 계산)
-  - templates/event/form.html              생성/수정 통합 폼, Summernote, datetime-local
-  - templates/event/view.html              참가자 목록, 신청/취소/출석 버튼, 관리자 enrollment 관리
-  - EventInternalController.java           GET /internal/events/{eventId} 추가
-  - StudyPageController.studyView()        eventInternalClient 연동, newEvents/oldEvents 분리
-  - study/view.html                        모임 만들기 링크 /new-event → /events/new 수정
-  - 전체 frontend-service DTO Lombok @Data 전환 완료
-  - study/dto/EventSummaryDto.java (구버전) 삭제, DashboardDto import 수정
+      GET /study/{path}/events/new
+      GET /study/{path}/events/{eventId}/edit
+      GET /study/{path}/events/{eventId}
+  - templates/event/form.html (생성/수정 통합, Summernote, datetime-local)
+  - templates/event/view.html (참가자 목록, 신청/취소/출석, 관리자 관리)
+  - study/view.html: 모임 목록 event-service 연동, /events/new 링크 수정
+
+[Phase 4] 프로필 페이지 — ✅ 완료 (2026-04-01)
+  - account-service: GET /internal/accounts/by-nickname/{nickname}
+  - frontend-service: ProfilePageController, AccountInternalClient.getAccountByNickname()
+  - templates/account/profile.html
+
+[Phase 4] 버그 수정 및 개선 — ✅ 완료 (2026-04-01)
+  - StudyPageDataDto: useBanner 필드 추가
+  - StudyPageDataResponse: useBanner 필드 추가
+  - fragments.html: study-list fragment 중복 제거
+  - study/settings/study.html: fetch URL 버그 수정 (/settings/study/* → /settings/*)
+  - index.html: 추천 스터디 컴팩트 리스트 레이아웃 (col-lg-4 영역 최적화)
+  - 전체 frontend-service DTO Lombok @Data 전환
+
 
 ================================================
 즉시 해야 할 작업 (다음 세션 최우선)
 ================================================
 
-[1] E2E 통합 테스트 (event-service 플로우)
-    - 모임 생성: GET /study/{path}/events/new → form.html → POST /api/studies/{path}/events
-    - 모임 수정: GET /study/{path}/events/{id}/edit → PUT
-    - 모임 상세: GET /study/{path}/events/{id} → view.html
-    - 참가 신청/취소: POST /api/studies/{path}/events/{id}/enroll, /leave
-    - 관리자 수락/거절/출석: /enrollments/{enrollmentId}/accept, /reject, /checkin
-
-[2] Phase 5 — notification-service 개발 시작
+[1] Phase 5 — notification-service 개발 시작
+    순서: Docker 기동 → study-service Kafka Producer → event-service RabbitMQ Producer
+          → notification-service 신규 생성 → api-gateway 라우팅 → frontend 페이지
 
 
 ================================================
@@ -130,19 +97,15 @@ Phase 5 — notification-service
       RabbitMQ: Exchange, Queue, Binding, Routing Key, RabbitTemplate
 
 [ ] Docker 기동
-    docker run -d --name zookeeper \
-      -e ZOOKEEPER_CLIENT_PORT=2181 -p 2181:2181 \
-      confluentinc/cp-zookeeper:7.5.0
+    docker run -d --name zookeeper -e ZOOKEEPER_CLIENT_PORT=2181 -p 2181:2181 confluentinc/cp-zookeeper:7.5.0
     docker run -d --name kafka \
       -e KAFKA_BROKER_ID=1 \
       -e KAFKA_ZOOKEEPER_CONNECT=host.docker.internal:2181 \
       -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
       -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
       -p 9092:9092 confluentinc/cp-kafka:7.5.0
-    docker run -d --name rabbitmq \
-      -p 5672:5672 -p 15672:15672 rabbitmq:3-management
-    docker run -d --name notification-db \
-      -p 27017:27017 mongo:7
+    docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+    docker run -d --name notification-db -p 27017:27017 mongo:7
 
 [ ] study-service — Kafka Producer 추가
     - 이벤트: 스터디 생성, 공개, 모집 시작/종료
@@ -159,13 +122,13 @@ Phase 5 — notification-service
 
 [ ] notification-service 신규 생성 (:8085)
     - 기술 스택: MongoDB + Kafka Consumer + RabbitMQ Consumer
-    - Kafka Consumer:    @KafkaListener(topics = "study-events")
+    - Kafka Consumer:     @KafkaListener(topics = "study-events")
     - RabbitMQ Consumer: @RabbitListener(queues = "enrollment.queue")
     - 알림 저장: MongoDB (Notification 도큐먼트)
     - API:
-        GET   /api/notifications       읽지 않은 알림 목록
-        PATCH /api/notifications        전체 읽음 처리
-        PATCH /api/notifications/{id}   단건 읽음 처리
+        GET   /api/notifications        읽지 않은 알림 목록
+        PATCH /api/notifications         전체 읽음 처리
+        PATCH /api/notifications/{id}    단건 읽음 처리
 
 [ ] api-gateway 라우팅: /api/notifications/** → lb://NOTIFICATION-SERVICE
 
@@ -183,7 +146,6 @@ Phase 6 — admin-service
 [ ] api-gateway AdminRoleFilter 구현 + /api/admin/** 라우팅
 [ ] 주요 기능: 회원/스터디/태그/지역 관리
 [ ] frontend-service 관리자 페이지 추가 (Claude 담당)
-    - templates/admin/ (dashboard, members, studies, tags, zones)
 
 
 ================================================
@@ -195,7 +157,7 @@ Phase 6 — admin-service
 [ ] 운영 배포 준비 (application-prod.yml, JWT secret 환경변수, HTTPS)
 [ ] account-service batch 엔드포인트 추가
     POST /internal/accounts/batch { ids: [123, 456] }
-    → study 페이지 멤버 카드에 nickname/profileImage 표시 (현재 id만 표시 중)
+    → study 페이지 멤버 카드에 nickname/profileImage 표시 (현재 id만 표시)
 [ ] 모노리틱 미반영 항목: 스터디 통계 대시보드, 게시판(Board)
 
 
@@ -203,9 +165,11 @@ Phase 6 — admin-service
 알려진 버그 / 미완성 항목
 ================================================
 
-[ ] /notifications → 현재 404 (Phase 5 notification-service 개발 시 함께 구현)
+[ ] /notifications → 현재 404 (Phase 5 개발 시 구현)
 [ ] 캘린더 이벤트 API (/api/calendar/events) 미구현
-    → index.html FullCalendar가 호출하지만 404 반환 (콘솔 warning만 발생, UI 영향 없음)
+    → index.html FullCalendar가 호출하지만 404 반환 (콘솔 warning만, UI 영향 없음)
+[ ] study 페이지 멤버 카드 닉네임/프로필 이미지 미표시
+    → account-service batch API 미구현으로 id만 표시 중
 
 
 ================================================
@@ -227,7 +191,7 @@ Phase 6 — admin-service
 :8081  account-service
 :8082  admin-service          (Phase 6)
 :8083  study-service
-:8084  event-service          ✅ 백엔드 완성
+:8084  event-service          ✅ 전체 완성
 :8085  notification-service   (Phase 5)
 :8090  frontend-service
 :8761  eureka-server
@@ -236,20 +200,11 @@ Phase 6 — admin-service
 :5433  PostgreSQL account_db  (Docker: account-db)
 :5434  PostgreSQL study_db    (Docker: study-db)
 :5435  PostgreSQL event_db    (Docker: event-db)
-
-
-================================================
-Docker PostgreSQL 기동 명령어
-================================================
-
-docker start account-db   # 이미 생성된 경우
-docker start study-db
-docker start event-db
-
-# 최초 생성 시
-docker run -d --name account-db -e POSTGRES_DB=account_db -e POSTGRES_USER=studyolle -e POSTGRES_PASSWORD=studyolle -p 5433:5432 postgres:15
-docker run -d --name study-db   -e POSTGRES_DB=study_db   -e POSTGRES_USER=studyolle -e POSTGRES_PASSWORD=studyolle -p 5434:5432 postgres:15
-docker run -d --name event-db   -e POSTGRES_DB=event_db   -e POSTGRES_USER=studyolle -e POSTGRES_PASSWORD=studyolle -p 5435:5432 postgres:15
+:9092  Kafka                  (Phase 5)
+:2181  Zookeeper              (Phase 5)
+:5672  RabbitMQ               (Phase 5)
+:15672 RabbitMQ Management UI (Phase 5)
+:27017 MongoDB                (Phase 5)
 
 
 ================================================

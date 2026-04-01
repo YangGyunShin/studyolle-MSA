@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<!--
+    account/profile.html  (MSA 버전)
+
+    [역할]
+    특정 사용자의 공개 프로필 페이지.
+    누구든 /profile/{nickname} 으로 접근할 수 있다.
+
+    [필요한 model 속성]
+    - profileAccount : AccountSummaryDto  (프로필 주인)
+    - account        : AccountSummaryDto | null  (현재 로그인한 사용자 — nav 바용)
+    - isOwner        : boolean  (내 프로필인지 여부 — 설정 버튼 표시 조건)
+    - apiBase        : String
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments.html :: head(${profileAccount.nickname} + '님의 프로필')}"></head>
+
+<body class="bg-light">
+
+<nav th:replace="~{fragments.html :: main-nav}"></nav>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <!-- ========== 프로필 카드 ========== -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-4 p-md-5">
+
+                    <div class="d-flex align-items-start gap-4 flex-wrap">
+
+                        <!-- 프로필 이미지 / Jdenticon -->
+                        <div class="flex-shrink-0">
+                            <img th:if="${!#strings.isEmpty(profileAccount.profileImage)}"
+                                 th:src="${profileAccount.profileImage}"
+                                 width="96" height="96"
+                                 class="rounded-circle border object-fit-cover shadow-sm"
+                                 alt="프로필 이미지"/>
+                            <svg th:if="${#strings.isEmpty(profileAccount.profileImage)}"
+                                 th:data-jdenticon-value="${profileAccount.nickname}"
+                                 width="96" height="96"
+                                 class="rounded-circle border shadow-sm"></svg>
+                        </div>
+
+                        <!-- 닉네임 + 소개 + 배지 -->
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                <h3 class="fw-bold mb-0" style="color: #2c2843;"
+                                    th:text="${profileAccount.nickname}">닉네임</h3>
+
+                                <!-- 이메일 인증 배지 -->
+                                <span th:if="${profileAccount.emailVerified}"
+                                      class="badge rounded-pill"
+                                      style="background: #e8f4ee; color: #7fac8e; font-size: 0.72rem;">
+                                    <i class="fa-solid fa-circle-check me-1"></i>인증됨
+                                </span>
+                            </div>
+
+                            <!-- 이메일 -->
+                            <div class="text-muted small mb-2"
+                                 th:text="${profileAccount.email}">
+                                email@example.com
+                            </div>
+
+                            <!-- 소개 -->
+                            <p th:if="${!#strings.isEmpty(profileAccount.bio)}"
+                               class="mb-3"
+                               style="color: #4a4540; font-size: 0.9rem; line-height: 1.6;"
+                               th:text="${profileAccount.bio}">자기 소개</p>
+                            <p th:if="${#strings.isEmpty(profileAccount.bio)}"
+                               class="mb-3 text-muted small fst-italic">
+                                아직 소개가 없습니다.
+                            </p>
+
+                            <!-- 관심 주제 / 활동 지역 수 -->
+                            <div class="d-flex gap-3">
+                                <span class="small" style="color: #8e85b0;">
+                                    <i class="fa-solid fa-tags me-1"></i>
+                                    관심 주제
+                                    <strong th:text="${profileAccount.tagCount}">0</strong>개
+                                </span>
+                                <span class="small" style="color: #c4917e;">
+                                    <i class="fa-solid fa-map-location-dot me-1"></i>
+                                    활동 지역
+                                    <strong th:text="${profileAccount.zoneCount}">0</strong>개
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- 내 프로필이면 설정 버튼 -->
+                        <div th:if="${isOwner}" class="flex-shrink-0">
+                            <a href="/settings/profile"
+                               class="btn btn-sm rounded-pill px-3"
+                               style="border: 1.5px solid #8e85b0; color: #8e85b0; font-size: 0.85rem;">
+                                <i class="fa-solid fa-gear me-1"></i>프로필 설정
+                            </a>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== 관심 주제 없을 때 안내 (내 프로필) ========== -->
+            <div th:if="${isOwner && profileAccount.tagCount == 0}"
+                 class="card border-0 shadow-sm rounded-4 mb-4"
+                 style="border: 1.5px dashed #d0ccdf !important;">
+                <div class="card-body p-4 text-center">
+                    <i class="fa-solid fa-tags fa-2x mb-2" style="color: #d0ccdf;"></i>
+                    <p class="fw-semibold mb-1" style="color: #4a4540;">관심 주제를 등록해보세요</p>
+                    <p class="text-muted small mb-3">관심 주제를 등록하면 맞춤 스터디를 추천받을 수 있어요.</p>
+                    <a href="/settings/tags"
+                       class="btn btn-sm rounded-pill px-4 text-white"
+                       style="background: #8e85b0; border: none; font-size: 0.85rem;">
+                        <i class="fa-solid fa-plus me-1"></i>관심 주제 등록
+                    </a>
+                </div>
+            </div>
+
+            <!-- ========== 활동 지역 없을 때 안내 (내 프로필) ========== -->
+            <div th:if="${isOwner && profileAccount.zoneCount == 0}"
+                 class="card border-0 shadow-sm rounded-4 mb-4"
+                 style="border: 1.5px dashed #e8d9cc !important;">
+                <div class="card-body p-4 text-center">
+                    <i class="fa-solid fa-map-location-dot fa-2x mb-2" style="color: #e8d9cc;"></i>
+                    <p class="fw-semibold mb-1" style="color: #4a4540;">활동 지역을 등록해보세요</p>
+                    <p class="text-muted small mb-3">활동 지역을 등록하면 근처 스터디를 찾는 데 도움이 돼요.</p>
+                    <a href="/settings/zones"
+                       class="btn btn-sm rounded-pill px-4 text-white"
+                       style="background: #c4917e; border: none; font-size: 0.85rem;">
+                        <i class="fa-solid fa-plus me-1"></i>활동 지역 등록
+                    </a>
+                </div>
+            </div>
+
+            <!-- ========== 다른 사람 프로필 안내 ========== -->
+            <div th:if="${!isOwner}"
+                 class="card border-0 shadow-sm rounded-4 mb-4"
+                 style="background: #f8f7fc;">
+                <div class="card-body p-4 text-center">
+                    <i class="fa-solid fa-user-group fa-2x mb-2" style="color: #d0ccdf;"></i>
+                    <p class="text-muted small mb-0">
+                        함께 스터디를 하고 싶다면 같은 스터디에 참여해 보세요.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ========== 홈으로 버튼 ========== -->
+            <div class="text-center">
+                <a href="/"
+                   class="btn btn-sm rounded-pill px-4"
+                   style="border: 1.5px solid #8e85b0; color: #8e85b0; font-size: 0.85rem;">
+                    <i class="fa-solid fa-house me-1"></i>홈으로
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments.html :: footer}"></div>
+
+</body>
+</html>

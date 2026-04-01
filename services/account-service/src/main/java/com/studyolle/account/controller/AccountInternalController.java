@@ -65,4 +65,15 @@ public class AccountInternalController {
         return ResponseEntity.ok(new ArrayList<>(account.getZones()));
     }
 
+    // GET /internal/accounts/by-nickname/{nickname}
+    @GetMapping("/internal/accounts/by-nickname/{nickname}")
+    public ResponseEntity<AccountSummaryResponse> getAccountByNickname(
+            @PathVariable String nickname,
+            @RequestHeader("X-Internal-Service") String internalService) {
+        Account account = accountRepository.findByNickname(nickname);
+        if (account == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(AccountSummaryResponse.from(account));
+    }
 }

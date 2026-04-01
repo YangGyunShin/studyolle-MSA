@@ -1,0 +1,38 @@
+StudyOlle MSA 프로젝트를 이어서 진행합니다.
+
+프로젝트 루트:
+/Users/shinyanggyun/Library/Mobile Documents/com~apple~CloudDocs/Spring/study/studyolle-msa/
+
+현재 상태 요약 (2026-04-01 기준):
+- Phase 1~4 전체 완성 (인프라 + account + study + event + frontend)
+- event-service frontend 연동 완료 (form.html, view.html, EventPageController)
+- 프로필 페이지 완료 (account/profile.html, ProfilePageController)
+- 대시보드 모임 표시 연동 완료 (study-service EventFeignClient → event-service)
+- 통합 테스트 완료: 로그인 → 대시보드 → 스터디 → 모임 생성/신청/관리 → 프로필
+
+다음 작업:
+Phase 5 — notification-service 개발 시작
+
+[설계 확정]
+- study-service  → Kafka    → notification-service  (스터디 이벤트)
+- event-service  → RabbitMQ → notification-service  (모임/enrollment 이벤트)
+- 공부 목적: Kafka + RabbitMQ 혼용으로 두 기술 모두 학습
+
+[진행 순서]
+1. Docker: Zookeeper, Kafka, RabbitMQ, MongoDB 기동
+2. study-service  Kafka Producer 추가 (스터디 생성/공개/모집 이벤트)
+3. event-service  RabbitMQ Producer 추가 (enrollment 이벤트)
+4. notification-service 신규 생성 (:8085, MongoDB)
+   - Kafka Consumer (@KafkaListener)
+   - RabbitMQ Consumer (@RabbitListener)
+   - GET/PATCH /api/notifications
+5. api-gateway 라우팅 추가
+6. frontend-service 알림 페이지 (Claude 담당)
+
+역할 분담:
+- Java 소스코드 (.java): 양균님 직접 작성 → 소스코드만 제공
+- frontend-service HTML 템플릿: Claude 직접 파일 생성
+
+현황 파악을 위해 MSA_GUIDE.md, MSA_TODO.txt 를 먼저 읽어주세요.
+서비스 경로:
+/Users/shinyanggyun/Library/Mobile Documents/com~apple~CloudDocs/Spring/study/studyolle-msa/services/

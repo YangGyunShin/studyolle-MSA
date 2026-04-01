@@ -4,6 +4,7 @@ import com.studyolle.frontend.account.dto.AccountSettingsDto;
 import com.studyolle.frontend.account.dto.AccountSummaryDto;
 import com.studyolle.frontend.common.InternalHeaderHelper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
@@ -17,12 +18,14 @@ import java.util.List;
 public class AccountInternalClient {
 
     private final RestTemplate restTemplate;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Value("${app.account-service-base-url:lb://ACCOUNT-SERVICE}")
     private String accountServiceBaseUrl;
 
-    public AccountInternalClient(RestTemplate restTemplate) {
+    public AccountInternalClient(RestTemplate restTemplate, ApplicationEventPublisher applicationEventPublisher) {
         this.restTemplate = restTemplate;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     /**
@@ -101,6 +104,21 @@ public class AccountInternalClient {
             return response.getBody() != null ? response.getBody() : Collections.emptyList();
         } catch (HttpClientErrorException e) {
             return Collections.emptyList();
+        }
+    }
+
+    public AccountSummaryDto getAccountByNickname(String nickname) {
+        String url = accountServiceBaseUrl + "/internal/accounts/by-nickname/" + nickname;
+        try {
+            ResponseEntity<AccountSummaryDto> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    InternalHeaderHelper.build(null),
+                    AccountSummaryDto.class
+            );
+            return response.getBody();
+        } catch (HttpClientErrorException e) {
+            return null;
         }
     }
     /*

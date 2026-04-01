@@ -4,26 +4,25 @@
 
 ---
 
-## 현재 진행 상황 (2026-03-29 기준)
+## 현재 진행 상황 (2026-04-01 기준)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
 | Phase 1 | 인프라 (Eureka, Config, API Gateway) | ✅ 완료 |
-| Phase 2 | account-service | ✅ 완료 (통합 테스트 완료) |
+| Phase 2 | account-service | ✅ 완료 |
 | Phase 3 | frontend-service (인증 페이지 + study 페이지 전체) | ✅ 완료 |
-| Phase 4 | study-service 소스코드 + InternalStudyController 8개 엔드포인트 | ✅ 완료 |
+| Phase 4 | study-service 소스코드 + InternalStudyController | ✅ 완료 |
 | Phase 4 | 에러 페이지 (404.html, error.html) | ✅ 완료 |
 | Phase 4 | 계정 설정 페이지 5개 + account-service 태그/지역 API | ✅ 완료 |
-| Phase 4 | event-service 백엔드 (Entity/Repository/Service/Controller/Config/Filter) | ✅ 완료 |
-| Phase 4 | event-service frontend 템플릿 (form.html, view.html) | ✅ 완료 |
+| Phase 4 | event-service 백엔드 + frontend 연동 전체 | ✅ 완료 |
+| Phase 4 | 프로필 페이지 (account/profile.html) | ✅ 완료 |
+| Phase 4 | 대시보드 모임 표시 (EventFeignClient 연동) | ✅ 완료 |
+| Phase 4 | account-service 닉네임 조회 API | ✅ 완료 |
 | Phase 5 | notification-service | 🔲 예정 |
 | Phase 6 | admin-service | 🔲 예정 |
 
 **다음 즉시 할 일:**
-1. frontend-service event 패키지 추가 (EventPageController, EventInternalClient, DTO)
-2. templates/event/form.html — 모임 생성/수정 폼
-3. templates/event/view.html — 모임 상세 (신청/취소/출석체크)
-4. study/view.html 모임 목록 탭 event-service 연동
+- Phase 5 notification-service 개발 시작
 
 자세한 TODO는 `MSA_TODO.txt` 참고.
 
@@ -37,16 +36,16 @@
     ▼
 [api-gateway :8080]   JWT 검증(쿠키/헤더), 라우팅, X-Account-Id 헤더 추가
     │
-    ├── [account-service  :8081]   회원가입/로그인/JWT 발급/계정 설정
-    ├── [study-service    :8083]   스터디 CRUD/설정/가입
-    ├── [event-service    :8084]   모임 생성/신청 ✅ 백엔드 완성
+    ├── [account-service  :8081]   회원가입/로그인/JWT 발급/계정 설정/프로필
+    ├── [study-service    :8083]   스터디 CRUD/설정/가입, EventFeignClient(event-service 호출)
+    ├── [event-service    :8084]   모임 생성/신청 ✅ 전체 완성
     └── [notification-service :8085] 알림 (예정)
 
 [frontend-service :8090]   Thymeleaf HTML 서빙 (DB 없음)
     │  브라우저 렌더링 전 RestTemplate 으로 내부 API 호출
     ├── AccountInternalClient  lb://ACCOUNT-SERVICE/internal/**
     ├── StudyInternalClient    lb://STUDY-SERVICE/internal/**
-    └── EventInternalClient    lb://EVENT-SERVICE/internal/**  ← 추가 예정
+    └── EventInternalClient    lb://EVENT-SERVICE/internal/**  ✅ 완성
 
 [eureka-server :8761]   서비스 디스커버리
 [config-server :8888]   중앙 설정 관리
@@ -113,119 +112,121 @@
 
 ```
 event-service/src/main/java/com/studyolle/event/
-├── EventServiceApplication.java       (@EnableFeignClients)
+├── EventServiceApplication.java
 ├── config/
-│     SecurityConfig.java              csrf disable, anyRequest permitAll
-│     WebMvcConfig.java                InternalRequestFilter 인터셉터 등록
+│     SecurityConfig.java
+│     WebMvcConfig.java                InternalRequestFilter 등록
 ├── controller/
 │     EventController.java             /api/studies/{path}/events/** (11개 엔드포인트)
-│     EventInternalController.java     /internal/events/** (2개 엔드포인트)
+│     EventInternalController.java     /internal/events/** (3개 엔드포인트)
+│                                      - GET /internal/events/by-study/{path}
+│                                      - GET /internal/events/calendar?accountId={id}
+│                                      - GET /internal/events/{eventId}
 ├── dto/
 │     request/  CreateEventRequest, UpdateEventRequest
 │     response/ EventResponse, EnrollmentResponse, CommonApiResponse<T>
 ├── entity/
-│     Event.java          (@Builder, @Builder.Default enrollments)
-│     Enrollment.java     (@Builder)
-│     EventType.java      (FCFS, CONFIRMATIVE)
-├── exception/
-│     GlobalExceptionHandler.java
+│     Event.java, Enrollment.java, EventType.java
+├── exception/  GlobalExceptionHandler.java
 ├── filter/
-│     InternalRequestFilter.java       ALLOWED: frontend-service, study-service, admin-service
+│     InternalRequestFilter.java
+│     ALLOWED: frontend-service, study-service, admin-service, notification-service
 ├── repository/
-│     EventRepository.java             (@EntityGraph enrollments)
-│     EnrollmentRepository.java
+│     EventRepository.java, EnrollmentRepository.java
 └── service/
-      EventService.java                createEvent, getEvents, updateEvent, deleteEvent
-      EnrollmentService.java           enroll, cancelEnrollment, acceptEnrollment, rejectEnrollment, checkIn
-
-application.yaml: port 8084, PostgreSQL localhost:5435/event_db
-```
-
-**EventController 엔드포인트 목록:**
-```
-POST   /api/studies/{path}/events                          모임 생성
-GET    /api/studies/{path}/events                          모임 목록
-GET    /api/studies/{path}/events/{eventId}                모임 상세
-PUT    /api/studies/{path}/events/{eventId}                모임 수정
-DELETE /api/studies/{path}/events/{eventId}                모임 삭제
-POST   /api/studies/{path}/events/{eventId}/enroll         참가 신청
-POST   /api/studies/{path}/events/{eventId}/leave          참가 취소
-POST   .../enrollments/{enrollmentId}/accept               승인 (운영자)
-POST   .../enrollments/{enrollmentId}/reject               거절 (운영자)
-POST   .../enrollments/{enrollmentId}/checkin              출석 체크 (운영자)
-POST   .../enrollments/{enrollmentId}/cancel-checkin       출석 취소 (운영자)
-
-GET    /internal/events/by-study/{studyPath}               스터디의 모임 목록 (내부)
-GET    /internal/events/calendar?accountId={id}            내가 신청한 모임 (내부)
+      EventService.java, EnrollmentService.java
 ```
 
 ---
 
-## account-service 주요 파일 목록 (2026-03-29 기준)
+## account-service 주요 파일 목록 (2026-04-01 기준)
 
 ```
 account-service/src/main/java/com/studyolle/account/
-├── AccountServiceApplication.java
-├── config/
-│     SecurityConfig.java
-│     WebMvcConfig.java                ← 신규 추가 (InternalRequestFilter 등록)
 ├── controller/
-│     AuthController.java              POST /api/auth/signup, /login, /refresh, /check-email-token
-│     AccountController.java           GET/PUT /api/accounts/**
-│                                      GET/POST /api/accounts/settings/tags/**
-│                                      GET/POST /api/accounts/settings/zones/**
-│     AccountInternalController.java   GET /internal/accounts/{id}
-│                                      GET /internal/accounts/{id}/full
-│                                      GET /internal/accounts/{id}/tags
-│                                      GET /internal/accounts/{id}/zones
+│     AuthController.java
+│     AccountController.java
+│     AccountInternalController.java
+│         GET /internal/accounts/{id}
+│         GET /internal/accounts/{id}/full
+│         GET /internal/accounts/{id}/tags
+│         GET /internal/accounts/{id}/zones
+│         GET /internal/accounts/by-nickname/{nickname}   ← 2026-04-01 추가
 ├── filter/
-│     InternalRequestFilter.java       ← 신규 추가 (ALLOWED: frontend-service, study-service, admin-service, event-service)
-├── dto/ ...
-├── entity/  Account.java (@ElementCollection tags, zones)
-├── exception/  GlobalExceptionHandler.java
-├── infra/mail/  ConsoleEmailService, HtmlEmailService
-├── repository/  AccountRepository.java
-├── security/    JwtTokenProvider.java
-└── service/     AccountAuthService, AccountSettingsService, SignUpService
+│     InternalRequestFilter.java  (ALLOWED: frontend-service, study-service, admin-service, event-service)
+├── repository/
+│     AccountRepository.java  (findByNickname 추가)
+└── ...
 ```
 
 ---
 
-## frontend-service 주요 파일 목록 (2026-03-29 기준)
+## study-service 주요 변경 (2026-04-01 기준)
+
+```
+study-service/src/main/java/com/studyolle/study/
+├── client/
+│     MetadataFeignClient.java
+│     EventFeignClient.java          ← 2026-04-01 추가 (event-service 호출)
+│         getEventsByStudy(studyPath)  → GET /internal/events/by-study/{path}
+│         getCalendarEvents(accountId) → GET /internal/events/calendar?accountId={id}
+├── client/dto/
+│     EventSummaryDto.java            ← 2026-04-01 추가
+└── controller/
+      StudyInternalController.java
+          getDashboard() 수정: studyEventsMap 실제 데이터 채움 (기존: 빈 Map)
+```
+
+---
+
+## frontend-service 주요 파일 목록 (2026-04-01 기준)
 
 ```
 frontend-service/src/main/
 ├── java/com/studyolle/frontend/
 │     ├── FrontendServiceApplication.java
-│     ├── HomeController.java              GET /, GET /logout (쿠키 삭제)
+│     ├── HomeController.java              GET /, GET /logout
 │     ├── config/RestTemplateConfig.java
 │     ├── common/InternalHeaderHelper.java
 │     ├── account/
 │     │     controller/
 │     │         AuthPageController.java
 │     │         AccountPageController.java  /settings/**
+│     │         ProfilePageController.java  /profile/{nickname}  ← 2026-04-01 추가
 │     │     client/AccountInternalClient.java
-│     │     dto/AccountSummaryDto.java, AccountSettingsDto.java
+│     │         getAccountSummary(id)
+│     │         getAccountSettings(id)
+│     │         getAccountTags(id)
+│     │         getAccountZones(id)
+│     │         getAccountByNickname(nickname)  ← 2026-04-01 추가
+│     │     dto/AccountSummaryDto.java (@Data), AccountSettingsDto.java (@Data)
 │     ├── study/
 │     │     controller/StudyPageController.java
 │     │     client/StudyInternalClient.java
-│     │     dto/ StudyPageDataDto, MemberDto, JoinRequestDto,
-│     │          DashboardDto, StudySummaryDto, EventSummaryDto
-│     └── event/                            ← 다음 작업 추가 예정
+│     │     dto/ StudyPageDataDto(@Data, useBanner 포함), MemberDto(@Data),
+│     │          JoinRequestDto(@Data), DashboardDto(@Data), StudySummaryDto(@Data)
+│     └── event/
 │           controller/EventPageController.java
+│               GET /study/{path}/events/new
+│               GET /study/{path}/events/{eventId}/edit
+│               GET /study/{path}/events/{eventId}
 │           client/EventInternalClient.java
-│           dto/EventPageDataDto.java 등
+│               getEventsByStudy(studyPath)
+│               getEventById(eventId)
+│           dto/EventSummaryDto.java (@Data), EnrollmentDto.java (@Data)
 │
 └── resources/
       templates/
-          fragments.html     (var API_BASE, handleLogout → /logout 서버 사이드 삭제)
-          index.html         (var API_BASE)
-          login.html
-          account/ (sign-up, check-email, check-email-token, email-login)
+          fragments.html       (study-list fragment 중복 제거 완료)
+          index.html           (추천 스터디 컴팩트 리스트 레이아웃)
+          account/
+              profile.html     ← 2026-04-01 추가 (프로필 페이지)
+              sign-up, check-email, check-email-token, email-login
           study/   (form, view, members, settings/*)
+              settings/study.html  (fetch URL 버그 수정: /settings/study/* → /settings/*)
           settings/ (profile, password, notifications, tags, zones)
           error/   (404.html, error.html)
-          event/   ← 다음 작업 추가 예정 (form.html, view.html)
+          event/   (form.html, view.html)
       static/css/ (auth-style.css, main-style.css)
       static/js/  (glass-validation.js)
 ```
@@ -258,7 +259,7 @@ routes:
   - id: event-service
     uri: lb://EVENT-SERVICE
     predicates:
-      - Path=/api/studies/*/events/**   # study-service보다 먼저 선언 (더 구체적)
+      - Path=/api/studies/*/events/**
     filters:
       - JwtAuthenticationFilter
 
@@ -295,38 +296,47 @@ routes:
 
 ---
 
-## Docker PostgreSQL 기동 명령어
+## Docker 기동 명령어
 
 ```bash
-# account-service DB
-docker run -d --name account-db \
-  -e POSTGRES_DB=account_db \
-  -e POSTGRES_USER=studyolle \
-  -e POSTGRES_PASSWORD=studyolle \
-  -p 5433:5432 postgres:15
+# PostgreSQL
+docker start account-db
+docker start study-db
+docker start event-db
 
-# study-service DB
-docker run -d --name study-db \
-  -e POSTGRES_DB=study_db \
-  -e POSTGRES_USER=studyolle \
-  -e POSTGRES_PASSWORD=studyolle \
-  -p 5434:5432 postgres:15
+# 최초 생성
+docker run -d --name account-db -e POSTGRES_DB=account_db -e POSTGRES_USER=studyolle -e POSTGRES_PASSWORD=studyolle -p 5433:5432 postgres:15
+docker run -d --name study-db   -e POSTGRES_DB=study_db   -e POSTGRES_USER=studyolle -e POSTGRES_PASSWORD=studyolle -p 5434:5432 postgres:15
+docker run -d --name event-db   -e POSTGRES_DB=event_db   -e POSTGRES_USER=studyolle -e POSTGRES_PASSWORD=studyolle -p 5435:5432 postgres:15
 
-# event-service DB
-docker run -d --name event-db \
-  -e POSTGRES_DB=event_db \
-  -e POSTGRES_USER=studyolle \
-  -e POSTGRES_PASSWORD=studyolle \
-  -p 5435:5432 postgres:15
+# Phase 5 (notification-service)
+docker run -d --name zookeeper \
+  -e ZOOKEEPER_CLIENT_PORT=2181 -p 2181:2181 \
+  confluentinc/cp-zookeeper:7.5.0
+docker run -d --name kafka \
+  -e KAFKA_BROKER_ID=1 \
+  -e KAFKA_ZOOKEEPER_CONNECT=host.docker.internal:2181 \
+  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+  -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+  -p 9092:9092 confluentinc/cp-kafka:7.5.0
+docker run -d --name rabbitmq \
+  -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+docker run -d --name notification-db \
+  -p 27017:27017 mongo:7
 ```
 
 ---
 
-## 주요 트러블슈팅 이력 (TroubleShooting/ 참고)
+## 주요 트러블슈팅 이력
 
-| 번호 | 문제 | 원인 | 파일 |
-|------|------|------|------|
-| 015 | 로그아웃 불가 + 로그인 유지 안됨 | localhost:8090 직접 접속 / const API_BASE 중복 선언 / InternalRequestFilter 누락 | TroubleShooting_015.MD |
+| 번호 | 문제 | 원인 |
+|------|------|------|
+| 015 | 로그아웃 불가 + 로그인 유지 안됨 | localhost:8090 직접 접속 / const API_BASE 중복 선언 / InternalRequestFilter 누락 |
+| 016 | study/view.html Thymeleaf 파싱 에러 | StudyPageDataDto에 useBanner 필드 누락 |
+| 017 | 대시보드 예정된 모임 항상 없음 | event-service InternalRequestFilter ALLOWED에 study-service 미포함 → 403 → catch에서 무시 |
+| 018 | 스터디 설정 공개/경로/이름 수정 404 | study.html fetch URL에 /settings/study/ 불필요하게 포함 |
+| 019 | 추천 스터디 카드 세로 나열 | col-lg-4 영역에서 col-md-6 col-lg-4 fragment 사용 → 컴팩트 리스트로 교체 |
+| 020 | 스터디 카드 중복 표시 | fragments.html에 study-list fragment 두 번 정의 |
 
 ---
 
