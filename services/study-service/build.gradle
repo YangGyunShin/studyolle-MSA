@@ -33,6 +33,9 @@ dependencies {
     // account-service 와 달리 JWT 라이브러리가 없음 — JWT 검증은 api-gateway 전담
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 
+    // Kafka Producer — notification-service 로 스터디 이벤트 발행 (Phase 5)
+    implementation 'org.springframework.kafka:spring-kafka'
+
     // QueryDSL: 키워드 검색(findByKeyword) + 추천(findByAccount) 복잡 쿼리용
     // account-service 에는 없고 study-service 에만 있음
     implementation "com.querydsl:querydsl-jpa:${querydslVersion}:jakarta"

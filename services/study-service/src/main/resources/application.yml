@@ -19,6 +19,17 @@ spring:
         # 스터디 목록 조회 시 각 study의 컬렉션을 최대 100개씩 IN 쿼리로 묶어서 조회
         default_batch_fetch_size: 100
 
+  # Kafka Producer 설정 (Phase 5) — notification-service 로 스터디 이벤트 발행
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all                 # 모든 ISR에 저장 확인 후 성공 처리 (안전)
+      properties:
+        enable.idempotence: true  # 네트워크 오류 시 중복 전송 방지
+        spring.json.add.type.headers: false  # 수신측(notification-service)에서 비로크 클래스 이슈 제거
+
 eureka:
   client:
     service-url:
