@@ -270,7 +270,7 @@ public class StudySettingsController {
             @RequestHeader("X-Account-Id") Long accountId,
             @PathVariable String path) {
         Study study = studyService.getStudyToUpdateStatus(accountId, path);
-        studySettingsService.publish(study);
+        studySettingsService.publish(study, accountId);
         return ResponseEntity.ok(CommonApiResponse.ok("스터디를 공개했습니다."));
     }
 
@@ -299,7 +299,7 @@ public class StudySettingsController {
             @RequestHeader("X-Account-Id") Long accountId,
             @PathVariable String path) {
         Study study = studyService.getStudyToUpdateStatus(accountId, path);
-        studySettingsService.startRecruit(study);
+        studySettingsService.startRecruit(study, accountId);
         return ResponseEntity.ok(CommonApiResponse.ok("모집을 시작했습니다."));
     }
 
@@ -313,7 +313,7 @@ public class StudySettingsController {
             @RequestHeader("X-Account-Id") Long accountId,
             @PathVariable String path) {
         Study study = studyService.getStudyToUpdateStatus(accountId, path);
-        studySettingsService.stopRecruit(study);
+        studySettingsService.stopRecruit(study, accountId);
         return ResponseEntity.ok(CommonApiResponse.ok("모집을 중단했습니다."));
     }
 

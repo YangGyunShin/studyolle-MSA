@@ -17,6 +17,13 @@ spring:
       hibernate:
         default_batch_fetch_size: 100
 
+  # RabbitMQ Producer 설정 (Phase 5) — notification-service 로 enrollment 이벤트 발행
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
 eureka:
   client:
     service-url:

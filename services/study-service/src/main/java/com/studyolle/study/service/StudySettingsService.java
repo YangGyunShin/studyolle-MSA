@@ -7,10 +7,14 @@ import com.studyolle.study.dto.request.UpdateStudyDescriptionRequest;
 import com.studyolle.study.dto.request.ZoneRequest;
 import com.studyolle.study.entity.JoinType;
 import com.studyolle.study.entity.Study;
+import com.studyolle.study.kafka.StudyEventDto;
+import com.studyolle.study.kafka.StudyKafkaProducer;
 import com.studyolle.study.repository.StudyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 /**
  * 스터디 설정 변경 비즈니스 로직 담당 서비스.
@@ -58,6 +62,7 @@ public class StudySettingsService {
 
     private final StudyRepository studyRepository;
     private final MetadataFeignClient metadataFeignClient;
+    private final StudyKafkaProducer studyKafkaProducer;
 
     // ============================
     // 소개 수정
@@ -186,9 +191,15 @@ public class StudySettingsService {
      * 상태 변경 유효성 검증(이미 공개 상태인지 등)은 Study.publish() 내부에서 수행한다.
      * 서비스는 트랜잭션 경계와 이벤트 발행 위치만 담당한다.
      */
-    public void publish(Study study) {
+    public void publish(Study study, Long accountId) {
         study.publish();
-        // [Phase 5 TODO] StudyUpdatedEvent 발행 → notification-service 구독자 알림
+        studyKafkaProducer.sendStudyEvent(StudyEventDto.builder()
+                .eventType("STUDY_PUBLISHED")
+                .studyPath(study.getPath())
+                .studyTitle(study.getTitle())
+                .triggeredByAccountId(accountId)   // 설정 컨트롤러에서 accountId 전달 시 수정
+                .occurredAt(LocalDateTime.now())
+                .build());
     }
 
     /**
@@ -196,7 +207,7 @@ public class StudySettingsService {
      */
     public void close(Study study) {
         study.close();
-        // [Phase 5 TODO] StudyUpdatedEvent 발행
+        // 종료 이벤트는 알림 불필요하므로 Kafka 발행 생략
     }
 
     /**
@@ -205,17 +216,29 @@ public class StudySettingsService {
      * 너무 잦은 모집 상태 변경을 방지하기 위해 Study.startRecruit() 내부에서
      * 마지막 변경 시각 기준 1시간 이내 재변경을 제한한다.
      */
-    public void startRecruit(Study study) {
+    public void startRecruit(Study study, Long accountId) {
         study.startRecruit();
-        // [Phase 5 TODO] StudyUpdatedEvent 발행
+        studyKafkaProducer.sendStudyEvent(StudyEventDto.builder()
+                .eventType("RECRUITING_STARTED")
+                .studyPath(study.getPath())
+                .studyTitle(study.getTitle())
+                .triggeredByAccountId(accountId)
+                .occurredAt(LocalDateTime.now())
+                .build());
     }
 
     /**
      * 팀원 모집을 중단한다.
      */
-    public void stopRecruit(Study study) {
+    public void stopRecruit(Study study, Long accountId) {
         study.stopRecruit();
-        // [Phase 5 TODO] StudyUpdatedEvent 발행
+        studyKafkaProducer.sendStudyEvent(StudyEventDto.builder()
+                .eventType("RECRUITING_STOPPED")
+                .studyPath(study.getPath())
+                .studyTitle(study.getTitle())
+                .triggeredByAccountId(accountId)
+                .occurredAt(LocalDateTime.now())
+                .build());
     }
 
     // ============================

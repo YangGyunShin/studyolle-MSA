@@ -4,6 +4,8 @@ import com.studyolle.study.dto.request.CreateStudyRequest;
 import com.studyolle.study.entity.JoinRequest;
 import com.studyolle.study.entity.JoinRequestStatus;
 import com.studyolle.study.entity.Study;
+import com.studyolle.study.kafka.StudyEventDto;
+import com.studyolle.study.kafka.StudyKafkaProducer;
 import com.studyolle.study.repository.JoinRequestRepository;
 import com.studyolle.study.repository.StudyRepository;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -59,6 +62,7 @@ public class StudyService {
 
     private final StudyRepository studyRepository;
     private final JoinRequestRepository joinRequestRepository;
+    private final StudyKafkaProducer studyKafkaProducer;
 
     // ============================
     // 스터디 생성
@@ -86,12 +90,18 @@ public class StudyService {
                 .build();
 
         study.addManager(accountId); // 스터디를 만든 사람이 첫 번째 관리자
+        Study saved = studyRepository.save(study);
 
-        return studyRepository.save(study);
+        // 스터디 생성 이벤트 → Kafka → notification-service
+        studyKafkaProducer.sendStudyEvent(StudyEventDto.builder()
+                .eventType("STUDY_CREATED")
+                .studyPath(saved.getPath())
+                .studyTitle(saved.getTitle())
+                .triggeredByAccountId(accountId)
+                .occurredAt(LocalDateTime.now())
+                .build());
 
-        // [Phase 5 TODO]
-        // StudyCreatedEvent 발행 → notification-service 가 RabbitMQ 로 수신
-        // eventPublisher.publishEvent(new StudyCreatedEvent(study));
+        return saved;
     }
 
     // ============================

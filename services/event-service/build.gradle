@@ -30,6 +30,9 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     // JWT 라이브러리 없음 — JWT 검증은 api-gateway 전담
 
+    // RabbitMQ Producer — notification-service 로 enrollment 이벤트 발행 (Phase 5)
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+
     runtimeOnly 'org.postgresql:postgresql'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
