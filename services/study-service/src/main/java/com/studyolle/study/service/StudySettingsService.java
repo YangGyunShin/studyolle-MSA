@@ -77,10 +77,6 @@ public class StudySettingsService {
     public void updateStudyDescription(Study study, UpdateStudyDescriptionRequest request) {
         study.setShortDescription(request.getShortDescription());
         study.setFullDescription(request.getFullDescription());
-
-        // [Phase 5 TODO]
-        // StudyUpdatedEvent 발행 → notification-service 가 구독자에게 알림
-        // eventPublisher.publishEvent(new StudyUpdatedEvent(study, "소개를 수정했습니다."));
     }
 
     // ============================
