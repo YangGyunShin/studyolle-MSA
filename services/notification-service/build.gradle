@@ -17,15 +17,45 @@ repositories {
     mavenCentral()
 }
 
+ext {
+    set('springCloudVersion', "2024.0.1")
+}
+
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter'
+    // Web
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // JPA + PostgreSQL — 알림 영구 저장 (다른 서비스와 동일한 방식)
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // Redis — 읽지 않은 알림 카운터 + 중복 이벤트 처리 방지
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    // Kafka Consumer — study-service 의 스터디 이벤트 수신
+    implementation 'org.springframework.kafka:spring-kafka'
+
+    // RabbitMQ Consumer — event-service 의 enrollment 이벤트 수신
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+
+    // Spring Security — /api/** 인증, /internal/** 접근 제어
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // Eureka Client — 서비스 디스커버리 등록
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+
+    // Lombok
     compileOnly 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.projectlombok:lombok'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testCompileOnly 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
 }
 
 tasks.named('test') {
