@@ -2,6 +2,8 @@ package com.studyolle.event.service;
 
 import com.studyolle.event.entity.Enrollment;
 import com.studyolle.event.entity.Event;
+import com.studyolle.event.rabbitmq.EnrollmentEventDto;
+import com.studyolle.event.rabbitmq.EnrollmentRabbitProducer;
 import com.studyolle.event.repository.EnrollmentRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +18,7 @@ public class EnrollmentService {
 
     private final EnrollmentRepository enrollmentRepository;
     private final EventService eventService;
+    private final EnrollmentRabbitProducer enrollmentRabbitProducer;
 
     public void enroll(Long eventId, Long accountId) {
         Event event = eventService.getEventWithEnrollments(eventId);
@@ -27,7 +30,19 @@ public class EnrollmentService {
                     .accepted(event.isAbleToAcceptWaitingEnrollment())
                     .build();
             event.addEnrollment(enrollment);
-            enrollmentRepository.save(enrollment);
+            Enrollment saved = enrollmentRepository.save(enrollment);
+
+            // 선착순 즉시 수락된 경우에만 알림 발송
+            if (saved.isAccepted()) {
+                enrollmentRabbitProducer.send(EnrollmentEventDto.builder()
+                        .eventType("enrollment.applied")
+                        .eventId(eventId)
+                        .eventTitle(event.getTitle())
+                        .studyPath(event.getStudyPath())
+                        .enrollmentAccountId(accountId)
+                        .occurredAt(LocalDateTime.now())
+                        .build());
+            }
         }
     }
 
@@ -48,6 +63,16 @@ public class EnrollmentService {
         eventService.validateManager(event, accountId);
         Enrollment enrollment = findEnrollment(enrollmentId);
         event.accept(enrollment);
+
+        enrollmentRabbitProducer.send(EnrollmentEventDto.builder()
+                .eventType("enrollment.accepted")
+                .eventId(eventId)
+                .eventTitle(event.getTitle())
+                .studyPath(event.getStudyPath())
+                .enrollmentAccountId(enrollment.getAccountId())  // 신청자에게 알림
+                .managedByAccountId(accountId)                   // 처리한 관리자
+                .occurredAt(LocalDateTime.now())
+                .build());
     }
 
     public void rejectEnrollment(Long eventId, Long enrollmentId, Long accountId) {
@@ -55,12 +80,32 @@ public class EnrollmentService {
         eventService.validateManager(event, accountId);
         Enrollment enrollment = findEnrollment(enrollmentId);
         event.reject(enrollment);
+
+        enrollmentRabbitProducer.send(EnrollmentEventDto.builder()
+                .eventType("enrollment.rejected")
+                .eventId(eventId)
+                .eventTitle(event.getTitle())
+                .studyPath(event.getStudyPath())
+                .enrollmentAccountId(enrollment.getAccountId())  // 신청자에게 알림
+                .managedByAccountId(accountId)
+                .occurredAt(LocalDateTime.now())
+                .build());
     }
 
     public void checkIn(Long enrollmentId, Long accountId) {
         Enrollment enrollment = findEnrollment(enrollmentId);
         eventService.validateManager(enrollment.getEvent(), accountId);
         enrollment.setAttended(true);
+
+        enrollmentRabbitProducer.send(EnrollmentEventDto.builder()
+                .eventType("enrollment.attendance")
+                .eventId(enrollment.getEvent().getId())
+                .eventTitle(enrollment.getEvent().getTitle())
+                .studyPath(enrollment.getEvent().getStudyPath())
+                .enrollmentAccountId(enrollment.getAccountId())  // 출석 처리된 참가자에게 알림
+                .managedByAccountId(accountId)
+                .occurredAt(LocalDateTime.now())
+                .build());
     }
 
     public void cancelCheckIn(Long enrollmentId, Long accountId) {
