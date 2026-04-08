@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 진행 상황 (2026-04-01 기준)
+## 현재 진행 상황 (2026-04-02 기준)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -18,11 +18,18 @@
 | Phase 4 | 프로필 페이지 (account/profile.html) | ✅ 완료 |
 | Phase 4 | 대시보드 모임 표시 (EventFeignClient 연동) | ✅ 완료 |
 | Phase 4 | account-service 닉네임 조회 API | ✅ 완료 |
-| Phase 5 | notification-service | 🔲 예정 |
+| Phase 5 | Docker 기동 (Zookeeper, Kafka, RabbitMQ, PostgreSQL, Redis) | ✅ 완료 |
+| Phase 5 | study-service Kafka Producer 추가 | ✅ 완료 |
+| Phase 5 | event-service RabbitMQ Producer 추가 | ✅ 완료 |
+| Phase 5 | notification-service 신규 생성 (소스코드 작성 중) | 🔄 진행 중 |
+| Phase 5 | api-gateway 라우팅 추가 | 🔲 예정 |
+| Phase 5 | frontend-service 알림 페이지 | 🔲 예정 |
 | Phase 6 | admin-service | 🔲 예정 |
 
 **다음 즉시 할 일:**
-- Phase 5 notification-service 개발 시작
+- notification-service Java 파일 작성 완료 후 기동 테스트
+- api-gateway 라우팅 추가 (/api/notifications/** → NOTIFICATION-SERVICE)
+- frontend-service 알림 페이지 연동
 
 자세한 TODO는 `MSA_TODO.txt` 참고.
 
@@ -36,16 +43,22 @@
     ▼
 [api-gateway :8080]   JWT 검증(쿠키/헤더), 라우팅, X-Account-Id 헤더 추가
     │
-    ├── [account-service  :8081]   회원가입/로그인/JWT 발급/계정 설정/프로필
-    ├── [study-service    :8083]   스터디 CRUD/설정/가입, EventFeignClient(event-service 호출)
-    ├── [event-service    :8084]   모임 생성/신청 ✅ 전체 완성
-    └── [notification-service :8085] 알림 (예정)
+    ├── [account-service      :8081]   회원가입/로그인/JWT 발급/계정 설정/프로필
+    ├── [study-service        :8083]   스터디 CRUD/설정/가입 + Kafka Producer (Phase 5)
+    ├── [event-service        :8084]   모임 생성/신청 + RabbitMQ Producer (Phase 5)
+    ├── [notification-service :8085]   알림 저장/조회 (Phase 5) ← 신규
+    │       ├── Kafka Consumer    (study-events Topic)
+    │       ├── RabbitMQ Consumer (enrollment.queue)
+    │       ├── PostgreSQL :5436  (알림 영구 저장)
+    │       └── Redis :6379       (읽지 않은 알림 카운터, 중복 방지)
+    └── [frontend-service     :8090]   Thymeleaf HTML 서빙
 
-[frontend-service :8090]   Thymeleaf HTML 서빙 (DB 없음)
+[frontend-service :8090]
     │  브라우저 렌더링 전 RestTemplate 으로 내부 API 호출
-    ├── AccountInternalClient  lb://ACCOUNT-SERVICE/internal/**
-    ├── StudyInternalClient    lb://STUDY-SERVICE/internal/**
-    └── EventInternalClient    lb://EVENT-SERVICE/internal/**  ✅ 완성
+    ├── AccountInternalClient      lb://ACCOUNT-SERVICE/internal/**
+    ├── StudyInternalClient        lb://STUDY-SERVICE/internal/**
+    ├── EventInternalClient        lb://EVENT-SERVICE/internal/**    ✅ 완성
+    └── NotificationInternalClient lb://NOTIFICATION-SERVICE/internal/**  ← Phase 5 추가 예정
 
 [eureka-server :8761]   서비스 디스커버리
 [config-server :8888]   중앙 설정 관리
@@ -61,6 +74,24 @@
 
 ---
 
+## Phase 5 메시지 흐름
+
+```
+study-service ──→ Kafka "study-events" ──→ notification-service
+  (STUDY_CREATED / STUDY_PUBLISHED /          @KafkaListener
+   RECRUITING_STARTED / RECRUITING_STOPPED)
+
+event-service ──→ RabbitMQ "enrollment.queue" ──→ notification-service
+  (enrollment.accepted / rejected /               @RabbitListener
+   applied / attendance)
+
+notification-service ──→ PostgreSQL (알림 영구 저장)
+                    ──→ Redis (읽지 않은 알림 카운터 INCR/DECR)
+                              (중복 이벤트 방지 SETNX + TTL 1일)
+```
+
+---
+
 ## api-gateway 필터 구조 (현재)
 
 ```
@@ -69,13 +100,14 @@
       ▼
   라우트 매칭
       │
-      ├── /api/auth/**            → ACCOUNT-SERVICE  (필터 없음, 공개)
-      ├── /api/accounts/**        → ACCOUNT-SERVICE  (JwtAuthenticationFilter)
-      ├── /api/studies/*/events/**→ EVENT-SERVICE    (JwtAuthenticationFilter)
-      ├── /api/studies/**         → STUDY-SERVICE    (JwtAuthenticationFilter)
-      ├── /internal/**            → 403 전면 차단
+      ├── /api/auth/**             → ACCOUNT-SERVICE      (필터 없음, 공개)
+      ├── /api/accounts/**         → ACCOUNT-SERVICE      (JwtAuthenticationFilter)
+      ├── /api/notifications/**    → NOTIFICATION-SERVICE (JwtAuthenticationFilter) ← Phase 5 추가 예정
+      ├── /api/studies/*/events/** → EVENT-SERVICE        (JwtAuthenticationFilter)
+      ├── /api/studies/**          → STUDY-SERVICE        (JwtAuthenticationFilter)
+      ├── /internal/**             → 403 전면 차단
       │
-      └── /**                     → FRONTEND-SERVICE
+      └── /**                      → FRONTEND-SERVICE
             └── OptionalJwtFilter
                   토큰 없으면 → 그냥 통과 (비로그인 상태)
                   토큰 있으면 → X-Account-Id 헤더 추가 (로그인 상태)
@@ -89,7 +121,7 @@
 [로그인]
 ① login.html JS → fetch POST /api/auth/login
 ② 응답에서 accessToken, refreshToken 수신
-③ localStorage.setItem('accessToken', ...)        ← fetch() 호출용
+③ localStorage.setItem('accessToken', ...)          ← fetch() 호출용
 ④ document.cookie = 'accessToken=...; max-age=1800' ← 페이지 이동용
 ⑤ window.location.href = '/'
 
@@ -108,7 +140,58 @@
 
 ---
 
-## event-service 구조 (2026-03-29 완성)
+## notification-service 구조 (Phase 5 신규, 2026-04-02)
+
+```
+notification-service/src/main/java/com/studyolle/notification/
+├── NotificationServiceApplication.java
+├── config/
+│     RedisConfig.java             RedisTemplate<String, String> Bean 등록
+│     RabbitMQConfig.java          Exchange / Queue / Binding 선언 (Consumer 측)
+│     SecurityConfig.java          Security 설정 (전체 permitAll)
+│     WebMvcConfig.java            InternalRequestFilter 등록
+├── filter/
+│     InternalRequestFilter.java   /internal/** 접근 제어
+│     ALLOWED: frontend-service, study-service, event-service, admin-service
+├── entity/
+│     NotificationType.java        STUDY / ENROLLMENT enum
+│     Notification.java            @Entity — id, accountId, message, link, type, checked, createdAt
+├── dto/
+│     NotificationResponse.java    Notification → Response 변환 (from() 정적 팩토리)
+├── repository/
+│     NotificationRepository.java  JpaRepository + @Modifying markAllAsRead()
+├── service/
+│     NotificationService.java
+│         createNotification()     알림 생성 + Redis INCR
+│         isFirstProcessing()      중복 방지 (Redis SETNX + TTL 1일)
+│         getUnreadCount()         Redis 즉시 반환
+│         getUnreadNotifications() PostgreSQL 조회
+│         markAllAsRead()          PostgreSQL 벌크 UPDATE + Redis SET 0
+│         markAsRead()             PostgreSQL UPDATE + Redis DECR
+├── kafka/
+│     StudyEventDto.java           study-service 와 동일한 필드 구조
+│     StudyEventConsumer.java      @KafkaListener(topics = "study-events")
+│                                  중복 방지 후 createNotification() 호출
+├── rabbitmq/
+│     EnrollmentEventDto.java      event-service 와 동일한 필드 구조
+│     EnrollmentEventConsumer.java @RabbitListener(queues = "enrollment.queue")
+│                                  중복 방지 후 createNotification() 호출
+└── controller/
+      NotificationController.java
+          GET   /api/notifications        읽지 않은 알림 목록 (PostgreSQL)
+          PATCH /api/notifications        전체 읽음 처리
+          PATCH /api/notifications/{id}   단건 읽음 처리
+      NotificationInternalController.java
+          GET /internal/notifications/count/{accountId}  읽지 않은 알림 수 (Redis 즉시)
+
+Redis Key 구조:
+  notification:unread:{accountId}      읽지 않은 알림 수 카운터
+  notification:dedup:{eventKey}        중복 이벤트 방지 (TTL 1일)
+```
+
+---
+
+## event-service 구조 (Phase 4 완성 + Phase 5 추가)
 
 ```
 event-service/src/main/java/com/studyolle/event/
@@ -119,9 +202,6 @@ event-service/src/main/java/com/studyolle/event/
 ├── controller/
 │     EventController.java             /api/studies/{path}/events/** (11개 엔드포인트)
 │     EventInternalController.java     /internal/events/** (3개 엔드포인트)
-│                                      - GET /internal/events/by-study/{path}
-│                                      - GET /internal/events/calendar?accountId={id}
-│                                      - GET /internal/events/{eventId}
 ├── dto/
 │     request/  CreateEventRequest, UpdateEventRequest
 │     response/ EventResponse, EnrollmentResponse, CommonApiResponse<T>
@@ -131,10 +211,53 @@ event-service/src/main/java/com/studyolle/event/
 ├── filter/
 │     InternalRequestFilter.java
 │     ALLOWED: frontend-service, study-service, admin-service, notification-service
+├── rabbitmq/                          ← Phase 5 추가
+│     EnrollmentEventDto.java          RabbitMQ 발행 DTO
+│     RabbitMQConfig.java              Exchange(event.notification) / Queue(enrollment.queue) / Binding
+│     EnrollmentRabbitProducer.java    RabbitTemplate.convertAndSend()
+│                                      전송 실패 시 예외 삼킴 (부가 기능)
 ├── repository/
 │     EventRepository.java, EnrollmentRepository.java
 └── service/
-      EventService.java, EnrollmentService.java
+      EventService.java
+      EnrollmentService.java           ← Phase 5 수정
+          enroll()        → enrollment.applied  (선착순 즉시 수락 시)
+          acceptEnrollment() → enrollment.accepted
+          rejectEnrollment() → enrollment.rejected
+          checkIn()       → enrollment.attendance
+
+RabbitMQ 설정:
+  Exchange : event.notification (Topic Exchange)
+  Queue    : enrollment.queue   (durable)
+  Routing  : enrollment.#       (enrollment. 으로 시작하는 모든 키)
+```
+
+---
+
+## study-service 주요 파일 목록 (Phase 4 완성 + Phase 5 추가)
+
+```
+study-service/src/main/java/com/studyolle/study/
+├── client/
+│     MetadataFeignClient.java
+│     EventFeignClient.java           event-service 호출
+├── client/dto/
+│     EventSummaryDto.java
+├── kafka/                            ← Phase 5 추가
+│     StudyEventDto.java              Kafka 발행 DTO
+│     StudyKafkaProducer.java         KafkaTemplate.send(topic, studyPath, event)
+│                                     전송 실패 시 예외 삼킴 (부가 기능)
+└── service/
+      StudyService.java               createNewStudy() → STUDY_CREATED 발행
+      StudySettingsService.java       publish()        → STUDY_PUBLISHED 발행
+                                      startRecruit()   → RECRUITING_STARTED 발행
+                                      stopRecruit()    → RECRUITING_STOPPED 발행
+                                      (accountId 파라미터 추가됨)
+
+Kafka 설정:
+  Topic  : study-events
+  Key    : studyPath (같은 스터디 → 같은 Partition → 순서 보장)
+  발행 시점: 스터디 생성 / 공개 / 모집 시작 / 모집 종료
 ```
 
 ---
@@ -151,30 +274,12 @@ account-service/src/main/java/com/studyolle/account/
 │         GET /internal/accounts/{id}/full
 │         GET /internal/accounts/{id}/tags
 │         GET /internal/accounts/{id}/zones
-│         GET /internal/accounts/by-nickname/{nickname}   ← 2026-04-01 추가
+│         GET /internal/accounts/by-nickname/{nickname}
 ├── filter/
 │     InternalRequestFilter.java  (ALLOWED: frontend-service, study-service, admin-service, event-service)
 ├── repository/
-│     AccountRepository.java  (findByNickname 추가)
+│     AccountRepository.java  (findByNickname 포함)
 └── ...
-```
-
----
-
-## study-service 주요 변경 (2026-04-01 기준)
-
-```
-study-service/src/main/java/com/studyolle/study/
-├── client/
-│     MetadataFeignClient.java
-│     EventFeignClient.java          ← 2026-04-01 추가 (event-service 호출)
-│         getEventsByStudy(studyPath)  → GET /internal/events/by-study/{path}
-│         getCalendarEvents(accountId) → GET /internal/events/calendar?accountId={id}
-├── client/dto/
-│     EventSummaryDto.java            ← 2026-04-01 추가
-└── controller/
-      StudyInternalController.java
-          getDashboard() 수정: studyEventsMap 실제 데이터 채움 (기존: 빈 Map)
 ```
 
 ---
@@ -192,48 +297,38 @@ frontend-service/src/main/
 │     │     controller/
 │     │         AuthPageController.java
 │     │         AccountPageController.java  /settings/**
-│     │         ProfilePageController.java  /profile/{nickname}  ← 2026-04-01 추가
+│     │         ProfilePageController.java  /profile/{nickname}
 │     │     client/AccountInternalClient.java
-│     │         getAccountSummary(id)
-│     │         getAccountSettings(id)
-│     │         getAccountTags(id)
-│     │         getAccountZones(id)
-│     │         getAccountByNickname(nickname)  ← 2026-04-01 추가
-│     │     dto/AccountSummaryDto.java (@Data), AccountSettingsDto.java (@Data)
+│     │     dto/AccountSummaryDto.java, AccountSettingsDto.java
 │     ├── study/
 │     │     controller/StudyPageController.java
 │     │     client/StudyInternalClient.java
-│     │     dto/ StudyPageDataDto(@Data, useBanner 포함), MemberDto(@Data),
-│     │          JoinRequestDto(@Data), DashboardDto(@Data), StudySummaryDto(@Data)
-│     └── event/
-│           controller/EventPageController.java
-│               GET /study/{path}/events/new
-│               GET /study/{path}/events/{eventId}/edit
-│               GET /study/{path}/events/{eventId}
-│           client/EventInternalClient.java
-│               getEventsByStudy(studyPath)
-│               getEventById(eventId)
-│           dto/EventSummaryDto.java (@Data), EnrollmentDto.java (@Data)
+│     │     dto/ StudyPageDataDto, MemberDto, JoinRequestDto, DashboardDto, StudySummaryDto
+│     ├── event/
+│     │     controller/EventPageController.java
+│     │     client/EventInternalClient.java
+│     │     dto/EventSummaryDto.java, EnrollmentDto.java
+│     └── notification/                    ← Phase 5 추가 예정
+│           controller/NotificationPageController.java  GET /notifications
+│           client/NotificationInternalClient.java
 │
 └── resources/
       templates/
-          fragments.html       (study-list fragment 중복 제거 완료)
-          index.html           (추천 스터디 컴팩트 리스트 레이아웃)
-          account/
-              profile.html     ← 2026-04-01 추가 (프로필 페이지)
-              sign-up, check-email, check-email-token, email-login
+          fragments.html       (nav 🔔 뱃지 연동 예정)
+          index.html
+          account/ (profile.html 포함)
           study/   (form, view, members, settings/*)
-              settings/study.html  (fetch URL 버그 수정: /settings/study/* → /settings/*)
           settings/ (profile, password, notifications, tags, zones)
           error/   (404.html, error.html)
           event/   (form.html, view.html)
+          notifications.html   ← Phase 5 추가 예정 (Claude 담당)
       static/css/ (auth-style.css, main-style.css)
       static/js/  (glass-validation.js)
 ```
 
 ---
 
-## api-gateway application.yml 라우팅 (현재)
+## api-gateway application.yml 라우팅 (현재 + Phase 5 예정)
 
 ```yaml
 routes:
@@ -253,6 +348,14 @@ routes:
     uri: lb://ACCOUNT-SERVICE
     predicates:
       - Path=/api/accounts/**
+    filters:
+      - JwtAuthenticationFilter
+
+  # Phase 5 추가 예정
+  - id: notification-service
+    uri: lb://NOTIFICATION-SERVICE
+    predicates:
+      - Path=/api/notifications/**
     filters:
       - JwtAuthenticationFilter
 
@@ -283,13 +386,14 @@ routes:
 ## 전체 서비스 기동 순서
 
 ```
-1. eureka-server   (:8761)
-2. config-server   (:8888)
-3. api-gateway     (:8080)
-4. account-service (:8081)  — IntelliJ Active profiles: local
-5. study-service   (:8083)
-6. event-service   (:8084)  — event-db Docker 컨테이너 필요
-7. frontend-service (:8090)
+1. eureka-server        (:8761)
+2. config-server        (:8888)
+3. api-gateway          (:8080)
+4. account-service      (:8081)  — IntelliJ Active profiles: local
+5. study-service        (:8083)
+6. event-service        (:8084)
+7. notification-service (:8085)  ← Phase 5 추가
+8. frontend-service     (:8090)
 
 접속: http://localhost:8080  (8090 직접 접속 금지 — OptionalJwtFilter 우회)
 ```
@@ -299,30 +403,38 @@ routes:
 ## Docker 기동 명령어
 
 ```bash
-# PostgreSQL
+# PostgreSQL (기존 DB 시작)
 docker start account-db
 docker start study-db
 docker start event-db
 
-# 최초 생성
-docker run -d --name account-db -e POSTGRES_DB=account_db -e POSTGRES_USER=studyolle -e POSTGRES_PASSWORD=studyolle -p 5433:5432 postgres:15
-docker run -d --name study-db   -e POSTGRES_DB=study_db   -e POSTGRES_USER=studyolle -e POSTGRES_PASSWORD=studyolle -p 5434:5432 postgres:15
-docker run -d --name event-db   -e POSTGRES_DB=event_db   -e POSTGRES_USER=studyolle -e POSTGRES_PASSWORD=studyolle -p 5435:5432 postgres:15
-
-# Phase 5 (notification-service)
+# Phase 5 신규 컨테이너 (최초 생성)
 docker run -d --name zookeeper \
   -e ZOOKEEPER_CLIENT_PORT=2181 -p 2181:2181 \
   confluentinc/cp-zookeeper:7.5.0
+
 docker run -d --name kafka \
   -e KAFKA_BROKER_ID=1 \
   -e KAFKA_ZOOKEEPER_CONNECT=host.docker.internal:2181 \
   -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
   -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
   -p 9092:9092 confluentinc/cp-kafka:7.5.0
+
 docker run -d --name rabbitmq \
   -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+
+# notification-db: MongoDB → PostgreSQL 로 변경 (2026-04-02)
 docker run -d --name notification-db \
-  -p 27017:27017 mongo:7
+  -e POSTGRES_DB=notification_db \
+  -e POSTGRES_USER=studyolle \
+  -e POSTGRES_PASSWORD=studyolle \
+  -p 5436:5432 postgres:15
+
+docker run -d --name redis \
+  -p 6379:6379 redis:7-alpine
+
+# 기동 확인 (8개 컨테이너 Up 상태여야 함)
+docker ps
 ```
 
 ---
@@ -337,6 +449,16 @@ docker run -d --name notification-db \
 | 018 | 스터디 설정 공개/경로/이름 수정 404 | study.html fetch URL에 /settings/study/ 불필요하게 포함 |
 | 019 | 추천 스터디 카드 세로 나열 | col-lg-4 영역에서 col-md-6 col-lg-4 fragment 사용 → 컴팩트 리스트로 교체 |
 | 020 | 스터디 카드 중복 표시 | fragments.html에 study-list fragment 두 번 정의 |
+
+---
+
+## 학습 자료 문서 (프로젝트 루트)
+
+| 파일 | 내용 |
+|------|------|
+| `RabbitMQ_Guide.md` | RabbitMQ 핵심 개념, Exchange 4종류, ACK/DLQ, StudyOlle 활용 코드 |
+| `Kafka_Guide.md` | Kafka 핵심 개념, Topic/Partition/Offset, Consumer Group, StudyOlle 활용 코드 |
+| `MSA_AUTH_FLOW.md` | 인증 및 요청 처리 흐름 (JWT, X-Account-Id, 내부 통신) |
 
 ---
 

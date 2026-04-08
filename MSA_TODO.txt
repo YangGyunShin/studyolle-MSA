@@ -4,7 +4,7 @@ StudyOlle MSA 전환 — TODO 리스트
 
 최초 작성일: 2026-03-10
 최종 수정일: 2026-04-02
-기준: Phase 5 설계 확정 (Redis 추가, MongoDB → PostgreSQL 변경)
+기준: Phase 5 진행 중 (Docker ✅ / study-service ✅ / event-service ✅ / notification-service 작성 중)
 
 
 ================================================
@@ -80,10 +80,10 @@ StudyOlle MSA 전환 — TODO 리스트
 즉시 해야 할 작업 (다음 세션 최우선)
 ================================================
 
-[1] Phase 5 — notification-service + Redis 개발 진행 중
-    현재 단계: Docker 기동 → (진행 중)
-    순서: Docker 기동 → study-service Kafka Producer → event-service RabbitMQ Producer
-          → notification-service 신규 생성 → api-gateway 라우팅 → frontend 페이지
+[1] Phase 5 — notification-service Java 파일 작성 완료 후 기동 테스트
+    현재 단계: notification-service 소스코드 작성 중
+    완료: Docker ✅ / study-service Kafka Producer ✅ / event-service RabbitMQ Producer ✅
+    남은 것: notification-service 파일 작성 → 기동 → api-gateway 라우팅 → frontend 페이지
 
 
 ================================================
@@ -99,66 +99,49 @@ Phase 5 — notification-service + Redis
       RabbitMQ: Exchange, Queue, Binding, Routing Key, RabbitTemplate
       Redis:    INCR/DECR 카운터, SETNX 중복방지, TTL
 
-[ ] Docker 기동 (총 5개 신규 컨테이너)
-    docker run -d --name zookeeper -e ZOOKEEPER_CLIENT_PORT=2181 -p 2181:2181 confluentinc/cp-zookeeper:7.5.0
-    docker run -d --name kafka \
-      -e KAFKA_BROKER_ID=1 \
-      -e KAFKA_ZOOKEEPER_CONNECT=host.docker.internal:2181 \
-      -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
-      -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
-      -p 9092:9092 confluentinc/cp-kafka:7.5.0
-    docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
-    docker run -d --name notification-db \
-      -e POSTGRES_DB=notification_db -e POSTGRES_USER=studyolle -e POSTGRES_PASSWORD=studyolle \
-      -p 5436:5432 postgres:15   ← MongoDB → PostgreSQL 변경 (2026-04-02)
-    docker run -d --name redis -p 6379:6379 redis:7-alpine
+[x] Docker 기동 완료 (2026-04-02) ✅
+    zookeeper :2181 / kafka :9092 / rabbitmq :5672,15672
+    notification-db(postgres) :5436 / redis :6379
 
-[ ] study-service — Kafka Producer 추가
-    - 신규 파일: kafka/StudyEventDto.java, kafka/StudyKafkaProducer.java
-    - 수정 파일: StudyService.java (publish, startRecruit, stopRecruit에서 호출)
-    - 이벤트: STUDY_CREATED, STUDY_PUBLISHED, RECRUITING_STARTED, RECRUITING_STOPPED
-    - Topic: study-events
-    - Key: studyPath (같은 스터디는 같은 Partition → 순서 보장)
-    - 의존성: spring-kafka
+[x] study-service — Kafka Producer 추가 완료 (2026-04-02) ✅
+    - kafka/StudyEventDto.java, kafka/StudyKafkaProducer.java 생성
+    - StudyService.java: createNewStudy() → STUDY_CREATED 발행
+    - StudySettingsService.java: publish() → STUDY_PUBLISHED
+                                 startRecruit() → RECRUITING_STARTED
+                                 stopRecruit()  → RECRUITING_STOPPED
+                                 (accountId 파라미터 추가)
+    - StudySettingsController.java: 호출부 3곳 accountId 전달로 수정
+    - build.gradle: spring-kafka 의존성 추가
+    - application.yml: Kafka Producer 설정 추가
 
-[ ] event-service — RabbitMQ Producer 추가
-    - 신규 파일: rabbitmq/EnrollmentEventDto.java
-                rabbitmq/RabbitMQConfig.java (Exchange, Queue, Binding 선언)
-                rabbitmq/EnrollmentRabbitProducer.java
-    - 수정 파일: EnrollmentService.java (accept, reject, checkIn에서 호출)
-    - 이벤트: enrollment.accepted, enrollment.rejected, enrollment.applied, enrollment.attendance
-    - Exchange: event.notification (Topic Exchange)
-    - Queue: enrollment.queue, Routing: enrollment.#
-    - 의존성: spring-boot-starter-amqp
+[x] event-service — RabbitMQ Producer 추가 완료 (2026-04-02) ✅
+    - rabbitmq/EnrollmentEventDto.java 생성
+    - rabbitmq/RabbitMQConfig.java 생성 (Exchange: event.notification, Queue: enrollment.queue)
+    - rabbitmq/EnrollmentRabbitProducer.java 생성
+    - EnrollmentService.java: enroll() / acceptEnrollment() / rejectEnrollment() / checkIn() 수정
+    - build.gradle: spring-boot-starter-amqp 의존성 추가
+    - application.yaml: RabbitMQ 설정 추가
 
-[ ] notification-service 신규 생성 (:8085)
+[ ] notification-service 신규 생성 (:8085) — 소스코드 작성 중
     - 기술 스택: PostgreSQL + JPA + Kafka Consumer + RabbitMQ Consumer + Redis
-    - 신규 파일 총 16개:
+    - settings.gradle: notification-service 모듈 등록 완료 ✅
+    - build.gradle: 작성 완료 ✅
+    - application.yml: 작성 완료 ✅
+    - Java 파일 17개 소스코드 제공 완료, 양균님 작성 중:
         NotificationServiceApplication.java
         config/ : RedisConfig, RabbitMQConfig, SecurityConfig, WebMvcConfig
-        entity/ : Notification.java, NotificationType.java   ← @Entity (JPA)
-        dto/    : NotificationResponse.java
         filter/ : InternalRequestFilter.java
+        entity/ : Notification.java (@Entity), NotificationType.java
+        dto/    : NotificationResponse.java
+        repository/: NotificationRepository.java (JpaRepository)
+        service/: NotificationService.java
         kafka/  : StudyEventDto.java, StudyEventConsumer.java
         rabbitmq/: EnrollmentEventDto.java, EnrollmentEventConsumer.java
-        repository/: NotificationRepository.java              ← JpaRepository
-        service/: NotificationService.java
         controller/: NotificationController.java, NotificationInternalController.java
-    - Kafka Consumer:     @KafkaListener(topics = "study-events", groupId = "notification-service")
-    - RabbitMQ Consumer: @RabbitListener(queues = "enrollment.queue")
-    - 알림 저장: PostgreSQL :5436 (notification_db) — 기존 서비스와 동일한 방식
-    - Redis 활용:
-        notification:unread:{accountId}      읽지 않은 알림 수 카운터 (INCR/DECR)
-        notification:dedup:{eventKey}        중복 이벤트 처리 방지 (SETNX, TTL 1일)
-    - 외부 API (/api/notifications/**):
-        GET   /api/notifications        읽지 않은 알림 목록 (PostgreSQL)
-        PATCH /api/notifications         전체 읽음 처리
-        PATCH /api/notifications/{id}    단건 읽음 처리
-    - 내부 API (/internal/notifications/**):
-        GET /internal/notifications/count/{accountId}   읽지 않은 알림 수 (Redis 즉시 반환)
 
 [ ] api-gateway 라우팅 추가 (Claude 담당)
     - /api/notifications/** → lb://NOTIFICATION-SERVICE (JwtAuthenticationFilter 적용)
+    - notification-service 기동 확인 후 진행
 
 [ ] frontend-service 알림 연동
     - 양균님 담당 (.java):
