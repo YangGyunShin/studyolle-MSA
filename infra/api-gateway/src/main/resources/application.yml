@@ -44,6 +44,14 @@ spring:
           filters:
             - JwtAuthenticationFilter
 
+        # notification-service (Phase 5)
+        - id: notification-service
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - JwtAuthenticationFilter
+
         # event-service (study-service보다 먼저 선언 - 더 구체적인 경로)
         - id: event-service
           uri: lb://EVENT-SERVICE
