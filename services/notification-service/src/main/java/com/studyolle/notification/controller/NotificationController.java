@@ -91,7 +91,7 @@ public class NotificationController {
      * 특정 알림 하나를 읽음 처리한다.
      * PostgreSQL checked = true + Redis 카운터 -1.
      *
-     * @param id        읽음 처리할 알림 ID
+     * @param id 읽음 처리할 알림 ID
      * @param accountId 요청한 사용자 ID (자신의 알림만 처리 가능하도록 서비스에서 검증)
      */
     @PatchMapping("/{id}")

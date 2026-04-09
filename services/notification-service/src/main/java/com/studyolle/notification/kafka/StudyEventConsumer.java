@@ -106,8 +106,7 @@ public class StudyEventConsumer {
             @Header(KafkaHeaders.OFFSET) long offset,
             Acknowledgment ack) {
 
-        log.info("[Kafka] 수신: partition={}, offset={}, eventType={}",
-                partition, offset, event.getEventType());
+        log.info("[Kafka] 수신: partition={}, offset={}, eventType={}", partition, offset, event.getEventType());
 
         // 중복 이벤트 방지 — studyPath + occurredAt 조합으로 유니크 키 생성
         // 같은 스터디에서 같은 시각에 같은 이벤트가 두 번 오면 두 번째는 무시한다.
@@ -142,8 +141,7 @@ public class StudyEventConsumer {
         } catch (Exception e) {
             // 처리 실패 시 ack 를 호출하지 않는다.
             // 서비스 재시작 시 이 메시지부터 다시 읽어 재처리를 시도한다.
-            log.error("[Kafka] 알림 처리 실패: eventType={}, error={}",
-                    event.getEventType(), e.getMessage());
+            log.error("[Kafka] 알림 처리 실패: eventType={}, error={}", event.getEventType(), e.getMessage());
         }
     }
 }
