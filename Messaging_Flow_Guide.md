@@ -175,14 +175,52 @@ public void send(EnrollmentEventDto event) {
 
 ### STEP 4. RabbitMQ 서버 (Docker) — 우체국이 라우팅 처리
 
+여기서 자주 나오는 의문: **"라우팅 처리는 어떤 클래스에 있는가?"**
+
+결론: **라우팅 실행 코드는 우리 프로젝트에 없다. 하지만 라우팅 규칙은 우리 코드에 있다.**
+
+```
+우리 코드 (규칙 정의)              RabbitMQ 서버 (규칙 실행)
+        │                                 │
+RabbitMQConfig.java                       │
+  @Bean                                   │
+  public Binding enrollmentBinding() {    │
+      return BindingBuilder               │
+          .bind(enrollmentQueue())        │
+          .to(notificationExchange())     │
+          .with("enrollment.#");  ──────→ │ 이 규칙을 서버에 등록
+  }                                       │
+        │                                 │
+  애플리케이션 시작 시                         │
+  Spring 이 Bean 을 생성하면서                │
+  RabbitMQ 서버에 규칙을 자동 등록             │
+                                          │
+                         메시지가 도착하면    │
+                         등록된 규칙 실행     │
+                              ↓           │
+                    "enrollment.accepted" │
+                    → "enrollment.#" 매칭  │
+                    → enrollment.queue 로 │
+```
+
+즉 역할이 이렇게 나뉜다:
+
+| 주체 | 역할 |
+|------|------|
+| `RabbitMQConfig.java` — 우리 코드 | 라우팅 **규칙 정의** ("enrollment.# 는 enrollment.queue 로") |
+| Spring Boot 기동 시 | 그 규칙을 RabbitMQ 서버에 **등록** |
+| RabbitMQ 서버 내부 | 메시지가 올 때마다 등록된 규칙을 **실행** |
+
 ```
 [RabbitMQ 서버 - localhost:5672]
    │
-   │  Exchange "event.notification" 수신:
+   │  Exchange "event.notification" 메시지 수신:
    │    메시지: { "eventType": "enrollment.accepted", ... }
    │    Routing Key: "enrollment.accepted"
    │
-   │  Binding 규칙 확인:
+   │  저장된 Binding 규칙 조회
+   │  (RabbitMQConfig.java 의 enrollmentBinding() 이 등록한 규칙)
+   │
    │    "enrollment.accepted" 가 "enrollment.#" 패턴에 맞는가?
    │      enrollment. ← 시작 부분 일치 ✅
    │      accepted    ← # 에 매칭 ✅
@@ -191,13 +229,13 @@ public void send(EnrollmentEventDto event) {
    │  enrollment.queue 에 메시지 추가:
    │    [메시지1: enrollment.accepted]  ← 방금 도착한 것
    │    [메시지2: ...]
-   │    [메시지3: ...]
    │
-   │  (notification-service 가 처리할 준비가 될 때까지 보관)
+   │  notification-service 가 처리할 준비가 될 때까지 보관
 ```
 
 > **RabbitMQ Management UI** (`http://localhost:15672`) 에서 직접 확인 가능.
-> Queue 에 메시지가 쌓이는 것, 처리되는 것을 실시간으로 볼 수 있다.
+> Exchanges 탭: "event.notification" Exchange 와 Binding 규칙 확인
+> Queues 탭: "enrollment.queue" 에 메시지가 쌓이고 처리되는 것 실시간 확인
 > 기본 계정: guest / guest
 
 ---

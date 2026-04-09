@@ -21,15 +21,16 @@
 | Phase 5 | Docker 기동 (Zookeeper, Kafka, RabbitMQ, PostgreSQL, Redis) | ✅ 완료 |
 | Phase 5 | study-service Kafka Producer 추가 | ✅ 완료 |
 | Phase 5 | event-service RabbitMQ Producer 추가 | ✅ 완료 |
-| Phase 5 | notification-service 신규 생성 (소스코드 작성 중) | 🔄 진행 중 |
+| Phase 5 | notification-service 소스코드 작성 (18개 파일) | ✅ 완료 |
+| Phase 5 | notification-service 기동 테스트 | 🔲 대기 중 |
 | Phase 5 | api-gateway 라우팅 추가 | 🔲 예정 |
-| Phase 5 | frontend-service 알림 페이지 | 🔲 예정 |
+| Phase 5 | frontend-service 알림 페이지 연동 | 🔲 예정 |
 | Phase 6 | admin-service | 🔲 예정 |
 
 **다음 즉시 할 일:**
-- notification-service Java 파일 작성 완료 후 기동 테스트
-- api-gateway 라우팅 추가 (/api/notifications/** → NOTIFICATION-SERVICE)
-- frontend-service 알림 페이지 연동
+1. notification-service 기동 테스트 (Eureka 등록 + Kafka/RabbitMQ 수신 확인)
+2. api-gateway 라우팅 추가 (Claude 담당)
+3. frontend-service 알림 페이지 연동
 
 자세한 TODO는 `MSA_TODO.txt` 참고.
 
