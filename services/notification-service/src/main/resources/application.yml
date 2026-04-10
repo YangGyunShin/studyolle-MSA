@@ -32,8 +32,10 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: com.studyolle.notification.kafka
+        spring.json.trusted.packages: "*"
         spring.json.use.type.headers: false
+        # Producer 가 type 헤더 없이 보내므로 어떤 클래스로 역직렬화할지 명시
+        spring.json.value.default.type: com.studyolle.notification.kafka.StudyEventDto
     listener:
       ack-mode: manual_immediate
 
