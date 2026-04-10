@@ -132,6 +132,18 @@
                     <a class="nav-link px-3 py-2 rounded-pill text-muted position-relative"
                        href="/notifications" style="font-size: 0.9rem;">
                         <i class="bi bi-bell"></i>
+                        <!--
+                            안 읽은 알림 수 배지.
+                            unreadNotificationCount 는 GlobalModelAttributes(@ControllerAdvice)에서
+                            모든 페이지에 자동 주입된다. (Redis 즉시 반환)
+                            0 이면 배지를 숨기고, 99 초과면 "99+" 로 표시.
+                        -->
+                        <span th:if="${unreadNotificationCount != null and unreadNotificationCount > 0}"
+                              class="position-absolute translate-middle badge rounded-pill bg-danger"
+                              style="font-size: 0.55rem; padding: 0.25em 0.45em; top: 25%; left: 75%;"
+                              th:text="${unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}">
+                            0
+                        </span>
                     </a>
                 </li>
                 <li th:if="${account != null}" class="nav-item">
