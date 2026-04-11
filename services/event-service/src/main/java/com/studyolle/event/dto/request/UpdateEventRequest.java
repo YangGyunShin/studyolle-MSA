@@ -1,5 +1,6 @@
 package com.studyolle.event.dto.request;
 
+import com.studyolle.event.entity.EventType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -14,6 +15,9 @@ public class UpdateEventRequest {
     private String title;
 
     private String description;
+
+    @NotNull
+    private EventType eventType;
 
     @Min(2)
     private int limitOfEnrollments;

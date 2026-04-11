@@ -61,6 +61,7 @@ public class Event {
     public void update(UpdateEventRequest req) {
         this.title = req.getTitle();
         this.description = req.getDescription();
+        this.eventType = req.getEventType();
         this.limitOfEnrollments = req.getLimitOfEnrollments();
         this.endEnrollmentDateTime = req.getEndEnrollmentDateTime();
         this.startDateTime = req.getStartDateTime();
