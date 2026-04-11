@@ -93,6 +93,7 @@ public class NotificationService {
      * @param accountId 조회 대상 사용자 ID
      * @return 전체 알림 목록 (최신순)
      */
+    @Transactional(readOnly = true)
     public List<Notification> getAllNotifications(Long accountId) {
         return notificationRepository.findAllByAccountIdOrderByCreatedAtDesc(accountId);
     }
