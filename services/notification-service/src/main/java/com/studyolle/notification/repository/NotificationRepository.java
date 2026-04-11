@@ -63,4 +63,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Transactional
     @Query("UPDATE Notification n SET n.checked = true WHERE n.accountId = :accountId AND n.checked = false")
     void markAllAsRead(Long accountId);
+
+    List<Notification> findAllByAccountIdOrderByCreatedAtDesc(Long accountId);
 }

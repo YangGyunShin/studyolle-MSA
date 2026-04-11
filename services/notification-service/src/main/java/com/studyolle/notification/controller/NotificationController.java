@@ -65,7 +65,7 @@ public class NotificationController {
     public ResponseEntity<CommonApiResponse<List<NotificationResponse>>> getNotifications(
             @RequestHeader("X-Account-Id") Long accountId) {
         List<NotificationResponse> notifications = notificationService
-                .getUnreadNotifications(accountId)
+                .getAllNotifications(accountId)
                 .stream()
                 .map(NotificationResponse::from)
                 .toList();

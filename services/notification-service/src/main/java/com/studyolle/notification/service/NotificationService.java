@@ -83,6 +83,21 @@ public class NotificationService {
     }
 
     /**
+     * 특정 사용자의 전체 알림 목록을 최신순으로 조회한다.
+     *
+     * getUnreadNotifications() 는 읽지 않은 알림만 반환하지만,
+     * 이 메서드는 읽은 알림까지 모두 반환한다.
+     *
+     * 프론트엔드에서 읽음/안 읽음을 시각적으로 구분하여 표시할 때 사용한다.
+     *
+     * @param accountId 조회 대상 사용자 ID
+     * @return 전체 알림 목록 (최신순)
+     */
+    public List<Notification> getAllNotifications(Long accountId) {
+        return notificationRepository.findAllByAccountIdOrderByCreatedAtDesc(accountId);
+    }
+
+    /**
      * 전체 읽음 처리: PostgreSQL 벌크 UPDATE + Redis 카운터 0으로 초기화.
      */
     public void markAllAsRead(Long accountId) {
