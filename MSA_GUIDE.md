@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 진행 상황 (2026-04-02 기준)
+## 현재 진행 상황 (2026-04-11 기준)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -17,20 +17,19 @@
 | Phase 4 | event-service 백엔드 + frontend 연동 전체 | ✅ 완료 |
 | Phase 4 | 프로필 페이지 (account/profile.html) | ✅ 완료 |
 | Phase 4 | 대시보드 모임 표시 (EventFeignClient 연동) | ✅ 완료 |
-| Phase 4 | account-service 닉네임 조회 API | ✅ 완료 |
 | Phase 5 | Docker 기동 (Zookeeper, Kafka, RabbitMQ, PostgreSQL, Redis) | ✅ 완료 |
-| Phase 5 | study-service Kafka Producer 추가 | ✅ 완료 |
-| Phase 5 | event-service RabbitMQ Producer 추가 | ✅ 완료 |
-| Phase 5 | notification-service 소스코드 작성 (18개 파일) | ✅ 완료 |
-| Phase 5 | notification-service 기동 테스트 | 🔲 대기 중 |
-| Phase 5 | api-gateway 라우팅 추가 | 🔲 예정 |
-| Phase 5 | frontend-service 알림 페이지 연동 | 🔲 예정 |
+| Phase 5 | study-service Kafka Producer | ✅ 완료 |
+| Phase 5 | event-service RabbitMQ Producer | ✅ 완료 |
+| Phase 5 | notification-service 소스코드 (18개 파일) | ✅ 완료 |
+| Phase 5 | notification-service 기동 + Kafka 흐름 검증 | ✅ 완료 |
+| Phase 5 | api-gateway /api/notifications/** 라우팅 | ✅ 완료 |
+| Phase 5 | frontend-service 알림 페이지 연동 | ✅ 완료 |
+| Phase 5 | RabbitMQ 흐름 테스트 (event-service → notification) | 🔲 대기 중 |
 | Phase 6 | admin-service | 🔲 예정 |
 
 **다음 즉시 할 일:**
-1. notification-service 기동 테스트 (Eureka 등록 + Kafka/RabbitMQ 수신 확인)
-2. api-gateway 라우팅 추가 (Claude 담당)
-3. frontend-service 알림 페이지 연동
+1. RabbitMQ 흐름 테스트 (모임 신청/수락/거절/출석)
+2. Phase 6 admin-service 시작
 
 자세한 TODO는 `MSA_TODO.txt` 참고.
 
@@ -450,6 +449,10 @@ docker ps
 | 018 | 스터디 설정 공개/경로/이름 수정 404 | study.html fetch URL에 /settings/study/ 불필요하게 포함 |
 | 019 | 추천 스터디 카드 세로 나열 | col-lg-4 영역에서 col-md-6 col-lg-4 fragment 사용 → 컴팩트 리스트로 교체 |
 | 020 | 스터디 카드 중복 표시 | fragments.html에 study-list fragment 두 번 정의 |
+| 016-Phase5 | notification-service 기동 실패 + Kafka 역직렬화 실패 | IntelliJ Run Config의 Main class 패키지 오타 / JsonDeserializer default type 누락 |
+| 017-Phase5 | 알림 읽음 처리 시 nav 배지 차감 불발 | fetch() 비동기 race condition — page navigation으로 in-flight 요청 취소 |
+
+*Phase 5 관련 상세 트러블슈팅은 `TroubleShooting/TroubleShooting_016.MD`, `TroubleShooting_017.MD` 참고.*
 
 ---
 

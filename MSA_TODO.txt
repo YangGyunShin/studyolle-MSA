@@ -3,8 +3,8 @@ StudyOlle MSA 전환 — TODO 리스트
 ================================================
 
 최초 작성일: 2026-03-10
-최종 수정일: 2026-04-02
-기준: Phase 5 진행 중 (notification-service 소스코드 작성 완료 / 기동 테스트 대기 중)
+최종 수정일: 2026-04-11
+기준: Phase 5 Kafka 흐름 완전 동작 / RabbitMQ 흐름 테스트만 남음
 
 
 ================================================
@@ -21,14 +21,15 @@ StudyOlle MSA 전환 — TODO 리스트
   - 회원가입, 로그인, 토큰 재발급, 이메일 인증, 이메일 로그인
   - JWT 발급 (검증은 api-gateway 전담)
   - AccountInternalController: /internal/accounts/{id}, /full, /tags, /zones
-  - GET /internal/accounts/by-nickname/{nickname}  ← 2026-04-01 추가
-  - AccountRepository.findByNickname()             ← 2026-04-01 추가
+  - GET /internal/accounts/by-nickname/{nickname}
+  - AccountRepository.findByNickname()
   - InternalRequestFilter (ALLOWED: frontend-service, study-service, admin-service, event-service)
 
 [Phase 2] api-gateway — ✅ 완료
   - JwtAuthenticationFilter: Authorization 헤더 + 쿠키(accessToken) 모두 지원
   - OptionalJwtFilter: 비로그인 허용, 토큰 있으면 X-Account-Id 추가
   - event-service 라우팅: /api/studies/*/events/** → EVENT-SERVICE
+  - notification-service 라우팅: /api/notifications/** → NOTIFICATION-SERVICE ← 2026-04-11 추가
 
 [Phase 3] frontend-service — ✅ 완료
   - 포트: 8090
@@ -41,127 +42,82 @@ StudyOlle MSA 전환 — TODO 리스트
 [Phase 4] study-service — ✅ 완료
   - 포트: 8083, PostgreSQL :5434 (study_db)
   - StudyController, StudySettingsController, StudyInternalController
-  - EventFeignClient 추가 (getDashboard에서 event-service 호출)  ← 2026-04-01
-  - client/dto/EventSummaryDto.java 추가                        ← 2026-04-01
-  - getDashboard(): studyEventsMap 실제 데이터 채움 (기존 빈 Map) ← 2026-04-01
+  - EventFeignClient 추가 (getDashboard에서 event-service 호출)
+  - client/dto/EventSummaryDto.java 추가
+  - getDashboard(): studyEventsMap 실제 데이터 채움
 
 [Phase 4] event-service — ✅ 완료
   - 포트: 8084, PostgreSQL :5435 (event_db)
   - EventController (11개 엔드포인트)
   - EventInternalController (3개: by-study, calendar, {eventId})
-  - InternalRequestFilter ALLOWED에 study-service 추가  ← 2026-04-01
+  - InternalRequestFilter ALLOWED에 study-service 추가
+  - UpdateEventRequest / Event.update(): eventType 필드 추가 ← 2026-04-11
 
 [Phase 4] event-service frontend 연동 — ✅ 완료
   - event/dto/EnrollmentDto.java, EventSummaryDto.java (@Data)
   - event/client/EventInternalClient.java
   - event/controller/EventPageController.java
-      GET /study/{path}/events/new
-      GET /study/{path}/events/{eventId}/edit
-      GET /study/{path}/events/{eventId}
   - templates/event/form.html (생성/수정 통합, Summernote, datetime-local)
   - templates/event/view.html (참가자 목록, 신청/취소/출석, 관리자 관리)
-  - study/view.html: 모임 목록 event-service 연동, /events/new 링크 수정
 
-[Phase 4] 프로필 페이지 — ✅ 완료 (2026-04-01)
+[Phase 4] 프로필 페이지 — ✅ 완료
   - account-service: GET /internal/accounts/by-nickname/{nickname}
   - frontend-service: ProfilePageController, AccountInternalClient.getAccountByNickname()
   - templates/account/profile.html
 
-[Phase 4] 버그 수정 및 개선 — ✅ 완료 (2026-04-01)
-  - StudyPageDataDto: useBanner 필드 추가
-  - StudyPageDataResponse: useBanner 필드 추가
-  - fragments.html: study-list fragment 중복 제거
-  - study/settings/study.html: fetch URL 버그 수정 (/settings/study/* → /settings/*)
-  - index.html: 추천 스터디 컴팩트 리스트 레이아웃 (col-lg-4 영역 최적화)
-  - 전체 frontend-service DTO Lombok @Data 전환
-
 
 ================================================
-즉시 해야 할 작업 (다음 세션 최우선)
-================================================
-
-[1] Phase 5 — notification-service 기동 테스트 후 api-gateway 라우팅 + frontend 연동
-    현재 단계: notification-service 소스코드 작성 완료 → 기동 테스트 필요
-    완료: Docker ✅ / study-service Kafka Producer ✅ / event-service RabbitMQ Producer ✅ / notification-service 소스코드 ✅
-    남은 것:
-      ① notification-service 기동 → Eureka 등록 확인 → Kafka/RabbitMQ 메시지 수신 확인
-      ② api-gateway 라우팅 추가 (Claude 담당)
-      ③ frontend-service 알림 페이지 연동 (양균님 .java + Claude .html)
-
-
-================================================
-Phase 5 — notification-service + Redis
+Phase 5 — notification-service + Kafka + RabbitMQ + Redis
 ================================================
 
 [공부 목적] Kafka + RabbitMQ + Redis 혼용 설계
   - study-service  → Kafka    → notification-service  (스터디 이벤트)
   - event-service  → RabbitMQ → notification-service  (모임/enrollment 이벤트)
   - notification-service → Redis (알림 카운터, 중복 처리 방지)
-  - 배우는 것:
-      Kafka:    Topic, Partition, Consumer Group, Offset, KafkaTemplate
-      RabbitMQ: Exchange, Queue, Binding, Routing Key, RabbitTemplate
-      Redis:    INCR/DECR 카운터, SETNX 중복방지, TTL
 
-[x] Docker 기동 완료 (2026-04-02) ✅
+[x] Docker 기동 완료 ✅
     zookeeper :2181 / kafka :9092 / rabbitmq :5672,15672
     notification-db(postgres) :5436 / redis :6379
 
-[x] study-service — Kafka Producer 추가 완료 (2026-04-02) ✅
-    - kafka/StudyEventDto.java, kafka/StudyKafkaProducer.java 생성
-    - StudyService.java: createNewStudy() → STUDY_CREATED 발행
-    - StudySettingsService.java: publish() → STUDY_PUBLISHED
-                                 startRecruit() → RECRUITING_STARTED
-                                 stopRecruit()  → RECRUITING_STOPPED
-                                 (accountId 파라미터 추가)
-    - StudySettingsController.java: 호출부 3곳 accountId 전달로 수정
-    - build.gradle: spring-kafka 의존성 추가
-    - application.yml: Kafka Producer 설정 추가
+[x] study-service — Kafka Producer 완료 ✅
+    - kafka/StudyEventDto.java, kafka/StudyKafkaProducer.java
+    - StudyService / StudySettingsService: 4개 이벤트 발행
+      STUDY_CREATED / STUDY_PUBLISHED / RECRUITING_STARTED / RECRUITING_STOPPED
 
-[x] event-service — RabbitMQ Producer 추가 완료 (2026-04-02) ✅
-    - rabbitmq/EnrollmentEventDto.java 생성
-    - rabbitmq/RabbitMQConfig.java 생성 (Exchange: event.notification, Queue: enrollment.queue)
-    - rabbitmq/EnrollmentRabbitProducer.java 생성
-    - EnrollmentService.java: enroll() / acceptEnrollment() / rejectEnrollment() / checkIn() 수정
-    - build.gradle: spring-boot-starter-amqp 의존성 추가
-    - application.yaml: RabbitMQ 설정 추가
+[x] event-service — RabbitMQ Producer 완료 ✅
+    - rabbitmq/EnrollmentEventDto.java, RabbitMQConfig.java, EnrollmentRabbitProducer.java
+    - EnrollmentService: enroll / accept / reject / checkIn 모두 발행
+    - Exchange: event.notification / Queue: enrollment.queue
 
-[x] notification-service 신규 생성 (:8085) — 소스코드 작성 완료 ✅ (2026-04-02)
-    - 기술 스택: PostgreSQL + JPA + Kafka Consumer + RabbitMQ Consumer + Redis
-    - settings.gradle: notification-service 모듈 등록 완료
-    - build.gradle, application.yml 작성 완료
-    - Java 파일 18개 전체 작성 완료:
-        NotificationServiceApplication.java
-        config/ : RedisConfig, RabbitMQConfig, SecurityConfig, WebMvcConfig
-        filter/ : InternalRequestFilter.java
-        entity/ : Notification.java (@Entity), NotificationType.java
-        dto/    : NotificationResponse.java, CommonApiResponse.java
-        repository/: NotificationRepository.java (@Modifying + @Transactional 포함)
-        service/: NotificationService.java
-        kafka/  : StudyEventDto.java, StudyEventConsumer.java
-        rabbitmq/: EnrollmentEventDto.java, EnrollmentEventConsumer.java
-        controller/: NotificationController.java (CommonApiResponse 적용)
-                     NotificationInternalController.java
+[x] notification-service 생성 (:8085) ✅
+    - PostgreSQL + JPA + Kafka Consumer + RabbitMQ Consumer + Redis
+    - Java 파일 18개 완성
+    - NotificationService: getAllNotifications() 추가 (2026-04-11)
+    - NotificationRepository: findAllByAccountIdOrderByCreatedAtDesc() 추가
 
-[ ] notification-service 기동 테스트 (양균님)
-    - IntelliJ 에서 기동 후 확인 순서:
-      ① Eureka Dashboard (localhost:8761) 에서 NOTIFICATION-SERVICE 등록 확인
-      ② study-service 기동 → 스터디 공개 → 로그에서 [Kafka] 수신 확인
-      ③ event-service 기동 → 모임 신청 수락 → 로그에서 [RabbitMQ] 수신 확인
-      ④ PostgreSQL notification_db 에 알림 데이터 저장 확인
-      ⑤ Redis CLI: GET notification:unread:{accountId} 값 확인
+[x] notification-service 기동 테스트 — Kafka 흐름 완전 동작 ✅ (2026-04-10)
+    - Eureka NOTIFICATION-SERVICE UP 확인
+    - 스터디 공개 → [Kafka] 수신 로그 확인
+    - PostgreSQL notifications 테이블에 데이터 저장 확인
+    - Redis notification:unread:{accountId} 카운터 증가 확인
+    - notification:dedup:* 중복 방지 키 확인 (TTL 1일)
 
-[ ] api-gateway 라우팅 추가 (Claude 담당)
+[x] api-gateway 라우팅 ✅
     - /api/notifications/** → lb://NOTIFICATION-SERVICE (JwtAuthenticationFilter 적용)
-    - notification-service 기동 테스트 완료 후 진행
 
-[ ] frontend-service 알림 연동
-    - 양균님 담당 (.java):
-        notification/client/NotificationInternalClient.java
-        notification/controller/NotificationPageController.java (GET /notifications)
-    - Claude 담당 (.html):
-        templates/notifications.html         알림 목록 페이지
-        fragments.html 수정                  nav바 🔔 뱃지 Redis 카운터 연동
-    - HomeController 수정: unreadCount 모델에 추가 (nav 뱃지용)
+[x] frontend-service 알림 연동 ✅ (2026-04-11)
+    - notification/client/NotificationInternalClient.java (RestTemplate + 헤더 헬퍼)
+    - notification/controller/NotificationPageController.java (GET /notifications)
+    - common/GlobalModelAttributes.java (@ControllerAdvice, 모든 페이지에 unreadNotificationCount 자동 주입)
+    - templates/notifications.html (알림 목록 + 읽음/안 읽음 시각 구분)
+    - fragments.html: nav 바 🔔 배지 Redis 카운터 연동
+
+[ ] RabbitMQ 흐름 테스트 (사용자 대기 중)
+    - event-service 모임 생성 → 신청 → 수락/거절 → 출석
+    - notification-service 콘솔 [RabbitMQ] 수신 로그 확인
+    - PostgreSQL ENROLLMENT 타입 알림 저장 확인
+    - frontend 알림 페이지에 "모임" 배지 카드 표시 확인
+    - 블로커: 테스트용 두 번째 계정 생성이 번거로워 보류 중
 
 
 ================================================
@@ -178,12 +134,22 @@ Phase 6 — admin-service
 추후 고려 사항
 ================================================
 
+[ ] 이메일 인증 여부에 따른 페이지 접근 제한
+    (Spring Security 권한 분리 또는 인터셉터 방식 검토)
+
+[ ] templates/error/404.html 커스텀 에러 페이지 개선
+    (BasicErrorController 자동 인식, 홈 안내/검색 제안 포함)
+
 [ ] 통합 테스트 자동화
+
 [ ] Docker Compose 완성 (전 서비스 + PostgreSQL + RabbitMQ + Redis)
+
 [ ] 운영 배포 준비 (application-prod.yml, JWT secret 환경변수, HTTPS)
+
 [ ] account-service batch 엔드포인트 추가
     POST /internal/accounts/batch { ids: [123, 456] }
     → study 페이지 멤버 카드에 nickname/profileImage 표시 (현재 id만 표시)
+
 [ ] 모노리틱 미반영 항목: 스터디 통계 대시보드, 게시판(Board)
 
 
@@ -191,11 +157,29 @@ Phase 6 — admin-service
 알려진 버그 / 미완성 항목
 ================================================
 
-[ ] /notifications → 현재 404 (Phase 5 개발 중)
 [ ] 캘린더 이벤트 API (/api/calendar/events) 미구현
     → index.html FullCalendar가 호출하지만 404 반환 (콘솔 warning만, UI 영향 없음)
+
 [ ] study 페이지 멤버 카드 닉네임/프로필 이미지 미표시
     → account-service batch API 미구현으로 id만 표시 중
+
+
+================================================
+해결된 주요 버그 (TroubleShooting 기록)
+================================================
+
+TroubleShooting_015: 로그아웃 불가 + 로그인 유지 안됨
+  - localhost:8090 직접 접속 / const API_BASE 중복 선언 / InternalRequestFilter 누락
+
+TroubleShooting_016: notification-service 기동 실패 + Kafka 역직렬화 실패
+  - IntelliJ Run Config의 Main class 패키지 오타 (notification vs notificationservice)
+  - Kafka JSON Consumer의 spring.json.value.default.type 설정 누락
+  - Super Type Token 패턴 학습
+
+TroubleShooting_017: 알림 읽음 처리 시 nav 배지 차감 불발
+  - fetch() 비동기 race condition (페이지 navigation 으로 인해 in-flight 요청 취소)
+  - await 로 완료 대기하도록 수정
+  - navigator.sendBeacon / keepalive 등 대안 학습
 
 
 ================================================
@@ -218,33 +202,33 @@ Phase 6 — admin-service
 :8082  admin-service          (Phase 6)
 :8083  study-service
 :8084  event-service          ✅ 전체 완성
-:8085  notification-service   (Phase 5)
+:8085  notification-service   ✅ Kafka 흐름 완성 / RabbitMQ 테스트 대기
 :8090  frontend-service
 :8761  eureka-server
 :8888  config-server
 
-:5433  PostgreSQL account_db  (Docker: account-db)
-:5434  PostgreSQL study_db    (Docker: study-db)
-:5435  PostgreSQL event_db    (Docker: event-db)
-:9092  Kafka                  (Phase 5)
-:2181  Zookeeper              (Phase 5)
-:5672  RabbitMQ               (Phase 5)
-:15672 RabbitMQ Management UI (Phase 5)
-:5436  PostgreSQL notification_db (Docker: notification-db)  ← Phase 5 추가
-:6379  Redis                     (Phase 5)  ← Phase 5 추가
+:5433  PostgreSQL account_db        (Docker: account-db)
+:5434  PostgreSQL study_db          (Docker: study-db)
+:5435  PostgreSQL event_db          (Docker: event-db)
+:5436  PostgreSQL notification_db   (Docker: notification-db)
+:9092  Kafka                         (Docker: kafka)
+:2181  Zookeeper                     (Docker: zookeeper)
+:5672  RabbitMQ                      (Docker: rabbitmq)
+:15672 RabbitMQ Management UI
+:6379  Redis                         (Docker: redis)
 
 
 ================================================
 전체 서비스 기동 순서
 ================================================
 
-1. eureka-server   (:8761)
-2. config-server   (:8888)
-3. api-gateway     (:8080)
-4. account-service (:8081)  — IntelliJ Active profiles: local
-5. study-service   (:8083)
-6. event-service   (:8084)
-7. notification-service (:8085)  ← Phase 5 추가
-8. frontend-service (:8090)
+1. eureka-server         (:8761)
+2. config-server         (:8888)
+3. api-gateway           (:8080)
+4. account-service       (:8081)  — IntelliJ Active profiles: local
+5. study-service         (:8083)
+6. event-service         (:8084)
+7. notification-service  (:8085)
+8. frontend-service      (:8090)
 
 접속: http://localhost:8080  ← 반드시 8080 (8090 직접 접속 시 로그인 유지 안됨)
