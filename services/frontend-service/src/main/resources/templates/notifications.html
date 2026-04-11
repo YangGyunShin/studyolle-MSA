@@ -171,6 +171,10 @@
 
     /**
      * 알림 배열을 받아 카드 DOM 을 생성한다.
+     *
+     * "전체 읽음" 버튼 상태:
+     *   - 안 읽은 알림이 1건 이상 있을 때만 활성화
+     *   - 모두 읽었거나 목록이 비어 있으면 비활성화
      */
     function renderNotifications(notifications) {
         const listEl = document.getElementById('notificationList');
@@ -186,7 +190,10 @@
         }
 
         emptyEl.style.display = 'none';
-        markAllBtn.disabled = false;
+
+        // 안 읽은 알림이 1건 이상 있을 때만 "전체 읽음" 활성화
+        const hasUnread = notifications.some(function (n) { return !n.checked; });
+        markAllBtn.disabled = !hasUnread;
 
         notifications.forEach(function (n) {
             const card = createNotificationCard(n);
@@ -196,28 +203,56 @@
 
     /**
      * 알림 카드 1개의 DOM 을 생성한다.
-     * 클릭 시 해당 링크로 이동하면서 동시에 읽음 처리한다.
+     *
+     * [읽음/안 읽음 시각 구분]
+     * - 안 읽은 카드: 진한 색 + 왼쪽 세로 선 + 파란 점 + 클릭 가능
+     * - 읽은 카드: 흐릿한 색 (opacity 0.6) + 클릭 가능 (링크 이동만)
+     *
+     * 읽은 카드를 클릭해도 이미 checked=true 이므로 PATCH 호출은 생략한다.
      */
     function createNotificationCard(n) {
         const meta = TYPE_META[n.type] || TYPE_META.STUDY;
+        const isRead = n.checked;
 
         const card = document.createElement('div');
-        card.className = 'card border-0 shadow-sm rounded-3';
+        card.className = 'card border-0 shadow-sm rounded-3 position-relative';
         card.style.cursor = 'pointer';
-        card.style.transition = 'transform 0.15s, box-shadow 0.15s';
+        card.style.transition = 'transform 0.15s, box-shadow 0.15s, opacity 0.15s';
+
+        // 읽은 알림은 흐릿하게 표시
+        if (isRead) {
+            card.style.opacity = '0.6';
+            card.style.background = '#fafafa';
+        }
 
         // hover 효과
         card.addEventListener('mouseenter', function () {
             card.style.transform = 'translateY(-2px)';
             card.style.boxShadow = '0 0.5rem 1rem rgba(0,0,0,0.1)';
+            if (isRead) card.style.opacity = '0.8';
         });
         card.addEventListener('mouseleave', function () {
             card.style.transform = 'translateY(0)';
             card.style.boxShadow = '';
+            if (isRead) card.style.opacity = '0.6';
         });
 
+        // 안 읽은 알림은 왼쪽에 두꺼운 세로 선 추가 (눈에 잘 띄다)
+        const unreadBar = isRead
+            ? ''
+            : '<div class="position-absolute start-0 top-0 bottom-0 rounded-start-3" ' +
+              'style="width: 4px; background: #8e85b0;"></div>';
+
+        // 안 읽은 알림 우측 상단에 파란 점 표시
+        const unreadDot = isRead
+            ? ''
+            : '<span class="position-absolute rounded-circle" ' +
+              'style="width: 8px; height: 8px; background: #8e85b0; top: 12px; right: 12px;"></span>';
+
         card.innerHTML = `
-            <div class="card-body p-3 d-flex align-items-start gap-3">
+            ${unreadBar}
+            ${unreadDot}
+            <div class="card-body p-3 ps-4 d-flex align-items-start gap-3">
                 <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
                      style="width: 44px; height: 44px; background: ${meta.bgColor};">
                     <i class="${meta.icon}" style="color: ${meta.iconColor}; font-size: 1rem;"></i>
@@ -231,8 +266,11 @@
                         <span class="text-muted small" style="font-size: 0.75rem;">
                             ${formatRelativeTime(n.createdAt)}
                         </span>
+                        ${isRead
+                            ? '<span class="text-muted small" style="font-size: 0.7rem;">· 읽음</span>'
+                            : ''}
                     </div>
-                    <p class="mb-0" style="color: #2c2843; font-size: 0.9rem;">
+                    <p class="mb-0" style="color: #2c2843; font-size: 0.9rem; ${isRead ? '' : 'font-weight: 600;'}">
                         ${escapeHtml(n.message)}
                     </p>
                 </div>
@@ -241,9 +279,9 @@
             </div>
         `;
 
-        // 카드 클릭 → 읽음 처리 후 링크로 이동
+        // 카드 클릭 처리
         card.addEventListener('click', function () {
-            handleNotificationClick(n.id, n.link);
+            handleNotificationClick(n.id, n.link, isRead);
         });
 
         return card;
@@ -251,28 +289,43 @@
 
     /**
      * 알림 카드 클릭 시 호출.
-     * 1. PATCH /api/notifications/{id} 로 읽음 처리
-     * 2. 응답을 기다리지 않고 바로 링크로 이동 (사용자 경험 우선)
-     *    실패해도 어차피 다음 페이지 진입 시 nav 배지가 갱신되므로 무방하다.
+     *
+     * [이미 읽은 알림]
+     *   PATCH 호출 없이 링크만 이동.
+     *
+     * [안 읽은 알림]
+     *   1. PATCH /api/notifications/{id} 로 읽음 처리 (await 로 완료 대기)
+     *   2. 완료 후 링크로 이동
+     *
+     * [왜 await 가 필요한가]
+     * fetch() 는 비동기이므로 await 없이 바로 window.location.href 로 이동하면
+     * 요청이 네트워크에 나가기도 전에 페이지 이동으로 인해 취소될 수 있다.
+     * 읽음 처리가 확실히 반영되도록 수십 ms 기다린다.
      */
-    function handleNotificationClick(id, link) {
-        // 백그라운드로 읽음 처리 호출 (응답 안 기다림)
-        fetch(API_BASE + '/api/notifications/' + id, {
-            method: 'PATCH',
-            headers: {
-                'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
-            }
-        }).catch(function (e) {
-            console.warn('읽음 처리 실패:', e);
-        });
+    async function handleNotificationClick(id, link, isAlreadyRead) {
+        // 이미 읽은 알림은 서버 호출 없이 바로 이동
+        if (isAlreadyRead) {
+            window.location.href = link;
+            return;
+        }
 
-        // 즉시 링크 이동
+        try {
+            await fetch(API_BASE + '/api/notifications/' + id, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': 'Bearer ' + (localStorage.getItem('accessToken') || '')
+                }
+            });
+        } catch (e) {
+            console.warn('읽음 처리 실패:', e);
+            // 실패해도 링크 이동은 진행 (사용자 경험 우선)
+        }
         window.location.href = link;
     }
 
     /**
      * "전체 읽음" 버튼 클릭 시 호출.
-     * PATCH /api/notifications → 페이지 새로고침으로 빈 상태 표시.
+     * PATCH /api/notifications → 페이지 새로고침으로 모든 카드가 읽은 상태로 재렌더링.
      */
     async function markAllAsRead() {
         const btn = document.getElementById('markAllBtn');
@@ -291,7 +344,7 @@
                 throw new Error('서버 응답 오류: ' + res.status);
             }
 
-            // 새로고침: 서버가 빈 목록을 반환하고 nav 배지도 0으로 갱신됨
+            // 새로고침: 서버가 모든 카드를 읽은 상태로 반환하고 nav 배지도 0으로 갱신됨
             window.location.reload();
 
         } catch (e) {

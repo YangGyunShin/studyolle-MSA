@@ -62,8 +62,7 @@ public class GlobalModelAttributes {
      *         th:text="${unreadNotificationCount}"></span>
      */
     @ModelAttribute("unreadNotificationCount")
-    public long unreadNotificationCount(
-            @RequestHeader(value = "X-Account-Id", required = false) Long accountId) {
+    public long unreadNotificationCount(@RequestHeader(value = "X-Account-Id", required = false) Long accountId) {
         return notificationInternalClient.getUnreadCount(accountId);
     }
 }
