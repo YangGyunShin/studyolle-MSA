@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<!--
+    admin/members.html
+
+    관리자 전용 회원 목록 페이지.
+
+    [접근 경로]
+    GET /admin/members?keyword=xxx&page=0&size=20
+
+    [렌더링 흐름]
+    1. 브라우저가 /admin/members 요청
+    2. api-gateway OptionalJwtFilter 가 쿠키에서 JWT 읽어 X-Account-Id/Role/Nickname 헤더 추가
+    3. frontend-service 의 AdminPageController.members() 가 role 이 ROLE_ADMIN 인지 확인
+    4. AdminInternalClient 로 admin-service 의 /api/admin/members 호출
+    5. admin-service 의 AdminMemberController 가 AccountAdminClient 로 account-service /internal/accounts 호출
+    6. Page 응답을 받아 이 템플릿에 주입
+
+    [필요한 model 속성]
+    - account            : AccountSummaryDto (로그인 상태 — nav 에서 사용)
+    - members            : List<AdminMemberDto>
+    - totalElements      : long
+    - totalPages         : int
+    - currentPage        : int (0 base)
+    - pageSize           : int
+    - keyword            : String (검색어)
+    - apiBase            : String (footer 스크립트에서 사용)
+-->
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments :: head('관리자 - 회원 관리')}">
+</head>
+
+<body style="background: #faf9fc;">
+
+<!-- 상단 네비게이션 -->
+<nav th:replace="~{fragments :: main-nav}"></nav>
+
+<div class="container py-4">
+
+    <!-- 페이지 헤더 -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h3 class="fw-bold mb-1" style="color: #2c2843;">
+                <i class="fa-solid fa-users-gear me-2" style="color: #8e85b0;"></i>회원 관리
+            </h3>
+            <p class="text-muted small mb-0">
+                전체 회원을 조회하고 권한을 관리할 수 있습니다.
+                현재 <strong th:text="${totalElements}">0</strong> 명의 회원이 등록되어 있습니다.
+            </p>
+        </div>
+        <!-- 관리자 사이드 메뉴로 돌아가는 링크 (향후 /admin 대시보드로 확장) -->
+        <a href="/" class="btn btn-sm rounded-pill px-3"
+           style="border: 1.5px solid #8e85b0; color: #8e85b0;">
+            <i class="bi bi-house me-1"></i>홈으로
+        </a>
+    </div>
+
+    <!-- 검색 폼 -->
+    <!--
+        GET 방식으로 쿼리 파라미터 keyword 를 서버에 전달한다.
+        Ajax 없이 단순 리로드 방식으로 구현한 이유:
+          - 관리자 기능은 사용 빈도가 낮아 UX 최적화보다 단순함이 우선
+          - 브라우저 뒤로 가기 / 북마크 동작이 자연스럽게 지원됨
+          - 페이지 상태가 URL 에 보존되어 디버깅이 쉬움
+    -->
+    <form method="get" action="/admin/members" class="mb-3">
+        <div class="input-group" style="max-width: 400px;">
+            <input type="text" name="keyword" th:value="${keyword}"
+                   class="form-control rounded-start-pill border-end-0"
+                   placeholder="이메일 또는 닉네임 검색..."
+                   style="border-color: #d0ccdf;">
+            <button type="submit"
+                    class="btn rounded-end-pill border border-start-0"
+                    style="border-color: #d0ccdf; background: #f8f7fc; color: #8e85b0;">
+                <i class="bi bi-search me-1"></i>검색
+            </button>
+            <a th:if="${keyword != null and !#strings.isEmpty(keyword)}"
+               href="/admin/members"
+               class="btn btn-sm rounded-pill ms-2 align-self-center px-3"
+               style="background: #f0ece8; color: #8e85b0; border: none;">
+                <i class="bi bi-x-circle me-1"></i>초기화
+            </a>
+        </div>
+    </form>
+
+    <!-- 회원 테이블 -->
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead style="background: #f8f7fc;">
+                    <tr class="small text-muted">
+                        <th class="ps-4 py-3">#</th>
+                        <th class="py-3">프로필</th>
+                        <th class="py-3">닉네임</th>
+                        <th class="py-3">이메일</th>
+                        <th class="py-3 text-center">이메일 인증</th>
+                        <th class="py-3 text-center">권한</th>
+                        <th class="py-3 text-center">태그</th>
+                        <th class="py-3 text-center">지역</th>
+                        <th class="py-3 pe-4 text-end">작업</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- 회원 목록이 비어있을 때 -->
+                    <tr th:if="${members == null or #lists.isEmpty(members)}">
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox me-2"></i>
+                            <span th:if="${keyword == null or #strings.isEmpty(keyword)}">등록된 회원이 없습니다.</span>
+                            <span th:if="${keyword != null and !#strings.isEmpty(keyword)}">
+                                "<span th:text="${keyword}">검색어</span>" 에 해당하는 회원이 없습니다.
+                            </span>
+                        </td>
+                    </tr>
+
+                    <!-- 회원 행 -->
+                    <tr th:each="member, iter : ${members}" class="small">
+                        <!--
+                            페이지 내 순서 번호: (현재 페이지 * 페이지 크기) + 반복 인덱스 + 1
+                            예: 2페이지 20개씩이면 41, 42, 43, ...
+                        -->
+                        <td class="ps-4 text-muted"
+                            th:text="${currentPage * pageSize + iter.index + 1}">1</td>
+
+                        <td>
+                            <!--
+                                프로필 이미지가 있으면 <img>, 없으면 Jdenticon SVG 자동 생성
+                                fragments.html 의 nav 프로필 렌더링과 동일한 패턴
+                            -->
+                            <svg th:if="${#strings.isEmpty(member.profileImage)}"
+                                 th:data-jdenticon-value="${member.nickname}"
+                                 width="36" height="36" class="rounded-circle border"></svg>
+                            <img th:if="${!#strings.isEmpty(member.profileImage)}"
+                                 th:src="${member.profileImage}"
+                                 width="36" height="36"
+                                 class="rounded-circle border object-fit-cover" alt="프로필"/>
+                        </td>
+
+                        <td>
+                            <a th:href="@{'/profile/' + ${member.nickname}}"
+                               class="text-decoration-none fw-semibold"
+                               style="color: #2c2843;"
+                               th:text="${member.nickname}">nickname</a>
+                            <div class="text-muted" style="font-size: 0.72rem;"
+                                 th:if="${!#strings.isEmpty(member.bio)}"
+                                 th:text="${#strings.abbreviate(member.bio, 40)}">bio</div>
+                        </td>
+
+                        <td class="text-muted" th:text="${member.email}">email@example.com</td>
+
+                        <td class="text-center">
+                            <span th:if="${member.emailVerified}"
+                                  class="badge rounded-pill"
+                                  style="background: #7fac8e; font-size: 0.7rem;">
+                                <i class="bi bi-check-circle-fill me-1"></i>인증됨
+                            </span>
+                            <span th:if="${!member.emailVerified}"
+                                  class="badge rounded-pill bg-secondary"
+                                  style="font-size: 0.7rem;">
+                                <i class="bi bi-hourglass me-1"></i>미인증
+                            </span>
+                        </td>
+
+                        <td class="text-center">
+                            <!-- ROLE_ADMIN 은 강조 색, ROLE_USER 는 기본 색 -->
+                            <span th:if="${member.role == 'ROLE_ADMIN'}"
+                                  class="badge rounded-pill"
+                                  style="background: #bfa473; font-size: 0.7rem;">
+                                <i class="fa-solid fa-crown me-1"></i>관리자
+                            </span>
+                            <span th:if="${member.role != 'ROLE_ADMIN'}"
+                                  class="badge rounded-pill"
+                                  style="background: #e9e6f0; color: #6c6585; font-size: 0.7rem;">
+                                일반 회원
+                            </span>
+                        </td>
+
+                        <td class="text-center text-muted" th:text="${member.tagCount}">0</td>
+                        <td class="text-center text-muted" th:text="${member.zoneCount}">0</td>
+
+                        <td class="pe-4 text-end">
+                            <!--
+                                권한 변경 버튼은 Phase 6 다음 단계에서 활성화된다.
+                                현재는 자리만 잡아두고 disabled 상태로 표시.
+                            -->
+                            <button type="button"
+                                    class="btn btn-sm rounded-pill px-3"
+                                    style="border: 1.5px solid #d0ccdf; color: #8e85b0; font-size: 0.72rem;"
+                                    disabled
+                                    title="다음 단계에서 구현 예정">
+                                <i class="fa-solid fa-user-shield me-1"></i>권한 변경
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 페이지네이션 -->
+    <!--
+        currentPage 는 0 base, 사용자에게 표시할 때는 +1
+        totalPages 가 0 이면 페이지네이션 자체를 숨긴다
+    -->
+    <nav th:if="${totalPages > 0}" class="mt-4">
+        <ul class="pagination justify-content-center">
+
+            <!-- 이전 페이지 링크: 현재 0 페이지면 disabled -->
+            <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled' : ''">
+                <a class="page-link rounded-start-pill"
+                   style="color: #8e85b0;"
+                   th:href="@{/admin/members(page=${currentPage - 1}, size=${pageSize}, keyword=${keyword})}">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+
+            <!--
+                페이지 번호 버튼.
+                Thymeleaf 의 #numbers.sequence 로 0 ~ totalPages-1 을 순회.
+                현재 페이지는 active 클래스로 강조.
+            -->
+            <li class="page-item"
+                th:each="p : ${#numbers.sequence(0, totalPages - 1)}"
+                th:classappend="${p == currentPage} ? 'active' : ''">
+                <a class="page-link"
+                   style="color: #8e85b0;"
+                   th:classappend="${p == currentPage} ? 'text-white' : ''"
+                   th:href="@{/admin/members(page=${p}, size=${pageSize}, keyword=${keyword})}"
+                   th:text="${p + 1}">1</a>
+            </li>
+
+            <!-- 다음 페이지 링크: 현재 마지막 페이지면 disabled -->
+            <li class="page-item"
+                th:classappend="${currentPage + 1 >= totalPages} ? 'disabled' : ''">
+                <a class="page-link rounded-end-pill"
+                   style="color: #8e85b0;"
+                   th:href="@{/admin/members(page=${currentPage + 1}, size=${pageSize}, keyword=${keyword})}">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</div>
+
+<!-- 공통 푸터 (JS CDN + 공통 함수) -->
+<div th:replace="~{fragments :: footer}"></div>
+
+<!-- Bootstrap active 페이지네이션 스타일 보정 -->
+<style>
+    .pagination .page-item.active .page-link {
+        background-color: #8e85b0;
+        border-color: #8e85b0;
+    }
+    .pagination .page-link:hover {
+        background-color: #f8f7fc;
+    }
+</style>
+
+</body>
+</html>
