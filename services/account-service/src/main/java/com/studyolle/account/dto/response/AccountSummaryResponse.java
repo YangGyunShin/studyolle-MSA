@@ -11,6 +11,7 @@ public class AccountSummaryResponse {
     private String email;
     private String bio;
     private String profileImage;
+    private String role;
     private boolean emailVerified;
     private int tagCount;
     private int zoneCount;
@@ -23,6 +24,7 @@ public class AccountSummaryResponse {
         dto.bio = account.getBio();
         dto.profileImage = account.getProfileImage();
         dto.emailVerified = account.isEmailVerified();
+        dto.role = account.getRole();
         dto.tagCount = account.getTags().size();
         dto.zoneCount = account.getZones().size();
         return dto;
