@@ -1,0 +1,55 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: admin-service
+
+  # admin-service 는 자체 DB 를 가지지 않는다.
+  # 모든 데이터는 각 서비스의 /internal/** 엔드포인트를 Feign Client 로 호출해 조합한다.
+  # 이렇게 설계한 이유:
+  #   1. 데이터 소유권(ownership)을 명확히 유지하기 위해
+  #      - Account 는 account-service 가, Study 는 study-service 가 소유한다.
+  #      - admin-service 가 자체 DB 에 복제해 두면 "어느 쪽이 진실의 원천인가" 가 흐려진다.
+  #   2. 학습 목적상 여러 서비스의 데이터를 Feign 으로 orchestration 하는 패턴을 경험하기 위해
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+# ---------------------------------------------------------------------------
+# Feign Client 설정
+# ---------------------------------------------------------------------------
+# connectTimeout : TCP 연결 수립까지 대기 시간 (ms)
+# readTimeout    : 응답 데이터 수신까지 대기 시간 (ms)
+#
+# 관리자 페이지는 여러 서비스에 순차적으로 호출을 보내므로 네트워크 지연에
+# 민감하다. 너무 짧으면 느린 응답 하나로 전체 페이지 로딩이 실패하고,
+# 너무 길면 사용자가 오류 페이지조차 보지 못하고 하염없이 기다린다.
+# 5초 / 10초 는 대부분의 상황에 적절한 절충점이다.
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 10000
+        loggerLevel: basic
+
+# ---------------------------------------------------------------------------
+# Actuator (선택) - Eureka 가 서비스 상태를 감시할 때 쓰는 엔드포인트
+# ---------------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.studyolle.admin: DEBUG
+    # Feign 호출 추적 (INFO 이상에서만 출력)
+    org.springframework.cloud.openfeign: DEBUG

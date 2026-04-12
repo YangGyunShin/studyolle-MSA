@@ -83,15 +83,18 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                 // JWT Claims에서 사용자 정보 추출
                 // sub: account-service에서 발급 시 Account DB PK를 subject로 설정
                 // nickname: JWT 발급 시 커스텀 클레임으로 추가한 닉네임
+                // role: JWT 발급 시 커스텀 클레임으로 추가한 권한 (ROLE_USER / ROLE_ADMIN)
                 String accountId = claims.getSubject();
                 String nickname = claims.get("nickname", String.class);
+                String role = claims.get("role", String.class);
 
                 // 검증된 사용자 정보를 헤더에 추가해서 하위 서비스로 전달
-                // 하위 서비스(study, event 등)는 JWT 없이 이 헤더만 꺼내서 사용자 식별
-                // exchange는 불변 객체이므로 mutate()로 새 객체를 만들어 헤더를 추가해야 함
+                // 하위 서비스(study, event, admin 등)는 JWT 없이 이 헤더만 꺼내서 사용자 식별 및 권한 확인
+                // X-Account-Role 은 admin-service 에서 2차 권한 검증에 사용된다
                 ServerWebExchange modifiedExchange = exchange.mutate()
                         .request(r -> r.header("X-Account-Id", accountId)
-                                .header("X-Account-Nickname", nickname))
+                                .header("X-Account-Nickname", nickname)
+                                .header("X-Account-Role", role))
                         .build();
 
                 // 헤더가 추가된 새 exchange로 다음 필터 또는 라우팅 체인 실행

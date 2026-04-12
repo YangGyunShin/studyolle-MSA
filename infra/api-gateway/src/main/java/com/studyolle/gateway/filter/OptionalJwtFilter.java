@@ -69,11 +69,13 @@ public class OptionalJwtFilter extends AbstractGatewayFilterFactory<OptionalJwtF
 
                 String accountId = claims.getSubject();
                 String nickname = claims.get("nickname", String.class);
+                String role = claims.get("role", String.class);
 
                 // 검증 성공 → X-Account-Id 헤더 추가 후 통과
                 ServerWebExchange modifiedExchange = exchange.mutate()
                         .request(r -> r.header("X-Account-Id", accountId)
-                                .header("X-Account-Nickname", nickname))
+                                .header("X-Account-Nickname", nickname)
+                                .header("X-Account-Role", role))
                         .build();
                 return chain.filter(modifiedExchange);
 
