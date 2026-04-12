@@ -18,27 +18,115 @@ import java.util.Optional;
 /**
  * frontend-service 가 admin-service 를 호출하는 클라이언트.
  *
- * [왜 /api/admin/** 을 호출하는가 — 다른 Internal Client 와의 차이]
- * 다른 InternalClient (AccountInternalClient 등) 는 대상 서비스의 /internal/** 경로를 직접 호출한다.
- * 그 서비스들이 frontend-service 를 ALLOWED 내부 서비스 목록에 등록해 두었기 때문이다.
+ * ============================================================
+ * 다른 InternalClient 와 무엇이 다른가
+ * ============================================================
  *
- * admin-service 는 /internal/** 경로를 두지 않는다. 다른 서비스가 호출할 일이 없기 때문이다.
- * 오직 /api/admin/** 만 존재한다.
+ * 이 프로젝트에는 frontend-service 가 백엔드 서비스를 호출하는 클라이언트가 여러 개 있다:
+ *   AccountInternalClient       → account-service 의 /internal/accounts/**
+ *   StudyInternalClient         → study-service 의 /internal/studies/**
+ *   EventInternalClient         → event-service 의 /internal/events/**
+ *   NotificationInternalClient  → notification-service 의 /internal/notifications/**
  *
- * frontend-service 에서 이 경로를 호출할 때는 두 가지 선택지가 있다:
+ * 이 네 개는 모두 같은 패턴을 따른다. 그런데 AdminInternalClient 만 다섯 가지 측면에서 다르다.
+ * 이 차이가 우연이 아니라 admin-service 의 구조적 특성에서 비롯된 것이므로 꼭 이해해 둬야 한다.
  *
- *   (A) admin-service 에 /internal/admin/** 경로를 추가로 만든다
- *   (B) 기존 /api/admin/** 을 호출하되 X-Account-Role 헤더를 수동 주입한다
  *
- * (A) 는 admin-service 의 컨트롤러를 이중화해야 하고, (B) 는 헤더 한 줄이면 해결된다.
- * 여기서는 (B) 를 택했다.
- * AdminPageController 에서 role 을 이미 알고 있으니 그대로 넘겨주면 된다.
+ * 차이 1. 호출하는 경로가 다르다
+ * ------------------------------------------------------------
+ *   다른 클라이언트  : /internal/accounts/123          (내부 전용 뒷문)
+ *   AdminClient     : /api/admin/members              (공개 API 정문)
  *
- * [anti-corruption layer 패턴]
- * 이 클래스는 네트워크 경계에서 CommonApiResponse 래퍼를 벗겨낸다.
- * 그 결과 Controller 와 Thymeleaf 템플릿은 순수한 AdminPageResponse<AdminMemberDto> 만 다루면 된다.
- * 래퍼는 네트워크 계약일 뿐 도메인 모델이 아니므로, 경계에서 변환해 두면 내부 코드가 깔끔해진다.
- * 나중에 래퍼 구조가 바뀌어도 수정할 곳이 이 클래스 한 군데뿐이다.
+ * account-service 같은 데이터 보유 서비스는 두 종류의 출입구를 가진다.
+ *   /api/**       : 브라우저가 api-gateway 를 거쳐 들어오는 정문 (JWT 필요)
+ *   /internal/**  : 다른 백엔드 서비스만 쓰는 뒷문 (X-Internal-Service 헤더만 필요)
+ *
+ * frontend-service 는 백엔드 서비스이므로 뒷문(/internal) 을 쓰는 것이 자연스럽다.
+ *
+ * 그런데 admin-service 는 /internal/** 경로 자체가 없다.
+ * 만들지 않은 이유는 admin-service 를 호출하는 곳이 frontend-service 단 한 군데뿐이기 때문이다.
+ * 한 군데를 위해 컨트롤러를 두 벌(/api/admin + /internal/admin) 만드는 것은 낭비라
+ * 정문(/api/admin) 만 두고 그것을 frontend-service 가 그대로 쓰도록 했다.
+ *
+ *
+ * 차이 2. 보내야 하는 헤더 종류가 다르다
+ * ------------------------------------------------------------
+ *   다른 클라이언트  : X-Internal-Service: frontend-service
+ *                    (필요시 X-Account-Id 추가)
+ *   AdminClient     : X-Account-Id, X-Account-Nickname, X-Account-Role
+ *
+ * 이유는 차이 1 에서 이어진다. 호출하는 경로가 다르므로 그 경로를 지키는 문지기도 다르다.
+ *
+ *   /internal/** 의 문지기  : InternalRequestFilter
+ *                            "X-Internal-Service 헤더에 허용된 서비스 이름이 적혀 있는가" 검사
+ *
+ *   /api/admin/** 의 문지기 : AdminAuthInterceptor
+ *                            "X-Account-Role 헤더가 ROLE_ADMIN 인가" 검사
+ *
+ * 후자를 통과하려면 X-Account-Role 헤더가 반드시 필요하다. 그래서 이 클라이언트는
+ * 다른 클라이언트가 쓰지 않는 X-Account-Role 헤더를 직접 만들어서 넣는다.
+ *
+ *
+ * 차이 3. 헤더를 자동으로 받을 수 없어 손으로 채워 넣는다
+ * ------------------------------------------------------------
+ * 평소 브라우저가 /api/admin/** 을 호출할 때는 api-gateway 의 JwtAuthenticationFilter 가
+ * JWT 에서 role 을 꺼내서 X-Account-Role 헤더를 자동으로 붙여준다. 즉 정상적인 외부 요청은
+ * 헤더 주입을 신경 쓸 필요가 없다.
+ *
+ * 그러나 이 클라이언트는 frontend-service 의 JVM 안에서 admin-service 를 직접 호출한다.
+ * 즉 api-gateway 를 거치지 않는다. 그러면 자동 헤더 주입도 일어나지 않는다.
+ * 결국 이 클라이언트가 손으로 흉내내어 헤더를 채워 넣어야 한다.
+ *
+ * 호출 경로 비교 :
+ *
+ *   [브라우저 호출 — 평소 외부 요청]
+ *   브라우저 → api-gateway → admin-service
+ *                  ↑
+ *           여기서 자동으로 X-Account-Role 헤더 주입
+ *
+ *   [이 클라이언트 호출 — 내부 호출]
+ *   frontend-service → admin-service
+ *           ↑
+ *   api-gateway 를 거치지 않으므로 자동 주입 없음
+ *   → 이 클라이언트가 직접 헤더를 만들어서 넣어야 한다
+ *
+ *
+ * 차이 4. InternalHeaderHelper 를 쓰지 않는다
+ * ------------------------------------------------------------
+ *   다른 클라이언트  : InternalHeaderHelper.build(accountId) 한 줄로 헤더 생성
+ *   AdminClient     : new HttpHeaders() 로 직접 만든다
+ *
+ * InternalHeaderHelper 는 X-Internal-Service + X-Account-Id 두 개만 채워주는 헬퍼다.
+ * 이 클라이언트가 필요로 하는 헤더는 X-Account-Id, X-Account-Nickname, X-Account-Role 세 개라
+ * 헬퍼가 만들어주는 헤더 세트와 형태가 맞지 않는다. 그래서 헬퍼를 쓰지 않고 직접 만든다.
+ *
+ * 나중에 권한 변경, 스터디 관리 등 admin 호출이 두세 개로 늘어나면
+ * AdminHeaderHelper 같은 전용 헬퍼를 만드는 게 좋다. 지금은 메서드가 하나뿐이라
+ * 헬퍼를 만들면 오히려 추상화 비용만 든다.
+ *
+ *
+ * 차이 5. 응답에 CommonApiResponse 래퍼가 한 겹 더 있다
+ * ------------------------------------------------------------
+ *   다른 클라이언트  : /internal/** 응답은 날것 (AccountSummaryDto 직접 받음)
+ *   AdminClient     : /api/admin/** 응답은 CommonApiResponse 로 한 번 감싸짐
+ *
+ * 이것도 차이 1 의 연장선이다. /internal/** 은 서비스 간 직접 통신용이라 단순한 응답으로 충분하지만,
+ * /api/admin/** 은 공개 API 규약을 따르므로 모든 응답이 { success, message, data } 구조로 감싸진다.
+ * 따라서 이 클라이언트는 응답을 받은 뒤 .getData() 로 한 겹 벗겨내는 단계가 추가된다.
+ *
+ * 벗겨내는 작업을 Controller 가 아니라 Client 에서 하는 이유는 anti-corruption layer 패턴 때문이다.
+ * 네트워크 계약(CommonApiResponse) 이 Controller 와 Thymeleaf 까지 흘러가지 않도록
+ * 경계에서 차단하면, 내부 코드는 순수한 도메인 모델만 다루게 되어 깔끔해진다.
+ *
+ *
+ * ============================================================
+ * 모든 차이의 한 줄 요약
+ * ============================================================
+ *
+ * 다른 백엔드 서비스는 "데이터를 가진 서비스" 라서 내부 호출 전용 뒷문(/internal) 을 마련해 두었다.
+ * admin-service 는 "데이터를 모으는 서비스" 라 호출받는 곳이 frontend-service 한 군데뿐이고,
+ * 굳이 뒷문을 만들지 않고 정문(/api/admin) 만 두었다.
+ * 정문을 쓴다는 단 하나의 결정에서 위의 다섯 가지 차이가 모두 파생된다.
  */
 @Component
 @RequiredArgsConstructor
@@ -49,8 +137,7 @@ public class AdminInternalClient {
     // Eureka 에 등록된 admin-service 이름.
     // RestTemplate 이 @LoadBalanced 로 설정되어 있어야 이 host 이름이 실제 인스턴스로 변환된다.
     // (RestTemplateConfig 에서 이미 @LoadBalanced 가 붙어 있다고 가정)
-    private static final String ADMIN_SERVICE_URL = "http://ADMIN-SERVICE";
-
+    private static final String ADMIN_SERVICE_URL = "lb://ADMIN-SERVICE";
     /**
      * 관리자 회원 목록 조회.
      *
