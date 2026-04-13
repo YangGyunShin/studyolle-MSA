@@ -1,0 +1,72 @@
+// ============================================================
+// admin-frontend/build.gradle
+//
+// 역할: 관리자 전용 HTML 페이지를 서빙하는 프론트엔드 서비스
+//
+// frontend-service 와의 차이:
+//   - Node.js/npm 플러그인 사용하지 않음 (외부 JS 패키지 없음, 순수 HTML/CSS/Vanilla JS 만 사용)
+//   - 포트 9000 (일반 사용자 프론트는 8090)
+//   - admin-gateway(9080) 를 통해서만 접근 가능
+//
+// 공통점:
+//   - DB 연결 없음 (JPA 의존성 없음)
+//   - Spring Security 없음 (권한 검사는 admin-gateway 와 HomeController 에서 처리)
+//   - Eureka Client (admin-gateway 가 lb://ADMIN-FRONTEND 로 라우팅하려면 필수)
+// ============================================================
+plugins {
+    id 'java'
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+}
+
+group = 'com.studyolle'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    set('springCloudVersion', "2024.0.1")
+}
+
+dependencies {
+    // Thymeleaf — 서버 사이드 HTML 렌더링
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+
+    // Web — 내장 Tomcat + Spring MVC 컨트롤러
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // Eureka Client — admin-gateway 가 이 서비스를 찾을 수 있도록 서비스 디스커버리에 등록
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+
+    // Spring Cloud LoadBalancer —
+    // @LoadBalanced RestTemplate 이 lb://ADMIN-SERVICE 같은 논리 주소를 실제 인스턴스로 변환하려면 이 의존성이 필요하다.
+    // Eureka Client 만으로는 부족하다.
+    // frontend-service 는 다른 의존성의 transitive dependency 로 이미 포함되고 있지만,
+    // admin-frontend 는 의존성 구성이 간단해서 명시적으로 선언해둔다.
+    implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
+
+    // Lombok — 생성자 주입을 위한 @RequiredArgsConstructor, 로깅 @Slf4j 등
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

@@ -1,0 +1,87 @@
+<!--
+  admin-frontend 공통 Thymeleaf fragments
+
+  [역할]
+  head 블록과 네비게이션 바처럼 여러 페이지가 공유하는 마크업을 모아두는 파일.
+  각 페이지는 th:replace="~{fragments :: head}" 형태로 이 파일의 조각을 삽입한다.
+
+  [왜 별도 파일로 뺐는가]
+  똑같은 <head> 블록을 dashboard.html / members.html / login.html 에 복사·붙여넣기 하면
+  CSS 파일 이름이나 폰트 링크가 바뀔 때마다 세 파일을 모두 수정해야 한다.
+  fragment 로 빼두면 이 파일 하나만 고치면 된다. 관리해야 할 "진실의 소스" 를 하나로 줄이는 것이
+  프론트엔드 코드 관리의 기본 원칙이다.
+
+  [일반 사이트 fragments.html 과 어떻게 다른가]
+  일반 사이트는 Bootstrap 과 Bootstrap Icons 를 쓰고 글래스모피즘 CSS 를 불러오지만
+  여기서는 그것들이 필요 없다. admin-style.css 하나로 전부 처리하며,
+  아이콘도 별도 폰트 라이브러리 없이 간단한 유니코드 이모지나 문자만 사용한다.
+  번들 크기를 줄이고 외부 의존성을 최소화하려는 의도다.
+-->
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<!-- ==========================================================
+     head fragment — 모든 페이지가 공유하는 HTML <head>
+     사용 예: <head th:replace="~{fragments :: head('페이지 제목')}"></head>
+     ========================================================== -->
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title th:text="${title} + ' · StudyOlle Admin'">StudyOlle Admin</title>
+
+    <!-- Pretendard 가변 폰트 — 일반 사이트와 동일한 폰트를 쓰되 스타일 톤은 완전히 다르다 -->
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+          rel="stylesheet">
+
+    <link rel="stylesheet" th:href="@{/css/admin-style.css}">
+</head>
+
+
+<!-- ==========================================================
+     navigation fragment — 로그인 후 페이지들이 공유하는 상단 네비게이션
+     사용 예: <nav th:replace="~{fragments :: admin-nav('dashboard')}"></nav>
+     인자 activeMenu 에 따라 현재 메뉴에 active 클래스를 붙여 강조한다.
+     ========================================================== -->
+<nav th:fragment="admin-nav(activeMenu)" class="admin-nav">
+    <div class="admin-nav-inner">
+
+        <!-- 왼쪽: 브랜드 로고 + 서비스 이름 + ADMIN 태그 -->
+        <a href="/dashboard" class="admin-brand">
+            <span class="brand-icon">S</span>
+            <span class="brand-text">
+                <span>StudyOlle</span>
+                <span class="brand-tag">Admin</span>
+            </span>
+        </a>
+
+        <!-- 가운데: 메뉴 링크.
+             activeMenu 값에 따라 active 클래스를 조건부로 붙여 현재 위치를 강조한다.
+             Thymeleaf 의 th:classappend 는 기존 class 속성에 문자열을 추가하는 방식이라
+             조건이 false 면 아무 것도 붙지 않아 안전하다. -->
+        <div class="admin-nav-links">
+            <a href="/dashboard"
+               class="admin-nav-link"
+               th:classappend="${activeMenu == 'dashboard'} ? ' active'">대시보드</a>
+            <a href="/members"
+               class="admin-nav-link"
+               th:classappend="${activeMenu == 'members'} ? ' active'">회원 관리</a>
+            <a href="#"
+               class="admin-nav-link"
+               style="opacity:0.4; cursor:not-allowed;"
+               title="Phase 8 에서 제공 예정">스터디 관리</a>
+        </div>
+
+        <!-- 오른쪽: 현재 로그인한 관리자 정보 + 로그아웃 버튼
+             nickname 과 role 은 GlobalModelAttributes 나 각 컨트롤러에서 주입받는다. -->
+        <div class="admin-nav-user">
+            <div class="admin-user-info">
+                <span class="admin-user-name" th:text="${nickname ?: 'Administrator'}">관리자</span>
+                <span class="admin-user-role">Administrator</span>
+            </div>
+            <a href="/logout" class="btn btn-danger-ghost btn-sm">로그아웃</a>
+        </div>
+    </div>
+</nav>
+
+</html>

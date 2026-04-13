@@ -1,0 +1,166 @@
+<!--
+  admin-frontend 회원 관리 페이지 (GET /members)
+
+  [데이터 흐름]
+  브라우저
+    → GET /members?keyword=...&page=...   (admin-gateway 경유, OptionalJwtFilter 가 토큰 검증)
+    → admin-frontend AdminMemberController.members()
+    → AdminInternalClient.listMembers()
+    → admin-service POST /api/admin/members
+    → AccountAdminClient (Feign)
+    → account-service GET /internal/accounts
+    → account_db
+
+  한 번의 페이지 요청을 위해 다섯 번의 네트워크 호출이 일어난다. 모놀리틱이었다면
+  account.findAll() 한 줄이면 됐을 일이 MSA 에서는 이렇게 늘어난다. 이것이 MSA 의
+  본질적인 오버헤드이며, 성능 문제의 주된 원인이다. 대신 각 서비스가 독립적으로
+  배포·확장·장애 격리될 수 있다는 이점을 얻는다.
+
+  [페이지 모델 속성 — 컨트롤러가 주입하는 값]
+  members        List<AdminMemberDto>   현재 페이지의 회원 목록
+  totalElements  long                    전체 회원 수
+  totalPages     int                     전체 페이지 수
+  currentPage    int                     현재 페이지 번호 (0-base)
+  pageSize       int                     페이지 크기
+  keyword        String                  검색어 (없으면 빈 문자열)
+-->
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments :: head('회원 관리')}"></head>
+
+<body>
+
+    <nav th:replace="~{fragments :: admin-nav('members')}"></nav>
+
+    <main class="admin-main">
+
+        <div class="page-header">
+            <h1 class="page-title">회원 관리</h1>
+            <p class="page-subtitle">
+                이메일이나 닉네임으로 회원을 검색하고, 계정 상태와 권한을 확인할 수 있습니다.
+            </p>
+        </div>
+
+        <!--
+          검색 툴바
+
+          GET 방식의 전통적 HTML form 을 쓴다. Submit 하면 브라우저가 자동으로
+          쿼리 파라미터를 붙여 /members?keyword=... 로 이동시켜준다. JS 없이도
+          동작하며, 뒤로 가기·북마크·검색 기록 같은 브라우저 네이티브 기능을
+          그대로 활용할 수 있다.
+
+          page 파라미터는 form 에 포함시키지 않는다. 새로운 키워드로 검색할 때는
+          언제나 첫 페이지부터 보여주는 것이 자연스럽기 때문이다. (3페이지에서
+          검색어를 바꿨는데 여전히 3페이지로 가면 결과가 없을 수 있다.)
+        -->
+        <form method="get" action="/members" class="toolbar">
+            <input type="text"
+                   name="keyword"
+                   class="form-input"
+                   placeholder="이메일 또는 닉네임으로 검색..."
+                   th:value="${keyword}">
+            <div class="toolbar-meta">
+                총 <strong th:text="${totalElements}">0</strong>명
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">검색</button>
+            <a th:if="${keyword != null and keyword != ''}"
+               href="/members"
+               class="btn btn-ghost btn-sm">초기화</a>
+        </form>
+
+        <!-- 회원이 한 명이라도 있을 때는 테이블을 보여주고, 아무도 없으면 빈 상태를 보여준다.
+             Thymeleaf 의 th:if 와 th:unless 를 한 쌍으로 묶어 분기한다. -->
+        <div th:if="${not #lists.isEmpty(members)}" class="table-wrapper">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 70px;">ID</th>
+                        <th>이메일</th>
+                        <th>닉네임</th>
+                        <th>권한</th>
+                        <th>이메일 인증</th>
+                        <th class="hide-sm" style="text-align: center;">태그</th>
+                        <th class="hide-sm" style="text-align: center;">지역</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="m : ${members}">
+                        <td class="col-id" th:text="${m.id}">1</td>
+                        <td class="col-email" th:text="${m.email}">user@example.com</td>
+                        <td class="col-nickname" th:text="${m.nickname}">닉네임</td>
+                        <td>
+                            <!-- role 에 따라 다른 배지 색상.
+                                 Thymeleaf 의 th:classappend 로 조건부 클래스를 붙인다. -->
+                            <span class="badge"
+                                  th:classappend="${m.role == 'ROLE_ADMIN'} ? ' badge-admin' : ' badge-user'"
+                                  th:text="${m.role == 'ROLE_ADMIN'} ? 'ADMIN' : 'USER'">USER</span>
+                        </td>
+                        <td>
+                            <span class="badge"
+                                  th:classappend="${m.emailVerified} ? ' badge-verified' : ' badge-unverified'"
+                                  th:text="${m.emailVerified} ? '인증됨' : '미인증'">미인증</span>
+                        </td>
+                        <td class="hide-sm" style="text-align: center;" th:text="${m.tagCount}">0</td>
+                        <td class="hide-sm" style="text-align: center;" th:text="${m.zoneCount}">0</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 빈 상태 —
+             검색 결과가 없을 때와 애초에 회원이 한 명도 없을 때 두 경우를 구분해서
+             다른 메시지를 보여주면 UX 가 훨씬 좋다. -->
+        <div th:if="${#lists.isEmpty(members)}" class="card">
+            <div class="empty-state">
+                <div class="empty-state-icon">🔍</div>
+                <div class="empty-state-title"
+                     th:text="${keyword != null and keyword != ''} ?
+                              '검색 결과가 없습니다' :
+                              '등록된 회원이 없습니다'">검색 결과가 없습니다</div>
+                <div class="empty-state-sub"
+                     th:if="${keyword != null and keyword != ''}">
+                    '<span th:text="${keyword}">keyword</span>' 에 해당하는 회원을 찾을 수 없습니다.
+                </div>
+            </div>
+        </div>
+
+        <!--
+          페이지네이션
+
+          전체 페이지 수가 2개 이상일 때만 보여준다. 페이지가 하나뿐이면 굳이 그릴 필요 없다.
+
+          currentPage 는 0-base 이므로 사용자에게 보여줄 때는 +1 해서 1-base 로 변환한다.
+          Thymeleaf 의 #numbers.sequence(start, end) 는 start 부터 end 까지의 정수 리스트를
+          만들어주는 유틸이다. 여기서는 0 부터 totalPages-1 까지를 만들어 페이지 링크를 생성한다.
+
+          실제 서비스에서는 페이지가 수백 개가 될 수 있으므로 "앞뒤 몇 페이지만 보이고
+          나머지는 ... 으로 생략" 하는 전략을 쓰는 게 보통이지만, 학습 프로젝트에서는
+          단순한 전체 표시로 충분하다.
+        -->
+        <div th:if="${totalPages > 1}" class="pagination">
+
+            <!-- 이전 페이지 링크.
+                 현재가 0페이지면 disabled 상태로 표시한다. -->
+            <a th:href="@{/members(keyword=${keyword}, page=${currentPage - 1})}"
+               class="page-link"
+               th:classappend="${currentPage == 0} ? ' disabled'">‹</a>
+
+            <!-- 각 페이지 번호 링크 -->
+            <a th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
+               th:href="@{/members(keyword=${keyword}, page=${i})}"
+               class="page-link"
+               th:classappend="${i == currentPage} ? ' active'"
+               th:text="${i + 1}">1</a>
+
+            <!-- 다음 페이지 링크 -->
+            <a th:href="@{/members(keyword=${keyword}, page=${currentPage + 1})}"
+               class="page-link"
+               th:classappend="${currentPage >= totalPages - 1} ? ' disabled'">›</a>
+
+        </div>
+
+    </main>
+
+</body>
+</html>

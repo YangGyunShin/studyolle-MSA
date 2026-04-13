@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 진행 상황 (2026-04-12 기준)
+## 현재 진행 상황 (2026-04-13 기준)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -20,16 +20,17 @@
 | Phase 6 | api-gateway AdminRoleFilter + JWT role claim 전달 | ✅ 완료 |
 | Phase 6 | account-service 관리자 회원 목록 API | ✅ 완료 |
 | Phase 6 | frontend-service 임시 관리자 페이지 | ✅ 완료 (Phase 7 에서 분리 예정) |
-| Phase 7 | admin-gateway 모듈 (9080) 신규 생성 | 🔲 예정 |
-| Phase 7 | admin-frontend 모듈 (9000) 신규 생성 | 🔲 예정 |
-| Phase 7 | frontend-service 의 admin 패키지/템플릿 삭제 | 🔲 예정 |
+| Phase 7 | admin-gateway 모듈 (9080) 신규 생성 | 🟡 구현 중 (Claude 소스 제공 완료, 양균님 작성 대기) |
+| Phase 7 | admin-frontend 모듈 (9000) 신규 생성 | 🟡 구현 중 (HTML/CSS 생성 완료, Java 소스 제공 완료) |
+| Phase 7 | frontend-service 의 admin 패키지/템플릿 삭제 | 🔲 예정 (양균님 직접 삭제) |
+| Phase 7 | api-gateway application.yml 에서 /api/admin/** 라우트 제거 | 🔲 예정 |
 | Phase 8 | 회원 권한 변경 / 스터디 관리 / 강제 비공개 | 🔲 예정 |
 
 **다음 즉시 할 일:**
-Phase 7 — 관리자 사이트 분리 (별도 게이트웨이 + 별도 frontend).
-현재 frontend-service 안에 임시로 들어 있는 admin 관련 코드를 
-admin-frontend 신규 모듈로 옮기고, frontend-service 에서는 완전히 제거한다.
-admin-service 는 그대로 둔다.
+Phase 7 마무리 — 양균님이 Java 소스를 작성하시고, frontend-service 정리와
+api-gateway yml 수정을 마치면 Phase 7 가 완료된다. 이후 두 사이트(8080, 9080)
+양쪽을 실제로 기동해서 관리자 로그인 흐름과 회원 목록 조회가 제대로 동작하는지
+확인하는 통합 테스트까지 하면 Phase 7 종료.
 
 자세한 TODO 와 Phase 7 작업 항목은 `MSA_TODO.txt` 참고.
 

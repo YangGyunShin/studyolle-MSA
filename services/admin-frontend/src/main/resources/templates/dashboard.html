@@ -1,0 +1,142 @@
+<!--
+  admin-frontend 대시보드 (GET /dashboard)
+
+  [언제 렌더링되는가]
+  HomeController.dashboard() 가 다음 조건을 모두 만족할 때 이 템플릿을 반환한다.
+    (a) X-Account-Id 헤더가 존재한다 (로그인 상태)
+    (b) X-Account-Role 헤더가 ROLE_ADMIN 이다
+
+  둘 중 하나라도 어긋나면 / 로 redirect 되므로 이 페이지에 도달한 시점에는
+  관리자임이 이미 보장된 상태다. 즉 템플릿 안에서 추가 권한 검사를 할 필요가 없다.
+
+  [현재 대시보드에 표시되는 정보]
+  1. 환영 메시지 — 닉네임 포함
+  2. 전체 회원 수 — 실제 데이터 (admin-service 의 /api/admin/members 호출 결과)
+  3. 전체 스터디 수 — Phase 8 에서 API 추가 예정 (현재는 placeholder)
+  4. 오늘의 신규 가입 — Phase 8 에서 API 추가 예정 (현재는 placeholder)
+
+  [왜 placeholder 카드도 그려두는가]
+  대시보드는 "여기에 어떤 정보가 올 것인가" 를 시각적으로 예고하는 역할도 한다.
+  Phase 7 시점에는 회원 수밖에 없지만, Phase 8 에서 채워질 자리를 미리 만들어두면
+  관리자에게 "이 도구가 앞으로 어떻게 확장될지" 를 암묵적으로 알려주는 효과가 있다.
+-->
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments :: head('대시보드')}"></head>
+
+<body>
+
+    <!-- 상단 네비게이션 — fragments.html 의 admin-nav fragment 를 재사용.
+         'dashboard' 를 activeMenu 로 전달하면 대시보드 메뉴가 강조된다. -->
+    <nav th:replace="~{fragments :: admin-nav('dashboard')}"></nav>
+
+    <main class="admin-main">
+
+        <!-- 환영 카드 — 로그인한 관리자를 이름으로 맞이한다.
+             nickname 은 HomeController 가 X-Account-Nickname 헤더에서 꺼내 모델에 주입한다. -->
+        <div class="welcome-card">
+            <div class="welcome-greeting">Welcome Back</div>
+            <h1 class="welcome-heading">
+                안녕하세요, <span th:text="${nickname ?: 'Administrator'}">관리자</span>님
+            </h1>
+            <p class="welcome-sub">
+                StudyOlle 플랫폼의 현재 상태를 한눈에 확인하고, 회원과 스터디를
+                관리할 수 있는 공간입니다.
+            </p>
+        </div>
+
+        <!-- 통계 섹션 -->
+        <div class="section-title">Overview</div>
+
+        <div class="stats-grid">
+
+            <!-- 카드 1: 전체 회원 수 (실제 데이터)
+                 HomeController 가 AdminInternalClient.listMembers(null, 0, 1, ...) 를 호출해
+                 totalMembers 속성에 totalElements 값을 주입한다. -->
+            <a href="/members" class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-label">전체 회원</div>
+                <div class="stat-value">
+                    <span th:text="${totalMembers ?: '0'}">0</span>
+                    <span class="stat-unit">명</span>
+                </div>
+            </a>
+
+            <!-- 카드 2: 전체 스터디 수 (Phase 8 예정)
+                 disabled 클래스로 hover 효과와 투명도를 낮춰 미구현 상태임을 시각적으로 표현한다. -->
+            <div class="stat-card disabled">
+                <div class="stat-icon">📚</div>
+                <div class="stat-label">전체 스터디</div>
+                <div class="stat-value">
+                    <span>—</span>
+                </div>
+                <div class="stat-placeholder">Phase 8 예정</div>
+            </div>
+
+            <!-- 카드 3: 오늘의 신규 가입 (Phase 8 예정) -->
+            <div class="stat-card disabled">
+                <div class="stat-icon">✨</div>
+                <div class="stat-label">오늘 가입</div>
+                <div class="stat-value">
+                    <span>—</span>
+                </div>
+                <div class="stat-placeholder">Phase 8 예정</div>
+            </div>
+
+            <!-- 카드 4: 활성 모임 수 (Phase 8 예정) -->
+            <div class="stat-card disabled">
+                <div class="stat-icon">🗓️</div>
+                <div class="stat-label">진행 중 모임</div>
+                <div class="stat-value">
+                    <span>—</span>
+                </div>
+                <div class="stat-placeholder">Phase 8 예정</div>
+            </div>
+
+        </div>
+
+        <!-- 빠른 작업 섹션 — 관리자가 자주 찾는 기능으로 즉시 이동할 수 있는 카드들 -->
+        <div class="section-title" style="margin-top: 24px;">Quick Actions</div>
+
+        <div class="stats-grid">
+            <a href="/members" class="stat-card">
+                <div class="stat-icon">🔍</div>
+                <div class="stat-label">회원 관리</div>
+                <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-top: 4px;">
+                    회원 검색 및 조회
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+                    키워드로 회원을 검색하고 상세 정보를 확인합니다.
+                </div>
+            </a>
+
+            <div class="stat-card disabled">
+                <div class="stat-icon">⚙️</div>
+                <div class="stat-label">권한 변경</div>
+                <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-top: 4px;">
+                    사용자 권한 부여
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+                    특정 회원에게 관리자 권한을 부여합니다.
+                </div>
+                <div class="stat-placeholder">Phase 8 예정</div>
+            </div>
+
+            <div class="stat-card disabled">
+                <div class="stat-icon">🚫</div>
+                <div class="stat-label">스터디 관리</div>
+                <div style="font-size: 15px; font-weight: 600; color: var(--text-primary); margin-top: 4px;">
+                    강제 비공개 처리
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+                    부적절한 스터디를 비공개로 전환합니다.
+                </div>
+                <div class="stat-placeholder">Phase 8 예정</div>
+            </div>
+        </div>
+
+    </main>
+
+</body>
+</html>

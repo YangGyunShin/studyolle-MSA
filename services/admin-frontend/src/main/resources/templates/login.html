@@ -1,0 +1,251 @@
+<!--
+  admin-frontend 로그인 페이지 (GET /)
+
+  [언제 이 페이지가 렌더링되는가]
+  HomeController.index() 가 다음 조건에서 이 템플릿을 반환한다.
+    (a) 비로그인 상태로 / 에 접근했을 때
+    (b) 잘못된(비관리자) 토큰을 가진 상태로 / 에 접근했을 때
+
+  관리자 토큰이 유효한 상태로 / 에 접근하면 HomeController 가 곧바로 /dashboard 로
+  redirect 시키므로 이 페이지는 보이지 않는다.
+
+  [로그인 처리 흐름]
+  1. 사용자가 이메일(또는 닉네임) + 패스워드 입력
+  2. JS 가 fetch 로 POST /api/auth/login 호출 (admin-gateway 가 ACCOUNT-SERVICE 로 라우팅)
+  3. 응답의 accessToken 을 디코딩해 role claim 확인
+  4. role == ROLE_ADMIN  → localStorage + 쿠키 저장 → /dashboard 로 이동
+  5. role != ROLE_ADMIN  → 저장하지 않고 에러 표시 (이 단계가 핵심 보안 장치)
+
+  [왜 role != ROLE_ADMIN 일 때 토큰을 저장하지 않는가]
+  만약 저장부터 하고 리다이렉트 후 서버가 막게 하면, 쿠키(path=/) 가 브라우저에 남게 되어
+  동일 브라우저로 일반 사용자 사이트(8080) 에 접속할 때 자동으로 전송된다.
+  즉 관리자 사이트에서 로그인을 시도했다가 거부당했을 뿐인데 일반 사이트에 자동 로그인
+  되어버리는 기묘한 상태가 만들어진다. 아예 저장 단계에 진입하지 않는 것이 가장 깔끔하다.
+-->
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments :: head('관리자 로그인')}"></head>
+
+<body>
+
+    <div class="login-wrapper">
+        <div class="login-card">
+
+            <div class="login-brand">
+                <div class="login-brand-icon">S</div>
+                <div class="login-badge">Restricted Access</div>
+                <h1 class="login-title">관리자 로그인</h1>
+                <p class="login-subtitle">StudyOlle 운영을 위한 관리자 전용 공간입니다</p>
+            </div>
+
+            <!-- 에러 메시지 영역 —
+                 동일한 알림 상자를 세 가지 상황에 재사용한다:
+                 1) 자격 증명 불일치 (잘못된 이메일/패스워드)
+                 2) 이메일 미인증 계정으로 로그인 시도
+                 3) 관리자 권한이 없는 계정으로 로그인 시도
+                 각 상황마다 메시지 텍스트만 JS 가 바꿔 넣는다. -->
+            <div id="errorBox" class="alert alert-danger" role="alert">
+                <strong id="errorTitle">로그인 실패</strong>
+                <div id="errorMessage">이메일 또는 비밀번호를 확인해주세요.</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="username">이메일 또는 닉네임</label>
+                <input type="text"
+                       id="username"
+                       class="form-input"
+                       placeholder="admin@studyolle.com"
+                       autocomplete="username"
+                       autofocus>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="password">비밀번호</label>
+                <input type="password"
+                       id="password"
+                       class="form-input"
+                       placeholder="관리자 비밀번호"
+                       autocomplete="current-password">
+            </div>
+
+            <button type="button" id="loginBtn" class="btn btn-primary btn-block">
+                로그인
+            </button>
+
+            <div class="login-footer">
+                이 페이지는 관리자 전용입니다. 일반 사용자는
+                <a href="http://localhost:8080/" style="color: var(--accent-light);">
+                    studyolle.com</a>
+                으로 이동해주세요.
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Thymeleaf 가 서버 측에서 apiBase 변수를 JS 리터럴로 심어준다.
+         이렇게 해두면 나중에 api-base-url 이 바뀔 때 application.yml 만 고치면 되고
+         HTML 을 수정할 필요가 없다. -->
+    <script th:inline="javascript">
+        const API_BASE = /*[[${apiBase}]]*/ 'http://localhost:9080';
+    </script>
+
+    <script>
+        // =====================================================
+        // JWT payload 디코딩 함수
+        // =====================================================
+        //
+        // JWT 는 "header.payload.signature" 형태의 세 부분으로 이루어져 있고
+        // 각 부분은 Base64URL 로 인코딩되어 있다. Base64URL 은 일반 Base64 와 달리
+        // URL 에서 문제가 될 수 있는 두 문자를 치환한 변종이다:
+        //   '+' → '-'
+        //   '/' → '_'
+        // 또한 끝의 '=' 패딩도 생략한다.
+        //
+        // 브라우저의 atob() 는 순수 Base64 만 처리하므로 먼저 URL 변종을
+        // 원래 형태로 되돌려야 한다. 또한 atob() 가 돌려주는 결과는 각 바이트를
+        // ISO-8859-1 문자로 해석한 문자열이라, payload 에 한글 같은 멀티바이트
+        // 문자가 들어 있으면 글자가 깨진다. 각 바이트를 %XX 형태로 바꾼 뒤
+        // decodeURIComponent 로 UTF-8 해석을 다시 걸어주면 한글까지 정확히 복원된다.
+        function decodeJwtPayload(token) {
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                throw new Error('잘못된 JWT 형식');
+            }
+            // Base64URL → Base64 변환
+            const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            // UTF-8 안전 디코딩
+            const jsonPayload = decodeURIComponent(
+                atob(base64)
+                    .split('')
+                    .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                    .join('')
+            );
+            return JSON.parse(jsonPayload);
+        }
+
+        // =====================================================
+        // 에러 표시 헬퍼
+        // =====================================================
+        const errorBox = document.getElementById('errorBox');
+        const errorTitle = document.getElementById('errorTitle');
+        const errorMessage = document.getElementById('errorMessage');
+
+        function showError(title, message) {
+            errorTitle.textContent = title;
+            errorMessage.textContent = message;
+            errorBox.classList.add('active');
+        }
+        function hideError() {
+            errorBox.classList.remove('active');
+        }
+
+        // =====================================================
+        // 로그인 버튼 클릭 처리
+        // =====================================================
+        const loginBtn = document.getElementById('loginBtn');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+
+        loginBtn.addEventListener('click', async () => {
+            hideError();
+
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+
+            if (!username || !password) {
+                showError('입력 필요', '이메일과 비밀번호를 모두 입력해주세요.');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = '인증 중...';
+
+            try {
+                const response = await fetch(API_BASE + '/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        emailOrNickname: username,
+                        password: password
+                    })
+                });
+
+                const result = await response.json();
+
+                // -----------------------------------------------------
+                // 1차 검증: 서버가 인증 자체를 거부했는가
+                // -----------------------------------------------------
+                if (!response.ok) {
+                    const errorCode = result.errorCode || '';
+                    if (errorCode === 'EMAIL_NOT_VERIFIED') {
+                        showError('이메일 인증 필요',
+                            '가입 시 받은 인증 이메일을 먼저 확인해주세요.');
+                    } else {
+                        showError('로그인 실패',
+                            '이메일(또는 닉네임)과 비밀번호가 일치하지 않습니다.');
+                    }
+                    return;
+                }
+
+                // -----------------------------------------------------
+                // 2차 검증: 관리자 권한이 있는가
+                // -----------------------------------------------------
+                // 이 단계가 admin-frontend 만의 특별한 방어선이다.
+                // 서버는 인증을 통과시켜 토큰을 발급했지만, 그 토큰의 소유자가
+                // 관리자가 아닐 수도 있다. 토큰을 저장하기 전에 role 을 직접 확인한다.
+                const accessToken = result.data.accessToken;
+                const refreshToken = result.data.refreshToken;
+
+                let payload;
+                try {
+                    payload = decodeJwtPayload(accessToken);
+                } catch (e) {
+                    showError('토큰 오류', '발급된 토큰을 해석할 수 없습니다.');
+                    return;
+                }
+
+                if (payload.role !== 'ROLE_ADMIN') {
+                    // 일반 사용자 → 에러만 표시하고 종료
+                    // 토큰을 아예 저장하지 않아 다른 사이트에 영향을 주지 않는다.
+                    showError('접근 거부',
+                        '관리자 권한이 없는 계정입니다. 일반 사용자는 이 사이트에 접근할 수 없습니다.');
+                    return;
+                }
+
+                // -----------------------------------------------------
+                // 모든 검증 통과 → 토큰 저장 후 대시보드로 이동
+                // -----------------------------------------------------
+                // localStorage: JS fetch 호출 시 Authorization 헤더에 사용
+                // 쿠키:         브라우저가 페이지 이동할 때 자동 포함됨
+                //               → admin-gateway 의 JwtAuthenticationFilter 가 읽어서 검증
+                localStorage.setItem('accessToken', accessToken);
+                localStorage.setItem('refreshToken', refreshToken);
+
+                document.cookie = 'accessToken=' + accessToken
+                    + '; path=/'
+                    + '; max-age=1800'
+                    + '; SameSite=Strict';
+
+                window.location.href = '/dashboard';
+
+            } catch (e) {
+                console.error('로그인 요청 실패:', e);
+                showError('네트워크 오류',
+                    '서버와 통신할 수 없습니다. 잠시 후 다시 시도해주세요.');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = '로그인';
+            }
+        });
+
+        // Enter 키로도 로그인 가능하도록
+        [usernameInput, passwordInput].forEach(input => {
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') loginBtn.click();
+            });
+        });
+    </script>
+
+</body>
+</html>

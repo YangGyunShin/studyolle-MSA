@@ -1,0 +1,22 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: admin-frontend
+  thymeleaf:
+    cache: false   # 개발 중 템플릿 수정이 즉시 반영되도록. 운영 배포 시 true 로 변경.
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+# JS 에서 fetch 할 때 사용하는 API 기본 주소.
+# 관리자 사이트는 반드시 admin-gateway(9080) 를 통해 백엔드를 호출해야 하므로 여기에 9080 을 넣는다.
+# api-gateway(8080) 로 보내면 관리자 경로가 막혀 있어 동작하지 않는다.
+app:
+  api-base-url: http://localhost:9080
+  frontend-base-url: http://localhost:9000
