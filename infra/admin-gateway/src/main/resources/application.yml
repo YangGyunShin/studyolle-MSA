@@ -1,0 +1,78 @@
+server:
+  port: 9080
+
+spring:
+  application:
+    name: admin-gateway
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            # 관리자 사이트만 허용. 일반 사용자 사이트(localhost:8080) 는 의도적으로 제외해
+            # 일반 프론트에서 실수로 관리자 API 를 호출하지 못하도록 한다.
+            allowedOrigins:
+              - "http://localhost:9080"
+              - "http://localhost:9000"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+      routes:
+        # 1) 내부 API 외부 접근 전면 차단 (반드시 가장 먼저 선언)
+        #    /internal/** 은 서비스 간 직접 통신 전용이므로 게이트웨이를 통해
+        #    들어오는 외부 요청은 모두 403 으로 막는다.
+        - id: block-internal
+          uri: no://op
+          predicates:
+            - Path=/internal/**
+          filters:
+            - SetStatus=403
+
+        # 2) 공개 API — 관리자 로그인에도 그대로 재사용한다.
+        #    일반 사용자와 같은 account-service 의 /api/auth/login 으로 토큰을 발급받고,
+        #    admin-frontend JS 에서 role 이 ROLE_ADMIN 인지 확인한 뒤 쿠키에 저장한다.
+        - id: account-service-public
+          uri: lb://ACCOUNT-SERVICE
+          predicates:
+            - Path=/api/auth/**
+
+        # 3) 관리자 API — 이중 권한 검증의 1차 방어선
+        #    JwtAuthenticationFilter 가 먼저 돌아 JWT 를 검증하고 X-Account-Role 헤더를 주입하면,
+        #    AdminRoleFilter 가 그 헤더값이 ROLE_ADMIN 인지 확인한다.
+        #    필터 선언 순서가 바뀌면 AdminRoleFilter 가 헤더를 찾지 못해 모든 요청이 403 이 된다.
+        - id: admin-service
+          uri: lb://ADMIN-SERVICE
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - JwtAuthenticationFilter
+            - AdminRoleFilter
+
+        # 4) admin-frontend 페이지 라우트 — 반드시 가장 마지막
+        #    OptionalJwtFilter 는 토큰이 없어도 통과시켜서 비로그인 사용자가
+        #    로그인 페이지(/)에 접근할 수 있게 해준다. 토큰이 있으면 검증 후
+        #    X-Account-Id, X-Account-Role 헤더를 주입해서 admin-frontend 의
+        #    HomeController 가 로그인 여부를 판단할 수 있게 한다.
+        - id: admin-frontend
+          uri: lb://ADMIN-FRONTEND
+          predicates:
+            - Path=/**
+          filters:
+            - OptionalJwtFilter
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+# api-gateway 와 완전히 동일한 값이어야 한다.
+# account-service 가 이 키로 JWT 를 서명하고, 두 게이트웨이가 같은 키로 검증하기 때문이다.
+jwt:
+  secret: studyolle-msa-secret-key-must-be-at-least-256-bits-long
