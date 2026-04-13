@@ -4,34 +4,34 @@
 
 ---
 
-## 현재 진행 상황 (2026-04-11 기준)
+## 현재 진행 상황 (2026-04-12 기준)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
 | Phase 1 | 인프라 (Eureka, Config, API Gateway) | ✅ 완료 |
 | Phase 2 | account-service | ✅ 완료 |
-| Phase 3 | frontend-service (인증 페이지 + study 페이지 전체) | ✅ 완료 |
-| Phase 4 | study-service 소스코드 + InternalStudyController | ✅ 완료 |
-| Phase 4 | 에러 페이지 (404.html, error.html) | ✅ 완료 |
-| Phase 4 | 계정 설정 페이지 5개 + account-service 태그/지역 API | ✅ 완료 |
-| Phase 4 | event-service 백엔드 + frontend 연동 전체 | ✅ 완료 |
-| Phase 4 | 프로필 페이지 (account/profile.html) | ✅ 완료 |
-| Phase 4 | 대시보드 모임 표시 (EventFeignClient 연동) | ✅ 완료 |
-| Phase 5 | Docker 기동 (Zookeeper, Kafka, RabbitMQ, PostgreSQL, Redis) | ✅ 완료 |
-| Phase 5 | study-service Kafka Producer | ✅ 완료 |
-| Phase 5 | event-service RabbitMQ Producer | ✅ 완료 |
-| Phase 5 | notification-service 소스코드 (18개 파일) | ✅ 완료 |
-| Phase 5 | notification-service 기동 + Kafka 흐름 검증 | ✅ 완료 |
-| Phase 5 | api-gateway /api/notifications/** 라우팅 | ✅ 완료 |
+| Phase 3 | frontend-service (인증 + study + 계정 설정 + 프로필) | ✅ 완료 |
+| Phase 4 | study-service / event-service 백엔드 + frontend 연동 | ✅ 완료 |
+| Phase 5 | notification-service 소스코드 18개 파일 | ✅ 완료 |
+| Phase 5 | notification-service Kafka 흐름 검증 | ✅ 완료 |
 | Phase 5 | frontend-service 알림 페이지 연동 | ✅ 완료 |
-| Phase 5 | RabbitMQ 흐름 테스트 (event-service → notification) | 🔲 대기 중 |
-| Phase 6 | admin-service | 🔲 예정 |
+| Phase 5 | RabbitMQ 흐름 테스트 (event → notification) | 🔲 대기 중 |
+| Phase 6 | admin-service 백엔드 (8082) | ✅ 완료 |
+| Phase 6 | api-gateway AdminRoleFilter + JWT role claim 전달 | ✅ 완료 |
+| Phase 6 | account-service 관리자 회원 목록 API | ✅ 완료 |
+| Phase 6 | frontend-service 임시 관리자 페이지 | ✅ 완료 (Phase 7 에서 분리 예정) |
+| Phase 7 | admin-gateway 모듈 (9080) 신규 생성 | 🔲 예정 |
+| Phase 7 | admin-frontend 모듈 (9000) 신규 생성 | 🔲 예정 |
+| Phase 7 | frontend-service 의 admin 패키지/템플릿 삭제 | 🔲 예정 |
+| Phase 8 | 회원 권한 변경 / 스터디 관리 / 강제 비공개 | 🔲 예정 |
 
 **다음 즉시 할 일:**
-1. RabbitMQ 흐름 테스트 (모임 신청/수락/거절/출석)
-2. Phase 6 admin-service 시작
+Phase 7 — 관리자 사이트 분리 (별도 게이트웨이 + 별도 frontend).
+현재 frontend-service 안에 임시로 들어 있는 admin 관련 코드를 
+admin-frontend 신규 모듈로 옮기고, frontend-service 에서는 완전히 제거한다.
+admin-service 는 그대로 둔다.
 
-자세한 TODO는 `MSA_TODO.txt` 참고.
+자세한 TODO 와 Phase 7 작업 항목은 `MSA_TODO.txt` 참고.
 
 ---
 

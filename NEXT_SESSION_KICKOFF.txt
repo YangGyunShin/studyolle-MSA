@@ -1,65 +1,91 @@
 StudyOlle MSA 프로젝트를 이어서 진행합니다.
 프로젝트 루트: /Users/shinyanggyun/Library/Mobile Documents/com~apple~CloudDocs/Spring/study/studyolle-msa/
 
-현재 상태 요약 (2026-04-11 기준):
-* Phase 1~4 인프라 + account-service + study-service + event-service + frontend-service 전체 완성
-* Phase 5 notification-service Kafka 흐름 완성 (study-service → Kafka → notification-service → PostgreSQL/Redis)
-* Phase 5 RabbitMQ 흐름은 계정 문제로 테스트 보류 중 (코드는 작성 완료)
-* 통합 테스트 완료: 로그인 → 홈 대시보드 → 스터디/모임/알림 전체 플로우
-* 알림 페이지 완성 (읽음/안 읽음 시각 구분, nav 🔔 배지, GlobalModelAttributes 자동 주입)
+현재 상태 요약 (2026-04-12 기준):
+* Phase 1~5 모두 완료 (인프라, account, study, event, notification, frontend)
+* Phase 6 admin-service 백엔드 완성 (:8082)
+  - 자체 DB 없음, account-service /internal/accounts 를 Feign 으로 호출하는 orchestration 구조
+  - SecurityConfig + AdminAuthInterceptor 2차 권한 검증
+  - AdminMemberController: GET /api/admin/members?keyword=&page=&size=
+  - CommonApiResponse, GlobalExceptionHandler 완성
+* api-gateway: AdminRoleFilter + JWT role claim 전달 완성
+* account-service: AccountSummaryResponse 에 role 필드 추가, 페이지네이션 회원 목록 API 추가
+* frontend-service: 임시 관리자 페이지(/admin/members) 동작 확인 완료
+  → Phase 7 에서 별도 admin-frontend 모듈로 이전 후 frontend-service 에서 삭제 예정
+* RabbitMQ 흐름 테스트는 여전히 보류 중 (Phase 5 잔여)
 
-다음 작업: Phase 6 admin-service 생성을 시작합니다.
 
-1. services/admin-service/ 신규 모듈 생성 (:8082)
-   * settings.gradle 에 모듈 등록
-   * build.gradle (Spring Web + JPA + Eureka Client + Feign + Security)
-   * application.yml (포트 8082, PostgreSQL 연결 또는 기존 DB 공유 결정 필요)
-   * AdminServiceApplication.java (@EnableDiscoveryClient + @EnableFeignClients)
+다음 작업: Phase 7 — 관리자 사이트 분리
 
-2. admin-service 기본 구조
-   * config/ : SecurityConfig, WebMvcConfig
-   * filter/ : InternalRequestFilter
-   * client/ : AccountFeignClient, StudyFeignClient, EventFeignClient (각 서비스의 /internal/** 호출)
-   * controller/ : AdminController (회원/스터디/태그/지역 관리 API)
-   * dto/ : 관리자 화면용 요약 DTO
+[설계 결정 — 2026-04-12]
+관리자 페이지를 일반 사용자 사이트와 완전히 분리한다.
+별도 게이트웨이 + 별도 frontend 로 두 사이트를 분리한다.
 
-3. api-gateway 수정
-   * AdminRoleFilter 구현 (X-Account-Role == ROLE_ADMIN 검증)
-   * application.yml 에 /api/admin/** → lb://ADMIN-SERVICE 라우팅 추가
-     (JwtAuthenticationFilter + AdminRoleFilter 순서로 적용)
+[목표 구조]
+  [일반 사용자]
+  브라우저 → api-gateway:8080 → frontend-service:8090 → 백엔드 서비스들
 
-4. account-service 수정 (필요 시)
-   * Account 엔티티에 role 필드 추가 (ROLE_USER / ROLE_ADMIN)
-   * JwtProvider 에 role Claim 포함
-   * 기존 사용자 1명을 ROLE_ADMIN 으로 승격할 방법 (SQL 직접 or 부트스트랩 데이터)
+  [관리자 — 신규]
+  브라우저 → admin-gateway:9080 → admin-frontend:9000 → admin-service:8082 → 백엔드 서비스들
 
-5. frontend-service 관리자 페이지 (Claude 담당)
-   * admin/controller/AdminPageController.java (양균님)
-   * admin/client/AdminInternalClient.java (양균님)
-   * templates/admin/dashboard.html (회원 목록 / 스터디 목록 / 통계)
-   * templates/admin/members.html
-   * templates/admin/studies.html
+[변하지 않는 것]
+* admin-service:8082 는 그대로 (백엔드는 누가 호출하든 동일)
+* account-service, study-service 등 모든 백엔드는 손대지 않음
 
-주요 설계 결정 필요:
-* admin-service 가 자체 DB 를 가질지, 기존 DB 들을 공유할지
-  → 학습 목적이므로 자체 DB 없이 Feign Client 로 각 서비스의 /internal API 만 호출하는 구조 추천
-* ROLE 관리: account-service 에 role 필드 추가 vs 별도 authority 테이블
-  → 단순한 enum 필드 추가가 MSA 학습 단계에 적합
-* 관리자 지정: 회원가입 시 첫 번째 사용자를 자동 승격 vs SQL 로 수동 승격
-  → 수동 승격이 가장 단순하고 안전
+[작업 항목]
 
-역할 분담:
+1. 신규 모듈 admin-gateway (:9080) 생성
+   * 기존 api-gateway 복사 후 라우트만 admin 용으로 변경
+   * JwtAuthenticationFilter (기존과 동일)
+   * AdminRoleFilter (기존과 동일, 모든 요청에 적용)
+   * 라우트:
+     - /api/admin/**  → ADMIN-SERVICE  (JwtAuthFilter + AdminRoleFilter)
+     - /api/auth/**   → ACCOUNT-SERVICE (관리자 로그인용 — 일반과 같은 엔드포인트)
+     - /**            → ADMIN-FRONTEND  (OptionalJwtFilter)
+   * settings.gradle 등록
+
+2. 신규 모듈 admin-frontend (:9000) 생성
+   * 기존 frontend-service 의 admin 패키지를 옮겨옴
+   * 별도 디자인 (다크 톤 + 차분한 청록색 포인트)
+   * 첫 화면 = 관리자 로그인 페이지 (랜딩 페이지 없음)
+   * 페이지 구성:
+     - /              → 로그인 페이지 (또는 로그인 후 대시보드로 리다이렉트)
+     - /dashboard     → 관리자 메인 (회원 수, 스터디 수 통계)
+     - /members       → 회원 관리 (이미 만든 members.html 옮기고 새 fragments 로 다시 작성)
+     - /studies       → 스터디 관리 (Phase 8 예정)
+   * settings.gradle 등록
+
+3. frontend-service 정리
+   * admin/ 패키지 전체 삭제 (controller, client, dto)
+   * templates/admin/members.html 삭제
+
+4. api-gateway application.yml 정리
+   * /api/admin/** 라우트 제거 (admin-gateway 가 담당)
+   * AdminRoleFilter 클래스는 남겨두되 사용 안 함
+
+5. 관리자 로그인 흐름 결정 사항
+   * 로그인 API: 기존 POST /api/auth/login 재사용 (별도 엔드포인트 만들지 않음)
+   * 응답 받은 후 admin-frontend JS 가 role 검사하여 ROLE_ADMIN 이 아니면 에러 표시
+   * JWT 자체는 일반 사용자와 동일 (같은 secret, 같은 형식)
+
+
+역할 분담 (절대 준수):
 * Java 소스코드 (.java): 양균님 직접 작성 → Claude 는 소스코드만 제공
-* frontend-service HTML 템플릿 (.html): Claude 직접 파일 생성
-* application.yml / 문서 (*.md, *.txt): Claude 직접 파일 생성/수정
+* HTML 템플릿 (admin-frontend/templates/**.html): Claude 직접 파일 생성
+* application.yml: Claude 직접 파일 생성/수정
+* 문서 파일 (*.md, *.txt): Claude 직접 파일 생성/수정
+* settings.gradle, build.gradle: Claude 직접 파일 생성/수정
+
 
 현황 파악을 위해 아래 파일들을 먼저 읽어주세요:
 * MSA_GUIDE.md (전체 아키텍처 + 현재 진행 상황)
-* MSA_TODO.txt (완료 항목 + 다음 작업)
-* TroubleShooting/TroubleShooting_016.MD, 017.MD, 018.MD (최근 해결한 버그)
+* MSA_TODO.txt (완료 항목 + Phase 7 작업 항목 상세)
+
 
 서비스 경로: /Users/shinyanggyun/Library/Mobile Documents/com~apple~CloudDocs/Spring/study/studyolle-msa/services/
 인프라 경로: /Users/shinyanggyun/Library/Mobile Documents/com~apple~CloudDocs/Spring/study/studyolle-msa/infra/
 
-백엔드는 양균님이 직접 만들 것이니 소스코드만 제공하고, 프론트는 Claude 가 직접 만들어주세요.
-참고: RabbitMQ 흐름 테스트와 작은 개선 항목 (/api/calendar/events 구현, 404 페이지 개선, account-service batch API 등) 은 admin-service 완성 후에 진행합니다.
+백엔드는 양균님이 직접 만들 것이니 소스코드만 제공하고, 프론트(HTML)는 Claude 가 직접 만들어주세요.
+
+참고: RabbitMQ 흐름 테스트와 작은 개선 항목 (/api/calendar/events 구현, 404 페이지 개선,
+account-service batch API 등) 은 Phase 7 완료 후에 진행합니다.
