@@ -45,19 +45,6 @@ spring:
           filters:
             - JwtAuthenticationFilter
 
-        # admin-service (Phase 6)
-        # JwtAuthenticationFilter → AdminRoleFilter 순서가 중요하다.
-        # AdminRoleFilter 는 X-Account-Role 헤더를 읽는데, 그 헤더는 JwtAuthenticationFilter 가
-        # JWT 를 검증하고 나서야 추가되기 때문이다. 순서를 바꾸면 AdminRoleFilter 가
-        # 항상 헤더를 찾지 못해 모든 요청이 403 으로 차단된다.
-        - id: admin-service
-          uri: lb://ADMIN-SERVICE
-          predicates:
-            - Path=/api/admin/**
-          filters:
-            - JwtAuthenticationFilter
-            - AdminRoleFilter
-
         # notification-service (Phase 5)
         - id: notification-service
           uri: lb://NOTIFICATION-SERVICE
