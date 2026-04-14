@@ -69,6 +69,15 @@ spring:
           filters:
             - JwtAuthenticationFilter
 
+        # 일반 사용자 게이트웨이에서는 관리자 API 자체를 차단한다.
+        # 관리자 기능은 admin-gateway(9080) 를 통해서만 접근 가능하다.
+        - id: block-admin-api
+          uri: no://op
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - SetStatus=404
+
         # frontend-service - 모든 페이지와 정적 리소스를 포괄하는 단일 라우트
         # Spring Cloud Gateway는 선언 순서대로 매칭하므로
         # 반드시 모든 /api/** 라우트 및 /internal/** 차단 이후에 선언해야 한다.

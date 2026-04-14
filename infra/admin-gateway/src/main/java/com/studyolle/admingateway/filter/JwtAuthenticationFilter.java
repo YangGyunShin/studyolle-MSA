@@ -1,4 +1,4 @@
-package com.studyolle.gateway.filter;
+package com.studyolle.admingateway.filter;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

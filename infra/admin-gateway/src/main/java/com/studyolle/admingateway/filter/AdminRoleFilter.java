@@ -1,4 +1,4 @@
-package com.studyolle.gateway.filter;
+package com.studyolle.admingateway.filter;
 
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
