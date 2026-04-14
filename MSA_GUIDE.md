@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 진행 상황 (2026-04-13 기준)
+## 현재 진행 상황 (2026-04-14 기준)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -19,59 +19,56 @@
 | Phase 6 | admin-service 백엔드 (8082) | ✅ 완료 |
 | Phase 6 | api-gateway AdminRoleFilter + JWT role claim 전달 | ✅ 완료 |
 | Phase 6 | account-service 관리자 회원 목록 API | ✅ 완료 |
-| Phase 6 | frontend-service 임시 관리자 페이지 | ✅ 완료 (Phase 7 에서 분리 예정) |
-| Phase 7 | admin-gateway 모듈 (9080) 신규 생성 | 🟡 구현 중 (Claude 소스 제공 완료, 양균님 작성 대기) |
-| Phase 7 | admin-frontend 모듈 (9000) 신규 생성 | 🟡 구현 중 (HTML/CSS 생성 완료, Java 소스 제공 완료) |
-| Phase 7 | frontend-service 의 admin 패키지/템플릿 삭제 | 🔲 예정 (양균님 직접 삭제) |
-| Phase 7 | api-gateway application.yml 에서 /api/admin/** 라우트 제거 | 🔲 예정 |
+| Phase 6 | frontend-service 임시 관리자 페이지 | ✅ 완료 (Phase 7 에서 제거됨) |
+| Phase 7 | admin-gateway 모듈 (9080) 신규 생성 | ✅ 완료 |
+| Phase 7 | admin-frontend 모듈 (9000) 신규 생성 | ✅ 완료 |
+| Phase 7 | frontend-service 의 admin 패키지/템플릿 삭제 | ✅ 완료 |
+| Phase 7 | api-gateway application.yml 관리자 라우트 정리 + block-admin-api 추가 | ✅ 완료 |
+| Phase 7 | 통합 테스트 (11개 서비스 기동 + 두 사이트 동시 검증) | 🔲 대기 중 |
 | Phase 8 | 회원 권한 변경 / 스터디 관리 / 강제 비공개 | 🔲 예정 |
 
 **다음 즉시 할 일:**
-Phase 7 마무리 — 양균님이 Java 소스를 작성하시고, frontend-service 정리와
-api-gateway yml 수정을 마치면 Phase 7 가 완료된다. 이후 두 사이트(8080, 9080)
-양쪽을 실제로 기동해서 관리자 로그인 흐름과 회원 목록 조회가 제대로 동작하는지
-확인하는 통합 테스트까지 하면 Phase 7 종료.
+Phase 7 통합 테스트 — 11개 서비스(eureka, config, api-gateway, admin-gateway,
+account, study, event, notification, admin, frontend, admin-frontend)를 모두 기동하고
+두 사이트를 실제로 열어서 관리자 로그인 흐름·회원 목록 조회·권한 분리가 제대로
+동작하는지 확인한다. 통과하면 Phase 7 최종 종료, 이후 Phase 8 기능 확장 단계로 진입.
 
-자세한 TODO 와 Phase 7 작업 항목은 `MSA_TODO.txt` 참고.
+자세한 TODO 와 Phase 별 작업 항목은 `MSA_TODO.txt` 참고.
 
 ---
 
 ## 아키텍처 요약
 
 ```
-[브라우저]
-    │
-    ▼
-[api-gateway :8080]   JWT 검증(쿠키/헤더), 라우팅, X-Account-Id 헤더 추가
-    │
-    ├── [account-service      :8081]   회원가입/로그인/JWT 발급/계정 설정/프로필
-    ├── [study-service        :8083]   스터디 CRUD/설정/가입 + Kafka Producer (Phase 5)
-    ├── [event-service        :8084]   모임 생성/신청 + RabbitMQ Producer (Phase 5)
-    ├── [notification-service :8085]   알림 저장/조회 (Phase 5) ← 신규
-    │       ├── Kafka Consumer    (study-events Topic)
-    │       ├── RabbitMQ Consumer (enrollment.queue)
-    │       ├── PostgreSQL :5436  (알림 영구 저장)
-    │       └── Redis :6379       (읽지 않은 알림 카운터, 중복 방지)
-    └── [frontend-service     :8090]   Thymeleaf HTML 서빙
-
-[frontend-service :8090]
-    │  브라우저 렌더링 전 RestTemplate 으로 내부 API 호출
-    ├── AccountInternalClient      lb://ACCOUNT-SERVICE/internal/**
-    ├── StudyInternalClient        lb://STUDY-SERVICE/internal/**
-    ├── EventInternalClient        lb://EVENT-SERVICE/internal/**    ✅ 완성
-    └── NotificationInternalClient lb://NOTIFICATION-SERVICE/internal/**  ← Phase 5 추가 예정
+[일반 사용자 브라우저]                          [관리자 브라우저]
+          │                                            │
+          ▼                                            ▼
+[api-gateway :8080]                             [admin-gateway :9080]
+          │                                            │
+          ├──────────────┬─────────────────────┴───────────────┐
+          ▼                ▼                                    ▼
+   [account :8081]    [study :8083]                       [admin-service :8082]
+                      [event :8084]                        │
+                      [notification :8085]                 └─ Feign → account-service
+                               │                              (orchestration — 자체 DB 없음)
+                               ▼
+                          [frontend-service :8090]  ← api-gateway /** 이 라우팅
+                          [admin-frontend   :9000]  ← admin-gateway /** 이 라우팅
 
 [eureka-server :8761]   서비스 디스커버리
 [config-server :8888]   중앙 설정 관리
 ```
 
 **핵심 원칙:**
-- 브라우저 → api-gateway → 각 서비스 (외부 요청 흐름)
-- frontend-service → 내부 서비스 직접 (lb://, api-gateway 우회)
-- JWT 검증은 api-gateway 전담, 각 서비스는 X-Account-Id 헤더만 읽음
+- 브라우저 → 게이트웨이 → 각 서비스 (외부 요청 흐름)
+- frontend-service / admin-frontend → 내부 서비스 직접 (lb://, 게이트웨이 우회)
+- JWT 검증은 게이트웨이 전담, 각 서비스는 X-Account-Id 헤더만 읽음
 - 서비스 간 내부 통신은 /internal/** 경로 + X-Internal-Service 헤더
-- 로그인 상태는 쿠키(accessToken)로 유지, api-gateway OptionalJwtFilter가 읽음
-- **반드시 localhost:8080으로 접속** (8090 직접 접속 시 OptionalJwtFilter 우회)
+- 로그인 상태는 쿠키(accessToken)로 유지, 각 게이트웨이 OptionalJwtFilter가 읽음
+- 일반 사용자는 **반드시 localhost:8080으로 접속**
+- 관리자는 **반드시 localhost:9080으로 접속**
+- 두 사이트는 각자 다른 포트/도메인을 쓰지만 account-service 의 같은 /api/auth/login 으로
+  로그인하고, 발급된 JWT 의 role claim 을 admin-frontend 로그인 JS 가 확인해 관리자만 통과시킨다
 
 ---
 
@@ -93,26 +90,29 @@ notification-service ──→ PostgreSQL (알림 영구 저장)
 
 ---
 
-## api-gateway 필터 구조 (현재)
+## 두 게이트웨이 필터 구조 (Phase 7 완료 후)
 
 ```
-[브라우저 요청]
-      │
-      ▼
-  라우트 매칭
-      │
-      ├── /api/auth/**             → ACCOUNT-SERVICE      (필터 없음, 공개)
-      ├── /api/accounts/**         → ACCOUNT-SERVICE      (JwtAuthenticationFilter)
-      ├── /api/notifications/**    → NOTIFICATION-SERVICE (JwtAuthenticationFilter) ← Phase 5 추가 예정
-      ├── /api/studies/*/events/** → EVENT-SERVICE        (JwtAuthenticationFilter)
-      ├── /api/studies/**          → STUDY-SERVICE        (JwtAuthenticationFilter)
-      ├── /internal/**             → 403 전면 차단
-      │
-      └── /**                      → FRONTEND-SERVICE
-            └── OptionalJwtFilter
-                  토큰 없으면 → 그냥 통과 (비로그인 상태)
-                  토큰 있으면 → X-Account-Id 헤더 추가 (로그인 상태)
+[일반 사용자 브라우저]                       [관리자 브라우저]
+          │                                         │
+          ▼                                         ▼
+[api-gateway :8080]                          [admin-gateway :9080]
+    ├── /internal/**             → 403 차단     ├── /internal/**           → 403 차단
+    ├── /api/auth/**             → ACCOUNT      ├── /api/auth/**           → ACCOUNT (관리자 로그인)
+    ├── /api/accounts/**         → ACCOUNT      ├── /api/admin/**          → ADMIN-SERVICE
+    ├── /api/notifications/**    → NOTIFICATION │        + JwtAuthenticationFilter
+    ├── /api/studies/*/events/** → EVENT        │        + AdminRoleFilter
+    ├── /api/studies/**          → STUDY        └── /**                    → ADMIN-FRONTEND
+    ├── /api/admin/**            → 404 차단              + OptionalJwtFilter
+    │   (깊이 있는 방어 — 일반 GW 에는 관리자 API 가
+    │    존재하지 않는 것처럼 보이게 함)
+    └── /**                      → FRONTEND-SERVICE
+          + OptionalJwtFilter
 ```
+
+**두 게이트웨이의 jwt.secret 은 반드시 동일해야 한다.**
+account-service 가 발급한 JWT 를 양쪽에서 모두 검증할 수 있어야 하기 때문이다.
+관리자도 일반 사용자와 같은 POST /api/auth/login 을 재사용하므로 별도 발급자는 없다.
 
 ---
 
@@ -137,6 +137,61 @@ notification-service ──→ PostgreSQL (알림 영구 저장)
 ② window.location.href = '/logout'
 ③ HomeController GET /logout → Set-Cookie: accessToken=; max-age=0 (서버 사이드 쿠키 삭제)
 ④ redirect:/
+```
+
+---
+
+## admin-gateway 구조 (Phase 7 신규)
+
+```
+infra/admin-gateway/
+├── build.gradle                                 — api-gateway 와 동일한 의존성 (starter-gateway, eureka, jjwt)
+└── src/main/
+      ├── java/com/studyolle/admingateway/
+      │     ├── AdminGatewayApplication.java
+      │     └── filter/
+      │           ├── JwtAuthenticationFilter.java   api-gateway 와 동일 로직, package 만 다름
+      │           ├── AdminRoleFilter.java           X-Account-Role == ROLE_ADMIN 검증
+      │           └── OptionalJwtFilter.java         admin-frontend 페이지용 (비로그인 통과)
+      └── resources/
+            └── application.yml                        port 9080, jwt.secret 동일
+                                                         CORS allowed: 9080, 9000
+
+라우팅:
+  /internal/**     → 403 차단
+  /api/auth/**     → ACCOUNT-SERVICE (관리자 로그인 재사용)
+  /api/admin/**    → ADMIN-SERVICE (JwtAuth + AdminRole)
+  /**              → ADMIN-FRONTEND (OptionalJwt)
+```
+
+---
+
+## admin-frontend 구조 (Phase 7 신규, :9000)
+
+```
+services/admin-frontend/src/main/
+├── java/com/studyolle/adminfrontend/
+│     ├── AdminFrontendApplication.java
+│     ├── HomeController.java                GET /, /dashboard, /logout
+│     ├── config/RestTemplateConfig.java     @LoadBalanced RestTemplate Bean
+│     └── member/
+│           ├── controller/AdminMemberController.java   GET /members
+│           ├── client/AdminInternalClient.java         lb://ADMIN-SERVICE/api/admin/members 호출
+│           └── dto/  AdminMemberDto, AdminPageResponse, AdminCommonApiResponse
+└── resources/
+      ├── application.yml                    port 9000, api-base-url = http://localhost:9080
+      ├── static/css/admin-style.css         다크 슬레이트 + 청록색 포인트
+      └── templates/
+            ├── fragments.html                 head + admin-nav fragment
+            ├── login.html                     JWT role 검증 포함 (비관리자는 토큰 저장 안 함)
+            ├── dashboard.html                 회원 수 킴시 (나머지 카드는 Phase 8 placeholder)
+            └── members.html                   검색 + 페이지네이션 + 테이블
+
+[일반 frontend-service 와의 차이점]
+- node-gradle 플러그인 없음 (npm 데피던시 없이 순수 HTML/CSS 만 사용)
+- spring-cloud-starter-loadbalancer 명시적 포함 (lb:// 스킴 변환용)
+- AdminInternalClient 만 /api/admin/** 정문을 호출, 나머지는 /internal/** 사용 안 함
+- 첫 화면은 로그인 페이지 (랜딩 페이지 없음)
 ```
 
 ---
@@ -329,7 +384,7 @@ frontend-service/src/main/
 
 ---
 
-## api-gateway application.yml 라우팅 (현재 + Phase 5 예정)
+## api-gateway application.yml 라우팅 (Phase 7 완료 후)
 
 ```yaml
 routes:
@@ -352,7 +407,6 @@ routes:
     filters:
       - JwtAuthenticationFilter
 
-  # Phase 5 추가 예정
   - id: notification-service
     uri: lb://NOTIFICATION-SERVICE
     predicates:
@@ -374,6 +428,15 @@ routes:
     filters:
       - JwtAuthenticationFilter
 
+  # 깊이 있는 방어 — 일반 게이트웨이에는 관리자 API 가 아예 존재하지 않는 것처럼 보이게
+  # 관리자 기능은 admin-gateway(9080) 를 통해서만 접근 가능하다.
+  - id: block-admin-api
+    uri: no://op
+    predicates:
+      - Path=/api/admin/**
+    filters:
+      - SetStatus=404
+
   - id: frontend-service
     uri: lb://FRONTEND-SERVICE
     predicates:
@@ -384,19 +447,61 @@ routes:
 
 ---
 
-## 전체 서비스 기동 순서
+## admin-gateway application.yml 라우팅
+
+```yaml
+routes:
+  - id: block-internal
+    uri: no://op
+    predicates:
+      - Path=/internal/**
+    filters:
+      - SetStatus=403
+
+  - id: account-service-public
+    uri: lb://ACCOUNT-SERVICE
+    predicates:
+      - Path=/api/auth/**
+
+  - id: admin-service
+    uri: lb://ADMIN-SERVICE
+    predicates:
+      - Path=/api/admin/**
+    filters:
+      - JwtAuthenticationFilter
+      - AdminRoleFilter
+
+  - id: admin-frontend
+    uri: lb://ADMIN-FRONTEND
+    predicates:
+      - Path=/**
+    filters:
+      - OptionalJwtFilter
+```
+
+---
+
+## 전체 서비스 기동 순서 (Phase 7 완료 후, 총 11개)
 
 ```
-1. eureka-server        (:8761)
-2. config-server        (:8888)
-3. api-gateway          (:8080)
-4. account-service      (:8081)  — IntelliJ Active profiles: local
-5. study-service        (:8083)
-6. event-service        (:8084)
-7. notification-service (:8085)  ← Phase 5 추가
-8. frontend-service     (:8090)
+1. eureka-server         (:8761)
+2. config-server         (:8888)
+3. api-gateway           (:8080)
+4. admin-gateway         (:9080)  ← Phase 7 신규
+5. account-service       (:8081)  — IntelliJ Active profiles: local
+6. study-service         (:8083)
+7. event-service         (:8084)
+8. notification-service  (:8085)
+9. admin-service         (:8082)
+10. frontend-service     (:8090)
+11. admin-frontend       (:9000)  ← Phase 7 신규
 
-접속: http://localhost:8080  (8090 직접 접속 금지 — OptionalJwtFilter 우회)
+[접속 경로]
+일반 사용자: http://localhost:8080   (8090 직접 접속 금지)
+관리자:     http://localhost:9080   (9000 직접 접속 금지)
+
+두 게이트웨이 모두 Eureka 에 등록되면
+  http://localhost:8761 에 ADMIN-GATEWAY 와 ADMIN-FRONTEND 가 UP 상태로 보여야 한다.
 ```
 
 ---
