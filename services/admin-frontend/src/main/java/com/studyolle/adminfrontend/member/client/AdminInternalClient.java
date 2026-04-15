@@ -5,14 +5,12 @@ import com.studyolle.adminfrontend.member.dto.AdminMemberDto;
 import com.studyolle.adminfrontend.member.dto.AdminPageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -126,5 +124,48 @@ public class AdminInternalClient {
 
         // 래퍼를 벗겨 순수 페이지 응답만 반환 — Controller 는 CommonApiResponse 를 볼 일이 없다.
         return body.getData();
+    }
+
+    /**
+     * 회원 권한 변경 — admin-service 의 PATCH /api/admin/members/{id}/role 호출.
+     * <p>
+     * 게이트웨이를 거치지 않으므로 X-Account-* 헤더를 직접 주입한다.
+     * Content-Type: application/json 헤더도 명시해야 admin-service 가
+     *
+     * @RequestBody 를 정상적으로 역직렬화한다.
+     */
+    public AdminMemberDto updateMemberRole(
+            Long memberId,
+            String newRole,
+            Long accountId,
+            String nickname) {
+
+        String url = ADMIN_SERVICE_URL + "/api/admin/members/" + memberId + "/role";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Account-Id", String.valueOf(accountId));
+        headers.set("X-Account-Nickname", nickname == null ? "" : nickname);
+        headers.set("X-Account-Role", "ROLE_ADMIN");
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // 본문은 record 가 따로 없으므로 Map 으로 전달해도 충분하다.
+        // admin-service 의 RoleUpdateRequest record 와 필드명만 맞으면 역직렬화된다.
+        Map<String, String> body = Map.of("role", newRole);
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+
+        ResponseEntity<AdminCommonApiResponse<AdminMemberDto>> response = restTemplate.exchange(
+                url,
+                HttpMethod.PATCH,
+                entity,
+                new ParameterizedTypeReference<>() {
+                }
+        );
+
+        AdminCommonApiResponse<AdminMemberDto> result = response.getBody();
+        if (result == null || !result.isSuccess()) {
+            String msg = (result != null) ? result.getMessage() : "응답이 비어있습니다";
+            throw new IllegalStateException("admin-service 권한 변경 실패: " + msg);
+        }
+        return result.getData();
     }
 }

@@ -4,6 +4,7 @@ import com.studyolle.admin.client.AccountAdminClient;
 import com.studyolle.admin.client.dto.AccountAdminDto;
 import com.studyolle.admin.client.dto.PageResponse;
 import com.studyolle.admin.common.InternalHeaderConstants;
+import com.studyolle.admin.dto.request.RoleUpdateRequest;
 import com.studyolle.admin.dto.response.CommonApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -75,4 +76,35 @@ public class AdminMemberController {
         // CommonApiResponse 로 감싸서 반환 — 다른 public API 와 같은 구조
         return ResponseEntity.ok(CommonApiResponse.ok(result));
     }
+
+    /**
+     * PATCH /api/admin/members/{id}/role
+     *
+     * 요청 본문: { "role": "ROLE_ADMIN" } 또는 { "role": "ROLE_USER" }
+     *
+     * [이중 검증의 의미]
+     * 자기 자신 권한 변경 금지 검증을 admin-service 에서도 한 번 한다.
+     * account-service 도 같은 검증을 하지만, 여기서 먼저 막으면
+     * 불필요한 네트워크 호출 없이 즉시 400 을 줄 수 있고,
+     * 게이트웨이의 AdminRoleFilter 가 우회된 경우에도 안전망이 된다.
+     */
+    @PatchMapping("/{id}/role")
+    public ResponseEntity<CommonApiResponse<AccountAdminDto>> updateRole (
+            @PathVariable Long id,
+            @RequestBody RoleUpdateRequest request,
+            @RequestHeader("X-Account-Id") Long requesterId) {
+        if (requesterId.equals(id)) {
+            return ResponseEntity.badRequest().body(CommonApiResponse.fail("자기 자신의 권한은 변경할 수 없습니다."));
+        }
+
+        AccountAdminDto updated = accountAdminClient.updateRole(
+                id,
+                request,
+                InternalHeaderConstants.SERVICE_NAME,
+                requesterId
+        );
+
+        return ResponseEntity.ok(CommonApiResponse.ok(updated));
+    }
+
 }

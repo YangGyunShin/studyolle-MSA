@@ -173,6 +173,32 @@ public class Account {
         this.joinedAt = LocalDateTime.now();     // 가입 시각을 현재 시간으로 설정
     }
 
+    /**
+     * 계정 권한을 변경하는 도메인 메서드.
+     *
+     * [왜 setRole 직접 호출이 아니라 별도 메서드로 만드는가]
+     * @Setter 가 자동 생성한 setRole 도 호출은 가능하지만, 그것은 "필드 값을 바꾼다" 라는 단순 데이터 조작의 뉘앙스를 풍긴다.
+     * 도메인 메서드 changeRole 은 "권한을 변경한다" 라는 비즈니스 행위를 명시적으로 표현한다.
+     *
+     * 같은 클래스의 completeSignUp() 메서드도 본질은 emailVerified=true 와 joinedAt=now()
+     * 두 필드 변경에 불과하지만 도메인 메서드로 감싸 의도를 드러낸 것과 같은 패턴이다.
+     *
+     * [확장 여지]
+     * 나중에 권한 변경 시 변경 이력 기록(예: roleChangedAt 필드 갱신)이나
+     * 이벤트 발행(RoleChangedEvent) 같은 부수 효과를 추가하게 되면 이 메서드 안에서 자연스럽게 처리할 수 있다.
+     * setter 직접 호출 방식이라면 모든 호출 지점을 일일이 찾아 수정해야 하지만,
+     * 도메인 메서드라면 한 곳만 고치면 된다.
+     *
+     * [유효성 검증을 여기서 안 하는 이유]
+     * "ROLE_ADMIN/ROLE_USER 화이트리스트 검증" 은 application 계층(Service)에서 수행한다.
+     * 도메인 객체는 이미 검증된 값을 받아 상태를 바꿀 책임만 진다.
+     * 만약 여기서도 검증을 한다면 "어디까지 도메인이 책임지고 어디까지 application 이 책임지는가" 의 경계가 흐려진다.
+     * 일관된 한쪽에 두는 것이 추후 유지보수에 유리하다.
+     */
+    public void changeRole(String newRole) {
+        this.role = newRole;
+    }
+
     public boolean isValidToken(String token) {
         return this.emailCheckToken.equals(token);
     }

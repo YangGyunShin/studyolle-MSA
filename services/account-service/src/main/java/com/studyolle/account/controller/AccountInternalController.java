@@ -1,9 +1,11 @@
 package com.studyolle.account.controller;
 
+import com.studyolle.account.dto.request.RoleUpdateRequest;
 import com.studyolle.account.dto.response.AccountResponse;
 import com.studyolle.account.dto.response.AccountSummaryResponse;
 import com.studyolle.account.entity.Account;
 import com.studyolle.account.repository.AccountRepository;
+import com.studyolle.account.service.AccountInternalService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +20,7 @@ import java.util.List;
 public class AccountInternalController {
 
     private final AccountRepository accountRepository;
+    private final AccountInternalService accountInternalService;
 
     /*
      * frontend-service의 HomeController가 로그인 상태 판별 후
@@ -110,5 +113,39 @@ public class AccountInternalController {
         // Page<Account> → Page<AccountSummaryResponse> 변환
         // Page.map() 은 전체 페이지 메타데이터(totalElements 등)를 유지한 채 요소만 변환한다
         return ResponseEntity.ok(page.map(AccountSummaryResponse::from));
+    }
+
+    /**
+     * PATCH /internal/accounts/{id}/role
+     *
+     * 요청 본문: { "role": "ROLE_ADMIN" } 또는 { "role": "ROLE_USER" }
+     * 헤더:
+     *   X-Internal-Service: admin-service  (InternalRequestFilter 가 검증)
+     *   X-Account-Id: {요청자 id}          (자기 자신 권한 변경 방지에 사용)
+     *
+     * [왜 PATCH 인가]
+     * PUT 은 리소스 전체를 교체한다는 의미가 강하지만, 여기서는 role 필드 하나만 바꾼다.
+     * 부분 수정의 시맨틱을 가진 PATCH 가 더 정확하다.
+     *
+     * [X-Account-Id 헤더를 controller 에서 받는 이유]
+     * "요청자가 누구인가" 는 service 계층의 비즈니스 검증에 필요한 값이다.
+     * service 가 HttpServletRequest 를 직접 보면 layering 이 깨지므로,
+     * controller 에서 헤더를 꺼내 일반 파라미터로 변환해 service 에 넘긴다.
+     * 이런 식으로 controller 는 HTTP 와 도메인 사이의 통역자 역할만 맡는다.
+     *
+     * [컨트롤러는 service 위임 한 줄만 남는다]
+     * 비즈니스 로직(검증 3종, 조회, 변경, DTO 변환) 은 전부 service 안에서 일어난다.
+     * controller 가 단순 위임만 하는 것이 좋은 분리이며,
+     * 나중에 같은 비즈니스 로직을 다른 호출 경로(예: 배치 작업, 다른 컨트롤러) 에서
+     * 재사용할 때 그대로 가져다 쓸 수 있다.
+     */
+    @PatchMapping("/internal/accounts/{id}/role")
+    public ResponseEntity<AccountSummaryResponse> updateRole(
+            @PathVariable Long id,
+            @RequestBody RoleUpdateRequest request,
+            @RequestHeader(value = "X-Account-Id", required = false) Long requesterId) {
+
+        AccountSummaryResponse response = accountInternalService.updateRole(id, requesterId, request.role());
+        return ResponseEntity.ok(response);
     }
 }

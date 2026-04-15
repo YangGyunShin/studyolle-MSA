@@ -2,10 +2,9 @@ package com.studyolle.admin.client;
 
 import com.studyolle.admin.client.dto.AccountAdminDto;
 import com.studyolle.admin.client.dto.PageResponse;
+import com.studyolle.admin.dto.request.RoleUpdateRequest;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * account-service 의 /internal/** 경로를 호출하는 Feign Client.
@@ -49,9 +48,24 @@ public interface AccountAdminClient {
      * @param serviceName X-Internal-Service 헤더 값 (보통 "admin-service")
      */
     @GetMapping("/internal/accounts")
-    PageResponse<AccountAdminDto> listAccounts(
+    PageResponse<AccountAdminDto> listAccounts (
             @RequestParam(required = false) String keyword,
             @RequestParam int page,
             @RequestParam int size,
             @RequestHeader("X-Internal-Service") String serviceName);
+
+    /**
+     * 회원 권한 변경 — account-service 의 PATCH /internal/accounts/{id}/role 호출.
+     *
+     * @param id          권한을 변경할 대상 회원의 id
+     * @param request     { "role": "ROLE_ADMIN" } 형태의 본문
+     * @param serviceName X-Internal-Service 헤더 (보통 "admin-service")
+     * @param requesterId X-Account-Id 헤더 — account-service 가 "자기 자신 권한 변경 금지" 검증에 사용
+     */
+    @PatchMapping("/internal/accounts/{id}/role")
+    AccountAdminDto updateRole (
+            @PathVariable("id") Long id,
+            @RequestBody RoleUpdateRequest request,
+            @RequestHeader("X-Internal-Service") String serviceName,
+            @RequestHeader("X-Account-Id") Long requesterId);
 }
