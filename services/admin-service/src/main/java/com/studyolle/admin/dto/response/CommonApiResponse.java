@@ -70,4 +70,24 @@ public class CommonApiResponse<T> {
                 .message(message)
                 .build();
     }
+
+    /**
+     * 실패 응답 — 메시지만 반환 (데이터 없음).
+     *
+     * 비즈니스 로직 실패를 표현하기 위한 정적 팩토리.
+     * 예: 자기 자신 권한 변경 시도, 유효하지 않은 입력 등.
+     *
+     * HTTP 상태 코드는 호출 측의 ResponseEntity 빌더에서 별도로 정한다.
+     * (이 래퍼는 비즈니스 성공/실패만 표현하고, 전송 계층의 상태는 관여하지 않는다.)
+     *
+     * 예시:
+     *   return ResponseEntity.badRequest()
+     *           .body(CommonApiResponse.fail("자기 자신의 권한은 변경할 수 없습니다."));
+     */
+    public static <T> CommonApiResponse<T> fail(String message) {
+        return CommonApiResponse.<T>builder()
+                .success(false)
+                .message(message)
+                .build();
+    }
 }
