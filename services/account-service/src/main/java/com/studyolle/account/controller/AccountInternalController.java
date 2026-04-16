@@ -139,10 +139,11 @@ public class AccountInternalController {
      * 나중에 같은 비즈니스 로직을 다른 호출 경로(예: 배치 작업, 다른 컨트롤러) 에서
      * 재사용할 때 그대로 가져다 쓸 수 있다.
      */
-    @PatchMapping("/internal/accounts/{id}/role")
+    @PostMapping("/internal/accounts/{id}/role")
     public ResponseEntity<AccountSummaryResponse> updateRole(
             @PathVariable Long id,
             @RequestBody RoleUpdateRequest request,
+            @RequestHeader("X-Internal-Service") String internalService,
             @RequestHeader(value = "X-Account-Id", required = false) Long requesterId) {
 
         AccountSummaryResponse response = accountInternalService.updateRole(id, requesterId, request.role());

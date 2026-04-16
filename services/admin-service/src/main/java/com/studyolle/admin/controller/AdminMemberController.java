@@ -88,7 +88,7 @@ public class AdminMemberController {
      * 불필요한 네트워크 호출 없이 즉시 400 을 줄 수 있고,
      * 게이트웨이의 AdminRoleFilter 가 우회된 경우에도 안전망이 된다.
      */
-    @PatchMapping("/{id}/role")
+    @PostMapping("/{id}/role")
     public ResponseEntity<CommonApiResponse<AccountAdminDto>> updateRole (
             @PathVariable Long id,
             @RequestBody RoleUpdateRequest request,

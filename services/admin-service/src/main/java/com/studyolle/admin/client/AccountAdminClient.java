@@ -62,7 +62,7 @@ public interface AccountAdminClient {
      * @param serviceName X-Internal-Service 헤더 (보통 "admin-service")
      * @param requesterId X-Account-Id 헤더 — account-service 가 "자기 자신 권한 변경 금지" 검증에 사용
      */
-    @PatchMapping("/internal/accounts/{id}/role")
+    @PostMapping("/internal/accounts/{id}/role")
     AccountAdminDto updateRole (
             @PathVariable("id") Long id,
             @RequestBody RoleUpdateRequest request,

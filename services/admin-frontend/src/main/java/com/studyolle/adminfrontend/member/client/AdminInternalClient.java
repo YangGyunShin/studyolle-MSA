@@ -128,11 +128,10 @@ public class AdminInternalClient {
 
     /**
      * 회원 권한 변경 — admin-service 의 PATCH /api/admin/members/{id}/role 호출.
-     * <p>
+     *
      * 게이트웨이를 거치지 않으므로 X-Account-* 헤더를 직접 주입한다.
      * Content-Type: application/json 헤더도 명시해야 admin-service 가
-     *
-     * @RequestBody 를 정상적으로 역직렬화한다.
+     * {@code @RequestBody} 를 정상적으로 역직렬화한다.
      */
     public AdminMemberDto updateMemberRole(
             Long memberId,
@@ -155,7 +154,7 @@ public class AdminInternalClient {
 
         ResponseEntity<AdminCommonApiResponse<AdminMemberDto>> response = restTemplate.exchange(
                 url,
-                HttpMethod.PATCH,
+                HttpMethod.POST,
                 entity,
                 new ParameterizedTypeReference<>() {
                 }

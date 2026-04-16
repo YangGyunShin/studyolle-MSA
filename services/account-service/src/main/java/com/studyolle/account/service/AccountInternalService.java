@@ -22,11 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
  * 이런 검증 로직을 controller 에 두면 컨트롤러가 비대해지고 단위 테스트도 까다로워진다.
  * 그래서 이 service 가 만들어졌다.
  *
- * [기존 조회 API 들은 왜 service 로 옮기지 않는가]
- * 단순 조회(findById → DTO 변환) 는 service 가 있어도 한 줄 위임에 그쳐
- * 보일러플레이트만 늘어난다. "조회는 controller 직접, 변경은 service 경유" 라는
- * 절충안을 채택했다. 추후 조회 API 에도 비즈니스 로직(예: 캐시, 권한 필터링) 이
- * 추가되는 시점이 오면 그때 자연스럽게 옮기면 된다.
+ * [현재 상태]
+ * 권한 변경(updateRole) 만 이 service 에 있다.
+ * AccountInternalController 에 남아 있는 조회 API 들은 추후 모두 이 service 로 옮길 예정이다.
  */
 @Service
 @RequiredArgsConstructor

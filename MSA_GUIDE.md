@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 진행 상황 (2026-04-14 기준)
+## 현재 진행 상황 (2026-04-15 기준)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -24,14 +24,19 @@
 | Phase 7 | admin-frontend 모듈 (9000) 신규 생성 | ✅ 완료 |
 | Phase 7 | frontend-service 의 admin 패키지/템플릿 삭제 | ✅ 완료 |
 | Phase 7 | api-gateway application.yml 관리자 라우트 정리 + block-admin-api 추가 | ✅ 완료 |
-| Phase 7 | 통합 테스트 (11개 서비스 기동 + 두 사이트 동시 검증) | 🔲 대기 중 |
-| Phase 8 | 회원 권한 변경 / 스터디 관리 / 강제 비공개 | 🔲 예정 |
+| Phase 7 | 통합 테스트 (11개 서비스 기동 + 두 사이트 동시 검증) | ✅ 완료 (2026-04-14) |
+| Phase 8 | 회원 권한 변경 소스 작성 (account/admin/admin-frontend 전계층) | ✅ 완료 (2026-04-15) |
+| Phase 8 | 회원 권한 변경 서버 기동 테스트 + 방어 깊이 검증 | 🔲 대기 중 |
+| Phase 8 | 스터디 관리 / 강제 비공개 | 🔲 예정 |
 
 **다음 즉시 할 일:**
-Phase 7 통합 테스트 — 11개 서비스(eureka, config, api-gateway, admin-gateway,
-account, study, event, notification, admin, frontend, admin-frontend)를 모두 기동하고
-두 사이트를 실제로 열어서 관리자 로그인 흐름·회원 목록 조회·권한 분리가 제대로
-동작하는지 확인한다. 통과하면 Phase 7 최종 종료, 이후 Phase 8 기능 확장 단계로 진입.
+Phase 8 회원 권한 변경 기능 서버 기동 테스트. 11개 서비스를 모두 기동한 뒤 관리자로
+/members 페이지에 진입해 다른 회원의 "관리자로 승격" 버튼이 동작하는지,
+본인 행에는 "본인 계정" 안내만 노출되는지, 변경 후 행이 페이지 새로고침 없이
+즉시 갱신되는지를 검증한다. 이어서 개발자 도구로 자기 자신 id 대상 fetch 를 강제 호출해
+세 계층의 방어선(admin-frontend / admin-service / account-service)이 차례로 막아주는지
+확인하면 방어 깊이(defense in depth) 가 의도대로 작동하는지 완전히 검증할 수 있다.
+이후 스터디 관리 기능으로 이어진다.
 
 자세한 TODO 와 Phase 별 작업 항목은 `MSA_TODO.txt` 참고.
 
@@ -318,7 +323,7 @@ Kafka 설정:
 
 ---
 
-## account-service 주요 파일 목록 (2026-04-01 기준)
+## account-service 주요 파일 목록 (2026-04-15 기준)
 
 ```
 account-service/src/main/java/com/studyolle/account/
@@ -326,15 +331,29 @@ account-service/src/main/java/com/studyolle/account/
 │     AuthController.java
 │     AccountController.java
 │     AccountInternalController.java
-│         GET /internal/accounts/{id}
-│         GET /internal/accounts/{id}/full
-│         GET /internal/accounts/{id}/tags
-│         GET /internal/accounts/{id}/zones
-│         GET /internal/accounts/by-nickname/{nickname}
+│         GET   /internal/accounts/{id}
+│         GET   /internal/accounts/{id}/full
+│         GET   /internal/accounts/{id}/tags
+│         GET   /internal/accounts/{id}/zones
+│         GET   /internal/accounts/by-nickname/{nickname}
+│         GET   /internal/accounts                          (관리자 회원 목록, 페이지네이션)
+│         PATCH /internal/accounts/{id}/role               ← Phase 8 신규 (2026-04-15)
+├── dto/request/
+│     RoleUpdateRequest.java                              ← Phase 8 신규 record
+├── entity/
+│     Account.java
+│         changeRole(String) 도메인 메서드                ← Phase 8 신규
 ├── filter/
 │     InternalRequestFilter.java  (ALLOWED: frontend-service, study-service, admin-service, event-service)
 ├── repository/
-│     AccountRepository.java  (findByNickname 포함)
+│     AccountRepository.java  (findByNickname, findByEmailContainingOrNicknameContaining 포함)
+├── service/
+│     AccountAuthService.java
+│     AccountSettingsService.java
+│     SignUpService.java
+│     AccountInternalService.java                         ← Phase 8 신규
+│         updateRole(targetId, requesterId, newRole) — 자기 자신 검증 / role 화이트리스트 / DB UPDATE
+│         (권고: 현재 AccountInternalController 의 조회 API 들은 추후 모두 이 service 로 이관 예정)
 └── ...
 ```
 
