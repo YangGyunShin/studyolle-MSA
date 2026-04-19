@@ -66,10 +66,9 @@
             <a href="/members"
                class="admin-nav-link"
                th:classappend="${activeMenu == 'members'} ? ' active'">회원 관리</a>
-            <a href="#"
+            <a href="/studies"
                class="admin-nav-link"
-               style="opacity:0.4; cursor:not-allowed;"
-               title="Phase 8 에서 제공 예정">스터디 관리</a>
+               th:classappend="${activeMenu == 'studies'} ? ' active'">스터디 관리</a>
         </div>
 
         <!-- 오른쪽: 현재 로그인한 관리자 정보 + 로그아웃 버튼

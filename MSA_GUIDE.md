@@ -4,7 +4,7 @@
 
 ---
 
-## 현재 진행 상황 (2026-04-15 기준)
+## 현재 진행 상황 (2026-04-16 기준)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -25,18 +25,14 @@
 | Phase 7 | frontend-service 의 admin 패키지/템플릿 삭제 | ✅ 완료 |
 | Phase 7 | api-gateway application.yml 관리자 라우트 정리 + block-admin-api 추가 | ✅ 완료 |
 | Phase 7 | 통합 테스트 (11개 서비스 기동 + 두 사이트 동시 검증) | ✅ 완료 (2026-04-14) |
-| Phase 8 | 회원 권한 변경 소스 작성 (account/admin/admin-frontend 전계층) | ✅ 완료 (2026-04-15) |
-| Phase 8 | 회원 권한 변경 서버 기동 테스트 + 방어 깊이 검증 | 🔲 대기 중 |
-| Phase 8 | 스터디 관리 / 강제 비공개 | 🔲 예정 |
+| Phase 8 | 회원 권한 변경 (방어 깊이 검증 포함 전체 통과) | ✅ 완료 (2026-04-16) |
+| Phase 8 | 스터디 관리 / 강제 비공개 | ✅ 완료 (2026-04-16) |
 
 **다음 즉시 할 일:**
-Phase 8 회원 권한 변경 기능 서버 기동 테스트. 11개 서비스를 모두 기동한 뒤 관리자로
-/members 페이지에 진입해 다른 회원의 "관리자로 승격" 버튼이 동작하는지,
-본인 행에는 "본인 계정" 안내만 노출되는지, 변경 후 행이 페이지 새로고침 없이
-즉시 갱신되는지를 검증한다. 이어서 개발자 도구로 자기 자신 id 대상 fetch 를 강제 호출해
-세 계층의 방어선(admin-frontend / admin-service / account-service)이 차례로 막아주는지
-확인하면 방어 깊이(defense in depth) 가 의도대로 작동하는지 완전히 검증할 수 있다.
-이후 스터디 관리 기능으로 이어진다.
+Phase 8 두 번째 작업인 스터디 관리 기능. study-service 에 /internal/studies 페이지네이션
+조회 API 를 추가하고, admin-service 에 StudyAdminClient 와 제어기를 올리며,
+admin-frontend 에 /studies 페이지를 만드는 것이 큰 줄기. 회원 관리와 동일한 패턴(Feign +
+RestTemplate + orchestration 호출 흐름) 을 따라가면 되므로 이번에는 훨씬 빠르게 진행될 거예요.
 
 자세한 TODO 와 Phase 별 작업 항목은 `MSA_TODO.txt` 참고.
 

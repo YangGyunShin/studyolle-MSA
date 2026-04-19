@@ -1,0 +1,444 @@
+<!--
+  admin-frontend 스터디 관리 페이지 (GET /studies)
+
+  [데이터 흐름 — 목록 조회]
+  브라우저
+    → GET /studies?keyword=...&page=...   (admin-gateway 경유, OptionalJwtFilter 가 토큰 검증)
+    → admin-frontend AdminStudyController.studies()
+    → AdminStudyClient.listStudies()
+    → admin-service GET /api/admin/studies
+    → StudyAdminClient (Feign)
+    → study-service GET /internal/studies
+    → study_db
+
+  한 번의 페이지 요청을 위해 다섯 번의 네트워크 호출이 일어난다. 회원 관리 페이지
+  (members.html) 와 완전히 같은 구조이며, 도메인만 회원 → 스터디로 바뀌었다.
+
+  [데이터 흐름 — 강제 비공개]
+  브라우저 fetch
+    → POST /studies/{path}/force-close   (본문 없음)
+    → admin-frontend AdminStudyController.forceCloseStudy()
+    → AdminStudyClient.forceCloseStudy()
+    → admin-service POST /api/admin/studies/{path}/force-close
+    → StudyAdminClient.forceCloseStudy() (Feign)
+    → study-service POST /internal/studies/{path}/force-close
+    → StudyInternalService.forceClose() — 요청자/스터디 존재 검증 후 Study.forceClose() 호출
+
+  성공 응답이 거꾸로 올라와 JS 의 then 블록에서 수신되며, 페이지 새로고침 없이
+  해당 행의 상태 배지와 버튼을 즉석에서 갱신한다.
+
+  [페이지 모델 속성 — 컨트롤러가 주입하는 값]
+  studies           List<AdminStudyDto>   현재 페이지의 스터디 목록
+  totalElements     long                   전체 스터디 수
+  totalPages        int                    전체 페이지 수
+  currentPage       int                    현재 페이지 번호 (0-base)
+  pageSize          int                    페이지 크기
+  keyword           String                 검색어 (없으면 빈 문자열)
+  nickname          String                 네비게이션 표시용
+-->
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+
+<head th:replace="~{fragments :: head('스터디 관리')}"></head>
+
+<body>
+
+    <nav th:replace="~{fragments :: admin-nav('studies')}"></nav>
+
+    <main class="admin-main">
+
+        <div class="page-header">
+            <h1 class="page-title">스터디 관리</h1>
+            <p class="page-subtitle">
+                제목이나 경로로 스터디를 검색하고, 부적절한 스터디를 강제 비공개 처리할 수 있습니다.
+            </p>
+        </div>
+
+        <!--
+          토스트 메시지 영역. 강제 비공개 성공/실패 알림이 JS 에 의해 동적으로 삽입된다.
+          회원 관리와 동일한 UX 패턴을 유지해 관리자가 두 페이지 사이에서 혼란이 없도록 한다.
+        -->
+        <div id="toast-area" class="toast-area" aria-live="polite"></div>
+
+        <!--
+          검색 툴바 — GET form 방식. 회원 관리와 동일한 패턴이다.
+          placeholder 에 "제목 또는 경로" 로 검색 대상을 명시해 관리자가 입력 범위를 예측할 수 있게 한다.
+        -->
+        <form method="get" action="/studies" class="toolbar">
+            <input type="text"
+                   name="keyword"
+                   class="form-input"
+                   placeholder="제목 또는 경로로 검색..."
+                   th:value="${keyword}">
+            <div class="toolbar-meta">
+                총 <strong th:text="${totalElements}">0</strong>개
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">검색</button>
+            <a th:if="${keyword != null and keyword != ''}"
+               href="/studies"
+               class="btn btn-ghost btn-sm">초기화</a>
+        </form>
+
+        <!-- 스터디가 한 건이라도 있으면 테이블을, 없으면 빈 상태 카드를 보여준다. -->
+        <div th:if="${not #lists.isEmpty(studies)}" class="table-wrapper">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 70px;">ID</th>
+                        <th>제목</th>
+                        <th class="hide-sm">경로</th>
+                        <th style="width: 120px;">상태</th>
+                        <th class="hide-sm" style="width: 80px; text-align: center;">멤버</th>
+                        <th class="hide-sm">공개일</th>
+                        <th style="width: 160px; text-align: center;">관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!--
+                      각 행에 data-study-path 와 data-study-closed 를 박아둔다.
+                      JS 가 fetch 응답을 받았을 때 이 속성을 단서로 정확한 행을 찾아내
+                      상태 셀과 관리 셀을 새로 그려넣는다.
+                      path 가 한글/특수문자를 포함할 수 있으므로 encodeURIComponent 로 안전하게 사용한다.
+                    -->
+                    <tr th:each="s : ${studies}"
+                        th:attr="data-study-path=${s.path}, data-study-closed=${s.closed}">
+
+                        <td class="col-id" th:text="${s.id}">1</td>
+
+                        <!--
+                          제목 셀 — 일반 사용자 사이트의 스터디 상세로 직접 이동할 수 있는 링크.
+                          관리자가 "이 스터디 뭐 하는 스터디지?" 를 빠르게 확인할 수 있게 돕는다.
+                          target="_blank" 로 새 탭에서 열어 관리 흐름이 끊기지 않게 한다.
+                          rel="noopener" 는 새 탭이 원래 탭의 window.opener 에 접근하지 못하게 막는 보안 권장사항이다.
+                          경로가 한글일 수 있으므로 UriComponentsBuilder 대신 th:href 의 자동 URL 인코딩에 맡긴다.
+                        -->
+                        <td class="col-title">
+                            <a th:href="@{|http://localhost:8080/study/${s.path}|}"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               class="study-title-link"
+                               th:text="${s.title}">스터디 제목</a>
+                        </td>
+
+                        <td class="hide-sm col-path">
+                            <code class="path-code" th:text="${s.path}">study-path</code>
+                        </td>
+
+                        <!--
+                          상태 배지 셀 — 세 가지 상태를 나타내는 배지를 조합해 표시한다.
+                          "종료됨" 배지가 있으면 다른 배지들의 의미가 퇴색하지만, 함께 보여주면
+                          "한때 공개됐던 스터디가 지금은 종료됨" 같은 이력 읽기가 쉬워진다.
+                          JS 가 강제 비공개 성공 시 이 셀의 innerHTML 전체를 교체한다.
+                        -->
+                        <td class="cell-status">
+                            <span th:if="${s.closed}" class="badge badge-closed">종료됨</span>
+                            <span th:unless="${s.closed}" th:if="${s.published}" class="badge badge-published">공개</span>
+                            <span th:unless="${s.closed or s.published}" class="badge badge-draft">비공개</span>
+                            <span th:if="${s.recruiting and not s.closed}" class="badge badge-recruiting">모집중</span>
+                        </td>
+
+                        <td class="hide-sm" style="text-align: center;" th:text="${s.memberCount}">0</td>
+
+                        <!--
+                          공개일 셀 — publishedDateTime 이 null 일 수 있어 (비공개 상태)
+                          체크 후 포맷팅한다. #temporals 는 JSR-310 LocalDateTime 처리용 Thymeleaf 유틸.
+                          yyyy-MM-dd 만 표시해 목록 화면을 깔끔하게 유지한다. 시분초가 필요하면
+                          행 클릭으로 상세 보기를 넣으면 된다.
+                        -->
+                        <td class="hide-sm col-published-at">
+                            <span th:if="${s.publishedDateTime != null}"
+                                  th:text="${#temporals.format(s.publishedDateTime, 'yyyy-MM-dd')}">2025-01-01</span>
+                            <span th:if="${s.publishedDateTime == null}" class="muted-text">—</span>
+                        </td>
+
+                        <!--
+                          관리 컬럼 — 아직 종료되지 않은 스터디에는 강제 비공개 버튼을,
+                          이미 종료된 스터디에는 "종료됨" 비활성 텍스트를 표시한다.
+                          회원 관리의 "본인 계정" 비활성 텍스트와 같은 UX 패턴이다.
+                        -->
+                        <td class="cell-actions" style="text-align: center;">
+                            <button th:unless="${s.closed}"
+                                    type="button"
+                                    class="btn btn-danger btn-sm btn-force-close">
+                                강제 비공개
+                            </button>
+                            <span th:if="${s.closed}"
+                                  class="muted-text" style="font-size: 0.85em; opacity: 0.6;">
+                                이미 종료됨
+                            </span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 빈 상태 — 검색 결과 없음 vs 아예 스터디가 없음 두 가지 경우를 구분 -->
+        <div th:if="${#lists.isEmpty(studies)}" class="card">
+            <div class="empty-state">
+                <div class="empty-state-icon">📚</div>
+                <div class="empty-state-title"
+                     th:text="${keyword != null and keyword != ''} ?
+                              '검색 결과가 없습니다' :
+                              '등록된 스터디가 없습니다'">검색 결과가 없습니다</div>
+                <div class="empty-state-sub"
+                     th:if="${keyword != null and keyword != ''}">
+                    '<span th:text="${keyword}">keyword</span>' 에 해당하는 스터디를 찾을 수 없습니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- 페이지네이션 — 회원 관리와 동일한 구조 -->
+        <div th:if="${totalPages > 1}" class="pagination">
+
+            <a th:href="@{/studies(keyword=${keyword}, page=${currentPage - 1})}"
+               class="page-link"
+               th:classappend="${currentPage == 0} ? ' disabled'">‹</a>
+
+            <a th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
+               th:href="@{/studies(keyword=${keyword}, page=${i})}"
+               class="page-link"
+               th:classappend="${i == currentPage} ? ' active'"
+               th:text="${i + 1}">1</a>
+
+            <a th:href="@{/studies(keyword=${keyword}, page=${currentPage + 1})}"
+               class="page-link"
+               th:classappend="${currentPage >= totalPages - 1} ? ' disabled'">›</a>
+
+        </div>
+
+    </main>
+
+    <!--
+      ============================================================
+      스터디 관리 페이지 전용 JS
+
+      회원 관리의 JS 와 구조는 동일하되 동작이 "토글" 이 아니라 "일방향 종료" 라는 점이 다르다.
+      관리자가 "강제 비공개" 버튼을 누르면 스터디가 종료 상태가 되고, 되돌릴 수 없다.
+      따라서 종료된 행은 버튼 자체를 제거하고 안내 텍스트로 교체한다.
+
+      [흐름]
+      1. 페이지 로드 후 document 에 클릭 리스너 한 번만 등록 (이벤트 위임)
+      2. .btn-force-close 클릭 감지 → 행에서 path/title 추출 → 확인 다이얼로그
+      3. 확인되면 fetch POST 호출 (본문 없음)
+      4. 성공 응답이면 행의 상태 배지 교체 + 관리 셀을 "이미 종료됨" 으로 교체
+      5. 실패 응답이면 토스트로 에러 메시지 노출, 버튼 원상 복구
+      ============================================================
+    -->
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+
+        // -------------------------------------------------------
+        // (1) 토스트 헬퍼 — 회원 관리와 동일
+        // -------------------------------------------------------
+        var toastArea = document.getElementById('toast-area');
+
+        function showToast(message, type) {
+            var box = document.createElement('div');
+            box.className = 'toast toast-' + (type || 'success');
+            box.textContent = message;
+            toastArea.appendChild(box);
+
+            setTimeout(function () {
+                box.classList.add('toast-leaving');
+                setTimeout(function () { box.remove(); }, 300);
+            }, 3000);
+        }
+
+        // -------------------------------------------------------
+        // (2) 강제 비공개 버튼 클릭 핸들러 — 이벤트 위임 패턴
+        // -------------------------------------------------------
+        document.addEventListener('click', function (event) {
+            var btn = event.target.closest('.btn-force-close');
+            if (!btn) return;
+
+            var row = btn.closest('tr');
+            var path = row.dataset.studyPath;
+            var title = row.querySelector('.col-title').textContent.trim();
+
+            // 강제 비공개는 되돌릴 수 없으므로 확인 다이얼로그로 한 번 더 묻는다.
+            // 회원 권한 변경보다 훨씬 강한 경고가 필요하다. "이 작업은 되돌릴 수 없습니다" 문구를 넣는다.
+            var confirmMsg =
+                '「' + title + '」 스터디를 강제 비공개 처리하시겠습니까?\n\n' +
+                '이 작업은 되돌릴 수 없으며, 스터디가 종료 상태가 됩니다.';
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            btn.disabled = true;
+            var originalText = btn.textContent;
+            btn.textContent = '처리 중...';
+
+            // path 에 한글/특수문자가 포함될 수 있으므로 encodeURIComponent 로 안전하게 인코딩.
+            // 예: '스프링-스터디' → '%EC%8A%A4...-...'
+            var url = '/studies/' + encodeURIComponent(path) + '/force-close';
+
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin'
+                // 요청 본문이 없으므로 body 생략
+            })
+                .then(function (res) {
+                    return res.json().then(function (data) {
+                        return { ok: res.ok, status: res.status, data: data };
+                    });
+                })
+                .then(function (result) {
+                    if (result.ok && result.data.success) {
+                        // 성공 — 행을 "종료됨" 상태로 갱신
+                        applyForceClose(row);
+                        showToast('「' + title + '」 스터디가 강제 비공개 처리되었습니다.', 'success');
+                    } else {
+                        var msg = (result.data && result.data.message) || '알 수 없는 오류가 발생했습니다.';
+                        showToast(msg, 'error');
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    }
+                })
+                .catch(function (err) {
+                    console.error('강제 비공개 호출 실패', err);
+                    showToast('네트워크 오류로 강제 비공개 처리에 실패했습니다.', 'error');
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                });
+        });
+
+        // -------------------------------------------------------
+        // (3) 행 갱신 함수 — 강제 비공개가 성공한 뒤 행의 상태 표시를 업데이트
+        //
+        // 회원 관리의 applyRoleChange 와 달리 "토글" 이 아니라 "일방향 전환" 이다.
+        // 강제 비공개된 스터디는 다시 열 수 없으므로 관리 셀에서 버튼을 아예 제거한다.
+        // -------------------------------------------------------
+        function applyForceClose(row) {
+            // 1. 행 data 속성 업데이트
+            row.dataset.studyClosed = 'true';
+
+            // 2. 상태 셀 교체 — 기존 배지들(공개/모집중 등) 을 모두 지우고 "종료됨" 배지만 남긴다
+            var statusCell = row.querySelector('.cell-status');
+            statusCell.innerHTML = '<span class="badge badge-closed">종료됨</span>';
+
+            // 3. 관리 셀 교체 — 버튼 제거, "이미 종료됨" 텍스트로 대체
+            var actionsCell = row.querySelector('.cell-actions');
+            actionsCell.innerHTML =
+                '<span class="muted-text" style="font-size: 0.85em; opacity: 0.6;">이미 종료됨</span>';
+
+            // 4. 시각적 힌트 — 행 전체에 살짝 어두운 배경을 주어 "처리된 행" 임을 표시
+            //    너무 강한 대비는 피하고 0.55 정도의 투명도로 자연스럽게 흐려 보이게 한다
+            row.classList.add('row-closed');
+        }
+
+        /*]]>*/
+    </script>
+
+    <!--
+      스터디 관리 페이지 전용 스타일.
+      토스트와 뮤트 텍스트는 회원 관리와 동일하므로 그 스타일을 그대로 가져오고,
+      스터디 고유 요소(상태 배지들, 경로 코드, 처리된 행 흐리기) 에 대한 스타일만 추가한다.
+    -->
+    <style>
+        /* 토스트 — 회원 관리와 동일 */
+        .toast-area {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .toast {
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            font-size: 0.92em;
+            opacity: 1;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .toast-leaving {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+        .toast-success {
+            background: rgba(16, 185, 129, 0.12);
+            color: #047857;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .toast-error {
+            background: rgba(239, 68, 68, 0.12);
+            color: #b91c1c;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .muted-text {
+            color: #94a3b8;
+        }
+
+        /* 제목 링크 — 네비게이션에서 눈에 띄되 부담스럽지 않게 */
+        .study-title-link {
+            color: var(--text-primary, #e2e8f0);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .study-title-link:hover {
+            color: var(--accent, #06b6d4);
+            text-decoration: underline;
+        }
+
+        /* 경로 코드 — 모노스페이스 + 배경으로 "기술 식별자" 임을 시각적으로 구분 */
+        .path-code {
+            font-family: 'Menlo', 'Consolas', monospace;
+            font-size: 0.85em;
+            padding: 2px 6px;
+            background: rgba(148, 163, 184, 0.12);
+            color: #94a3b8;
+            border-radius: 4px;
+        }
+
+        /* 스터디 상태 배지 — 회원 관리의 role 배지와 같은 패턴으로 색상만 달리한다.
+           admin-style.css 에 badge 기본 스타일이 있다는 전제 하에 색상 변종만 추가. */
+        .badge-published {
+            background: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        .badge-draft {
+            background: rgba(148, 163, 184, 0.15);
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+        .badge-recruiting {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            margin-left: 4px;  /* 공개 배지와 나란히 놓일 때 간격 */
+        }
+        .badge-closed {
+            background: rgba(239, 68, 68, 0.12);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        /* 강제 비공개 버튼 — 위험한 작업이므로 붉은 계열.
+           admin-style.css 에 btn-danger 가 없을 경우를 대비해 직접 스타일 정의. */
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.12);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+        .btn-danger:hover:not(:disabled) {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.6);
+        }
+        .btn-danger:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 처리 완료된 행 — 살짝 흐리게 해서 "이 행은 이미 처리됨" 을 암시 */
+        tr.row-closed {
+            opacity: 0.55;
+            transition: opacity 0.3s ease;
+        }
+
+        .cell-actions .btn {
+            min-width: 110px;
+        }
+    </style>
+
+</body>
+</html>
