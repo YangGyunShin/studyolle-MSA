@@ -9,8 +9,11 @@ import com.studyolle.study.entity.JoinRequestStatus;
 import com.studyolle.study.entity.Study;
 import com.studyolle.study.repository.JoinRequestRepository;
 import com.studyolle.study.repository.StudyRepository;
+import com.studyolle.study.service.StudyInternalService;
 import com.studyolle.study.service.StudyService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -65,6 +68,7 @@ public class StudyInternalController {
     private final MetadataFeignClient metadataFeignClient;
     private final StudyService studyService;
     private final EventFeignClient eventFeignClient;
+    private final StudyInternalService studyInternalService;
 
     /*
      * GET /internal/studies/{path}
@@ -420,5 +424,74 @@ public class StudyInternalController {
                 .map(StudySummaryResponse::from)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(result);
+    }
+
+    // =========================================================================
+    // 관리자용 엔드포인트 2종 — admin-service 의 StudyAdminClient 가 호출한다
+    // =========================================================================
+
+    /*
+     * GET /internal/studies?keyword=xxx&page=0&size=20
+     *
+     * 관리자 전용 스터디 목록 조회. 공개·비공개·종료 여부에 관계없이 전체를 반환한다.
+     *
+     * [기존 /recent 와 경로가 충돌하지 않는 이유]
+     * Spring 의 경로 매칭은 더 구체적인 것을 우선한다.
+     * "/recent" 는 정확히 매칭되고, 루트 "" 는 그 외의 경우에만 매칭된다.
+     * 따라서 GET /internal/studies/recent 는 여전히 getRecentStudies() 로 라우팅되고, GET /internal/studies 만 이 메서드에 도달한다.
+     *
+     * [클래스 레벨의 @Transactional(readOnly=true) 가 여기에도 적용된다]
+     * 이 컨트롤러는 클래스 레벨에 @Transactional(readOnly=true) 가 선언되어 있어
+     * Study 의 @ElementCollection 컬렉션에 지연 로딩이 필요한 경우 안전하다.
+     * 단 StudyAdminResponse 는 memberIds/managerIds 에 접근하지 않으므로
+     * 실제로는 컬렉션 접근 자체가 없고, 기본 컬럼만 조회하는 가벼운 쿼리가 실행된다.
+     */
+    @GetMapping
+    public ResponseEntity<Page<StudyAdminResponse>> listStudiesForAdmin(
+            @RequestHeader("X-Internal-Service") String internalService,
+            @RequestParam(required = false) String keyword,
+            Pageable pageable) {
+
+        // keyword 가 비어있으면 전체 조회, 있으면 title/path LIKE 검색
+        Page<Study> page;
+        if (keyword == null || keyword.isBlank()) {
+            page = studyRepository.findAll(pageable);
+        } else {
+            // 같은 키워드를 title 과 path 양쪽에 넣어 두 필드 어디에 있든 매칭되게 한다
+            page = studyRepository.findByTitleContainingIgnoreCaseOrPathContainingIgnoreCase(keyword, keyword, pageable);
+        }
+
+        // Page.map() 은 totalElements 등 메타데이터를 유지한 채 요소만 변환한다
+        return ResponseEntity.ok(page.map(StudyAdminResponse::from));
+    }
+
+    /*
+     * POST /internal/studies/{path}/force-close
+     *
+     * 관리자가 특정 스터디를 강제 종료(비공개 처리) 한다.
+     *
+     * [왜 요청 본문이 비어있는가]
+     * 이 엔드포인트는 "스터디를 강제 종료한다" 라는 단일 동작만 수행한다.
+     * 본문에 담을 파라미터가 없어도 동작이 명확하다.
+     * RESTful 관점에서 "상태 전이" 를 의도한 POST 는 본문이 필수가 아니다.
+     *
+     * [왜 PATCH 가 아니라 POST 인가]
+     * 회원 권한 변경 때 겪은 RestTemplate 의 PATCH 미지원 문제 때문이다.
+     * URL 경로(/force-close) 에 의도가 충분히 드러나므로 시맨틱 손실이 적다.
+     * 전 계층 POST 로 통일해 의존성 최소화를 우선했다.
+     *
+     * [비즈니스 로직은 전부 service 로 위임]
+     * 이 컨트롤러는 HTTP 변환만 담당한다.
+     * 헤더 추출 → 파라미터 변환 → service 호출 → ResponseEntity 로 감싸기.
+     * 나머지는 모두 StudyInternalService 안에서 일어난다.
+     */
+    @PostMapping("/{path}/force-close")
+    public ResponseEntity<StudyAdminResponse> forceCloseStudy(
+            @PathVariable String path,
+            @RequestHeader("X-Internal-Service") String internalService,
+            @RequestHeader(value = "X-Account-Id", required = false) Long requesterId) {
+
+        StudyAdminResponse response = studyInternalService.forceClose(path, requesterId);
+        return ResponseEntity.ok(response);
     }
 }

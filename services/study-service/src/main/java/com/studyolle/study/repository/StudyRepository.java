@@ -1,6 +1,8 @@
 package com.studyolle.study.repository;
 
 import com.studyolle.study.entity.Study;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +51,7 @@ public interface StudyRepository extends JpaRepository<Study, Long>, StudyReposi
     // 단순 존재 확인
     // ============================
 
-    /**
+    /*
      * 해당 path 가 이미 사용 중인지 확인한다.
      *
      * Spring Data JPA 메서드 이름 규칙에 따라 아래 쿼리가 자동 생성된다.
@@ -65,7 +67,7 @@ public interface StudyRepository extends JpaRepository<Study, Long>, StudyReposi
     // 단건 조회
     // ============================
 
-    /**
+    /*
      * path 로 스터디를 조회한다.
      *
      * Study 기본 컬럼만 SELECT 하며, @ElementCollection 컬렉션(tagIds, zoneIds 등)은
@@ -76,7 +78,7 @@ public interface StudyRepository extends JpaRepository<Study, Long>, StudyReposi
      */
     Study findByPath(String path);
 
-    /**
+    /*
      * path 로 스터디의 기본 정보만 조회한다.
      *
      * 컬렉션에 접근하지 않는 경우(단순 존재 확인, 이벤트 연결 등)에 사용한다.
@@ -89,7 +91,7 @@ public interface StudyRepository extends JpaRepository<Study, Long>, StudyReposi
     // 목록 조회 (대시보드용)
     // ============================
 
-    /**
+    /*
      * 특정 사용자가 관리자로 참여 중인 활동 중인 스터디 5개를 최신순으로 조회한다.
      *
      * 메서드 이름 규칙 해석:
@@ -108,49 +110,88 @@ public interface StudyRepository extends JpaRepository<Study, Long>, StudyReposi
      *
      * 사용처: 대시보드 — "내가 운영 중인 스터디" 섹션.
      */
-    List<Study> findFirst5ByManagerIdsContainingAndClosedOrderByPublishedDateTimeDesc(
-            Long accountId, boolean closed);
+    List<Study> findFirst5ByManagerIdsContainingAndClosedOrderByPublishedDateTimeDesc(Long accountId, boolean closed);
 
-    /**
+    /*
      * 특정 사용자가 멤버로 참여 중인 활동 중인 스터디 5개를 최신순으로 조회한다.
      *
      * 사용처: 대시보드 — "내가 참여 중인 스터디" 섹션.
      */
-    List<Study> findFirst5ByMemberIdsContainingAndClosedOrderByPublishedDateTimeDesc(
-            Long accountId, boolean closed);
+    List<Study> findFirst5ByMemberIdsContainingAndClosedOrderByPublishedDateTimeDesc(Long accountId, boolean closed);
 
-    /**
+    /*
      * 공개 상태이며 마감되지 않은 최신 스터디 9개를 조회한다.
      *
      * 사용처: 메인 페이지 — 최신 스터디 목록.
      */
-    List<Study> findFirst9ByPublishedAndClosedOrderByPublishedDateTimeDesc(
-            boolean published, boolean closed);
+    List<Study> findFirst9ByPublishedAndClosedOrderByPublishedDateTimeDesc(boolean published, boolean closed);
 
     // ============================
     // 목록 조회 (프로필 페이지용)
     // ============================
 
-    /**
+    /*
      * 특정 사용자가 관리자로 참여 중인 활동 중인 스터디 전체를 최신순으로 조회한다.
      *
      * 대시보드(5개 제한)와 달리 프로필 페이지에서는 전체를 표시하므로 First5 제한이 없다.
      *
      * 사용처: 프로필 페이지 — "관리 중인 스터디" 섹션.
      */
-    List<Study> findByManagerIdsContainingAndClosedOrderByPublishedDateTimeDesc(
-            Long accountId, boolean closed);
+    List<Study> findByManagerIdsContainingAndClosedOrderByPublishedDateTimeDesc(Long accountId, boolean closed);
 
-    /**
+    /*
      * 특정 사용자가 멤버로 참여 중인 활동 중인 스터디 전체를 최신순으로 조회한다.
      *
      * 사용처: 프로필 페이지 — "참여 중인 스터디" 섹션.
      */
-    List<Study> findByMemberIdsContainingAndClosedOrderByPublishedDateTimeDesc(
-            Long accountId, boolean closed);
+    List<Study> findByMemberIdsContainingAndClosedOrderByPublishedDateTimeDesc(Long accountId, boolean closed);
+
+    // ============================
+    // 관리자용 전체 목록 조회 (페이지네이션 + 키워드 검색)
+    // ============================
+
+    /*
+     * 관리자가 전체 스터디를 페이지 단위로 조회한다.
+     *
+     * [왜 기존 공개 목록 메서드를 재사용하지 않는가]
+     * findFirst9ByPublishedAndClosedOrderBy... 같은 기존 메서드들은 "published=true, closed=false" 조건을 고정해서 건다.
+     * 관리자는 미공개·종료된 스터디까지 전부 봐야 하므로 그 조건 없이 전체를 조회해야 한다.
+     * 따라서 별도 메서드가 필요하다.
+     *
+     * [Spring Data JPA 가 메서드 이름으로 쿼리를 만드는 방식]
+     *   findBy  → SELECT
+     *   TitleContainingIgnoreCase → WHERE LOWER(title) LIKE LOWER(CONCAT('%', ?, '%'))
+     *   Or → OR 로 조건 결합
+     *   PathContainingIgnoreCase → WHERE LOWER(path) LIKE LOWER(CONCAT('%', ?, '%'))
+     *
+     * 결과적으로 다음과 같은 쿼리가 실행된다:
+     *   SELECT * FROM study
+     *   WHERE LOWER(title) LIKE LOWER('%키워드%')
+     *      OR LOWER(path)  LIKE LOWER('%키워드%')
+     *   ORDER BY ...  (Pageable 의 Sort)
+     *   LIMIT ? OFFSET ?  (Pageable 의 page/size)
+     *
+     * [IgnoreCase 를 붙인 이유]
+     * path 는 소문자·하이픈으로만 구성되지만 title 은 한글·영문·숫자가 섞인다.
+     * 관리자가 "Spring" 으로 검색했는데 "spring-boot-study" 만 보이고
+     * "Spring Boot 스터디" 는 놓치면 혼란스럽다.
+     * IgnoreCase 로 대소문자 구분을 없애면 한 번의 검색으로 둘 다 잡힌다.
+     *
+     * [null-safe 하지 않으므로 Service 에서 빈 문자열 처리 주의]
+     * keyword 가 null 로 이 메서드에 들어오면 LIKE '%null%' 쿼리가 만들어지지 않고 JPA 가 오류를 낸다.
+     * 호출 측에서 null/빈 문자열은 findAll(pageable) 로 분기시키는 것이 안전하다.
+     * AccountRepository 도 같은 패턴이다.
+     *
+     * @param titleKeyword 제목 검색어 (보통 path 검색어와 같은 값을 전달)
+     * @param pathKeyword  경로 검색어
+     * @param pageable     페이지 번호·크기·정렬 정보
+     * @return 검색 조건에 맞는 스터디의 페이지
+     */
+    Page<Study> findByTitleContainingIgnoreCaseOrPathContainingIgnoreCase(String titleKeyword, String pathKeyword, Pageable pageable);
+
 }
 
-/*
+/**
  * ============================================================
  * [@ElementCollection 과 Batch Fetch 심층 설명]
  * ============================================================
