@@ -28,11 +28,14 @@
 | Phase 8 | 회원 권한 변경 (방어 깊이 검증 포함 전체 통과) | ✅ 완료 (2026-04-16) |
 | Phase 8 | 스터디 관리 / 강제 비공개 | ✅ 완료 (2026-04-16) |
 
-**다음 즉시 할 일:**
-Phase 8 두 번째 작업인 스터디 관리 기능. study-service 에 /internal/studies 페이지네이션
-조회 API 를 추가하고, admin-service 에 StudyAdminClient 와 제어기를 올리며,
-admin-frontend 에 /studies 페이지를 만드는 것이 큰 줄기. 회원 관리와 동일한 패턴(Feign +
-RestTemplate + orchestration 호출 흐름) 을 따라가면 되므로 이번에는 훨씬 빠르게 진행될 거예요.
+**Phase 8 완료 — 다음 작업 미정**
+
+Phase 8 의 핵심 기능 두 개(회원 권한 변경 + 스터디 강제 비공개)가 마무리되었다.
+두 기능 모두 admin-frontend → admin-service → 백엔드 서비스 다섯 단계
+네트워크 호출 패턴을 따르며, 방어 깊이 검증과 JS 이벤트 위임 UX 를 포함한다.
+
+후보 작업: RabbitMQ 흐름 테스트(Phase 5 잔여), 이메일 인증 기반 페이지 접근 제한,
+대시보드 스터디 수 카드 활성화, 한글 닉네임 인코딩 버그 수정 등.
 
 자세한 TODO 와 Phase 별 작업 항목은 `MSA_TODO.txt` 참고.
 
