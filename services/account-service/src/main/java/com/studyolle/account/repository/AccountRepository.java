@@ -7,6 +7,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.List;
+
 @Transactional(readOnly = true)
 public interface AccountRepository extends JpaRepository<Account, Long> {
 
@@ -23,4 +26,7 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     Account findByNickname(String nickname);
 
     Page<Account> findByEmailContainingOrNicknameContaining(String email, String nickname, Pageable pageable);
+
+    // Spring Data 가 메서드 이름을 파싱해서 SELECT ... FROM account WHERE id IN (?, ?, ?, ...) 쿼리를 자동으로 만들어줌
+    List<Account> findAllByIdIn(Collection<Long> ids);
 }

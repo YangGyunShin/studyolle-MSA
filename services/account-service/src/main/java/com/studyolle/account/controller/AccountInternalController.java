@@ -1,5 +1,6 @@
 package com.studyolle.account.controller;
 
+import com.studyolle.account.dto.request.AccountBatchRequest;
 import com.studyolle.account.dto.request.RoleUpdateRequest;
 import com.studyolle.account.dto.response.AccountResponse;
 import com.studyolle.account.dto.response.AccountSummaryResponse;
@@ -11,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 내부 전용 (/internal/accounts/**) HTTP 어댑터.
@@ -107,6 +109,31 @@ public class AccountInternalController {
             Pageable pageable) {
 
         return ResponseEntity.ok(accountInternalService.listAccounts(keyword, pageable));
+    }
+
+    /**
+     * POST /internal/accounts/batch
+     * <p>
+     * 요청 본문: { "ids": [1, 5, 12, 27] }
+     * 응답 본문: { "1": {...}, "5": {...}, "12": {...} }   ← id → AccountSummaryResponse 의 map
+     * <p>
+     * 주 사용처: study-service 가 스터디 멤버들의 nickname / profileImage 를 한 번에 가져올 때.
+     * <p>
+     * 왜 GET 이 아닌 POST 인가:
+     * - GET 은 쿼리스트링으로 ?ids=1&ids=5&ids=12... 처럼 넘겨야 해서 URL 길이 제한 (보통 2048 바이트) 에 걸린다.
+     * - 요청 본문에 JSON 배열을 넣으면 길이 제한이 실질적으로 사라진다.
+     * - 또한 프로젝트 원칙 "PATCH 금지 + 전 계층 POST 통일" 과 일관된다.
+     * <p>
+     * 왜 응답 타입이 Map 인가:
+     * - 호출 측이 accountId 로 O(1) 조회를 할 수 있다.
+     * - 요청한 id 중 존재하지 않는 것이 섞여 있어도 map 에 키만 빠지는 형태로 자연스럽게 누락 처리된다.
+     */
+    @PostMapping("/internal/accounts/batch")
+    public ResponseEntity<Map<Long, AccountSummaryResponse>> getAccountsBatch(
+            @RequestBody AccountBatchRequest request,
+            @RequestHeader("X-Internal-Service") String internalService) {
+
+        return ResponseEntity.ok(accountInternalService.getAccountsBatch(request.ids()));
     }
 
     /**

@@ -5,14 +5,14 @@ import com.studyolle.account.dto.response.AccountSummaryResponse;
 import com.studyolle.account.entity.Account;
 import com.studyolle.account.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.java.Log;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 내부 전용 (/internal/**) API 의 모든 비즈니스 로직을 담는 service.
@@ -108,6 +108,43 @@ public class AccountInternalService {
             page = accountRepository.findByEmailContainingOrNicknameContaining(keyword, keyword, pageable);
         }
         return page.map(AccountSummaryResponse::from);
+    }
+
+    /**
+     * 여러 id 를 한 번에 조회해서 id → AccountSummaryResponse 의 map 으로 반환한다.
+     * <p>
+     * 왜 Map 으로 반환하는가:
+     * 호출 측(study-service 등) 에서 "이 멤버의 정보는?" 을 찾을 때 map.get(accountId) 한 줄로 O(1) 조회가 된다.
+     * List 로 반환하면 멤버 카드 수만큼 리스트 순회가 필요하다.
+     * <p>
+     * 왜 요청한 id 중 일부가 없어도 예외를 던지지 않는가:
+     * batch 의 의미는 "이 중에 있는 것만 가져와" 에 가깝다.
+     * 삭제된 계정이 섞여 있거나 id 가 잘못 들어와도 나머지 건은 정상 반환하는 게 합리적이다.
+     * 누락된 id 는 map 에 키 자체가 없는 상태로 빠져 있을 뿐이라, 호출 측이 자연스럽게 감지할 수 있다.
+     * <p>
+     * 왜 빈 리스트 가드를 두는가:
+     * 빈 리스트 그대로 Spring Data JPA 의 IN 절에 넘기면 일부 DB (특히 Oracle) 에서
+     * "ORA-00936: missing expression" 같은 오류가 난다. PostgreSQL 은 허용하지만
+     * 어차피 결과가 0건이라 쿼리 자체를 스킵하는 게 성능상 낫다.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, AccountSummaryResponse> getAccountsBatch(List<Long> ids) {
+        // 가드 — null 또는 빈 리스트면 DB 안 치고 빈 map 반환.
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // findAllByIdIn 은 Spring Data JPA 의 쿼리 메서드 네이밍 규칙으로
+        // "SELECT ... FROM account WHERE id IN (?, ?, ?, ...)" 를 자동 생성한다.
+        List<Account> accounts = accountRepository.findAllByIdIn(ids);
+
+        // List<Account> → Map<Long, AccountSummaryResponse> 로 변환.
+        // Collectors.toMap(keyMapper, valueMapper) 의 표준 사용 패턴이다.
+        return accounts.stream()
+                .collect(Collectors.toMap(
+                        Account::getId,                      // key: 계정 id
+                        AccountSummaryResponse::from         // value: DTO 변환
+                ));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
