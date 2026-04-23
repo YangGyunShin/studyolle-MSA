@@ -1,5 +1,6 @@
 package com.studyolle.account.controller;
 
+import com.studyolle.account.common.EmailVerifiedGuard;
 import com.studyolle.account.dto.request.*;
 import com.studyolle.account.dto.response.AccountResponse;
 import com.studyolle.account.dto.response.CommonApiResponse;
@@ -44,7 +45,11 @@ public class AccountController {
     @PutMapping("/settings/profile")
     public ResponseEntity<CommonApiResponse<Void>> updateProfile(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @Valid @RequestBody UpdateProfileRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         accountSettingsService.updateProfile(accountId, request);
         return ResponseEntity.ok(CommonApiResponse.ok("프로필을 수정했습니다."));
     }
@@ -53,7 +58,11 @@ public class AccountController {
     @PutMapping("/settings/password")
     public ResponseEntity<CommonApiResponse<Void>> updatePassword(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @Valid @RequestBody UpdatePasswordRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         if (!request.getNewPassword().equals(request.getNewPasswordConfirm())) {
             return ResponseEntity.badRequest()
                     .body(CommonApiResponse.ok("새 비밀번호가 일치하지 않습니다."));
@@ -66,7 +75,11 @@ public class AccountController {
     @PutMapping("/settings/nickname")
     public ResponseEntity<CommonApiResponse<Void>> updateNickname(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @Valid @RequestBody UpdateNicknameRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         accountSettingsService.updateNickname(accountId, request.getNickname());
         return ResponseEntity.ok(CommonApiResponse.ok("닉네임을 변경했습니다."));
     }
@@ -75,7 +88,11 @@ public class AccountController {
     @PutMapping("/settings/notifications")
     public ResponseEntity<CommonApiResponse<Void>> updateNotifications(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @Valid @RequestBody UpdateNotificationsRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         accountSettingsService.updateNotifications(accountId, request);
         return ResponseEntity.ok(CommonApiResponse.ok("알림 설정을 변경했습니다."));
     }
@@ -93,7 +110,11 @@ public class AccountController {
     @PostMapping("/settings/tags/add")
     public ResponseEntity<CommonApiResponse<Void>> addTag(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @Valid @RequestBody TagRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         accountSettingsService.addTag(accountId, request.getTagTitle());
         return ResponseEntity.ok(CommonApiResponse.ok("태그를 추가했습니다."));
     }
@@ -102,7 +123,11 @@ public class AccountController {
     @PostMapping("/settings/tags/remove")
     public ResponseEntity<CommonApiResponse<Void>> removeTag(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @Valid @RequestBody TagRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         accountSettingsService.removeTag(accountId, request.getTagTitle());
         return ResponseEntity.ok(CommonApiResponse.ok("태그를 삭제했습니다."));
     }
@@ -120,7 +145,11 @@ public class AccountController {
     @PostMapping("/settings/zones/add")
     public ResponseEntity<CommonApiResponse<Void>> addZone(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @Valid @RequestBody ZoneRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         accountSettingsService.addZone(accountId, request.getZoneName());
         return ResponseEntity.ok(CommonApiResponse.ok("지역을 추가했습니다."));
     }
@@ -129,7 +158,11 @@ public class AccountController {
     @PostMapping("/settings/zones/remove")
     public ResponseEntity<CommonApiResponse<Void>> removeZone(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @Valid @RequestBody ZoneRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         accountSettingsService.removeZone(accountId, request.getZoneName());
         return ResponseEntity.ok(CommonApiResponse.ok("지역을 삭제했습니다."));
     }

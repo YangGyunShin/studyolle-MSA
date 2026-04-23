@@ -71,11 +71,16 @@ public class OptionalJwtFilter extends AbstractGatewayFilterFactory<OptionalJwtF
                 String nickname = claims.get("nickname", String.class);
                 String role = claims.get("role", String.class);
 
+                // [Phase 8 신규] emailVerified claim 추출 — 기본값 false
+                Boolean emailVerifiedBoxed = claims.get("emailVerified", Boolean.class);
+                boolean emailVerified = emailVerifiedBoxed != null && emailVerifiedBoxed;
+
                 // 검증 성공 → X-Account-Id, Nickname, Role 헤더 추가 후 통과
                 ServerWebExchange modifiedExchange = exchange.mutate()
                         .request(r -> r.header("X-Account-Id", accountId)
                                 .header("X-Account-Nickname", nickname)
-                                .header("X-Account-Role", role))
+                                .header("X-Account-Role", role)
+                                .header("X-Account-Email-Verified", String.valueOf(emailVerified)))  // ← 신규
                         .build();
                 return chain.filter(modifiedExchange);
 

@@ -1,6 +1,7 @@
 package com.studyolle.study.controller;
 
 import com.studyolle.study.client.MetadataFeignClient;
+import com.studyolle.study.common.EmailVerifiedGuard;
 import com.studyolle.study.dto.request.TagRequest;
 import com.studyolle.study.dto.request.UpdateStudyDescriptionRequest;
 import com.studyolle.study.dto.request.ZoneRequest;
@@ -84,8 +85,11 @@ public class StudySettingsController {
     @PutMapping("/description")
     public ResponseEntity<CommonApiResponse<StudyResponse>> updateDescription(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path,
             @Valid @RequestBody UpdateStudyDescriptionRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path); // 권한 검증 + 조회
         studySettingsService.updateStudyDescription(study, request);
@@ -104,8 +108,11 @@ public class StudySettingsController {
     @PutMapping("/banner")
     public ResponseEntity<CommonApiResponse<Void>> updateBanner(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path,
             @RequestBody String image) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path);
         studySettingsService.updateStudyImage(study, image);
@@ -120,7 +127,10 @@ public class StudySettingsController {
     @PostMapping("/banner/enable")
     public ResponseEntity<CommonApiResponse<Void>> enableBanner(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path);
         studySettingsService.enableStudyBanner(study);
@@ -135,7 +145,10 @@ public class StudySettingsController {
     @PostMapping("/banner/disable")
     public ResponseEntity<CommonApiResponse<Void>> disableBanner(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path);
         studySettingsService.disableStudyBanner(study);
@@ -157,7 +170,10 @@ public class StudySettingsController {
     @GetMapping("/tags")
     public ResponseEntity<CommonApiResponse<TagSettingsResponse>> getTagSettings(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path);
         List<String> whitelist = metadataFeignClient.getAllTagTitles("study-service"); // Tagify 자동완성용
@@ -175,8 +191,11 @@ public class StudySettingsController {
     @PostMapping("/tags/add")
     public ResponseEntity<CommonApiResponse<Void>> addTag(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path,
             @Valid @RequestBody TagRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path);
         studySettingsService.addTag(study, request.getTagTitle());
@@ -193,8 +212,11 @@ public class StudySettingsController {
     @DeleteMapping("/tags/remove")
     public ResponseEntity<CommonApiResponse<Void>> removeTag(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path,
             @Valid @RequestBody TagRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path);
         studySettingsService.removeTag(study, request.getTagTitle());
@@ -213,7 +235,10 @@ public class StudySettingsController {
     @GetMapping("/zones")
     public ResponseEntity<CommonApiResponse<ZoneSettingsResponse>> getZoneSettings(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path);
         List<String> whitelist = metadataFeignClient.getAllZoneNames("study-service");
@@ -230,8 +255,11 @@ public class StudySettingsController {
     @PostMapping("/zones/add")
     public ResponseEntity<CommonApiResponse<Void>> addZone(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path,
             @Valid @RequestBody ZoneRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path);
         studySettingsService.addZone(study, request);
@@ -246,8 +274,11 @@ public class StudySettingsController {
     @DeleteMapping("/zones/remove")
     public ResponseEntity<CommonApiResponse<Void>> removeZone(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path,
             @Valid @RequestBody ZoneRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path);
         studySettingsService.removeZone(study, request);
@@ -268,7 +299,11 @@ public class StudySettingsController {
     @PostMapping("/publish")
     public ResponseEntity<CommonApiResponse<Void>> publish(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         Study study = studyService.getStudyToUpdateStatus(accountId, path);
         studySettingsService.publish(study, accountId);
         return ResponseEntity.ok(CommonApiResponse.ok("스터디를 공개했습니다."));
@@ -282,7 +317,11 @@ public class StudySettingsController {
     @PostMapping("/close")
     public ResponseEntity<CommonApiResponse<Void>> close(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         Study study = studyService.getStudyToUpdateStatus(accountId, path);
         studySettingsService.close(study);
         return ResponseEntity.ok(CommonApiResponse.ok("스터디를 종료했습니다."));
@@ -297,7 +336,11 @@ public class StudySettingsController {
     @PostMapping("/recruit/start")
     public ResponseEntity<CommonApiResponse<Void>> startRecruit(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         Study study = studyService.getStudyToUpdateStatus(accountId, path);
         studySettingsService.startRecruit(study, accountId);
         return ResponseEntity.ok(CommonApiResponse.ok("모집을 시작했습니다."));
@@ -311,7 +354,11 @@ public class StudySettingsController {
     @PostMapping("/recruit/stop")
     public ResponseEntity<CommonApiResponse<Void>> stopRecruit(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         Study study = studyService.getStudyToUpdateStatus(accountId, path);
         studySettingsService.stopRecruit(study, accountId);
         return ResponseEntity.ok(CommonApiResponse.ok("모집을 중단했습니다."));
@@ -330,8 +377,12 @@ public class StudySettingsController {
     @PutMapping("/path")
     public ResponseEntity<CommonApiResponse<Void>> updatePath(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path,
             @RequestBody String newPath) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         Study study = studyService.getStudyToUpdateStatus(accountId, path);
         studySettingsService.updateStudyPath(study, newPath.trim());
         return ResponseEntity.ok(CommonApiResponse.ok("경로를 변경했습니다."));
@@ -345,8 +396,12 @@ public class StudySettingsController {
     @PutMapping("/title")
     public ResponseEntity<CommonApiResponse<Void>> updateTitle(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path,
             @RequestBody String newTitle) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         Study study = studyService.getStudyToUpdateStatus(accountId, path);
         studySettingsService.updateStudyTitle(study, newTitle.trim());
         return ResponseEntity.ok(CommonApiResponse.ok("제목을 변경했습니다."));
@@ -362,7 +417,11 @@ public class StudySettingsController {
     @DeleteMapping
     public ResponseEntity<CommonApiResponse<Void>> removeStudy(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
+
         Study study = studyService.getStudyToUpdate(accountId, path);
         studyService.remove(study);
         return ResponseEntity.ok(CommonApiResponse.ok("스터디를 삭제했습니다."));
@@ -384,7 +443,10 @@ public class StudySettingsController {
     @GetMapping("/join-requests")
     public ResponseEntity<CommonApiResponse<List<JoinRequestResponse>>> getJoinRequests(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudyToUpdate(accountId, path); // 관리자 권한 검증
         List<JoinRequestResponse> result = joinRequestRepository
@@ -405,8 +467,11 @@ public class StudySettingsController {
     @PostMapping("/join-requests/{requestId}/approve")
     public ResponseEntity<CommonApiResponse<Void>> approveJoinRequest(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path,
             @PathVariable Long requestId) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         studyService.getStudyToUpdate(accountId, path); // 관리자 권한 검증
         studyService.approveJoinRequest(requestId);
@@ -421,8 +486,11 @@ public class StudySettingsController {
     @PostMapping("/join-requests/{requestId}/reject")
     public ResponseEntity<CommonApiResponse<Void>> rejectJoinRequest(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path,
             @PathVariable Long requestId) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         studyService.getStudyToUpdate(accountId, path); // 관리자 권한 검증
         studyService.rejectJoinRequest(requestId);

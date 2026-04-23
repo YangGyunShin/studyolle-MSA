@@ -48,9 +48,32 @@ public class AuthController {
         return ResponseEntity.ok(CommonApiResponse.ok(token));
     }
 
-    // 이메일 인증 링크 클릭 시 호출 (이메일 본문의 링크 URL)
+    /**
+     * 이메일 인증 링크 클릭 시 호출된다 (이메일 본문의 링크가 이 엔드포인트를 가리킴).
+     *
+     * [Phase 8 옵션 B 변경]
+     * 반환 타입이 CommonApiResponse<Void> 에서 CommonApiResponse<TokenResponse> 로 변경되었다.
+     * 이메일 인증이 완료되면 account.emailVerified 가 true 로 변경되는데,
+     * 기존에 사용자가 로그인해 둔 JWT 에는 여전히 emailVerified=false 가 담겨 있어
+     * 각 서비스의 쓰기 엔드포인트에서 계속 차단된다.
+     *
+     * 이 문제를 해결하기 위해 인증 성공 시점에 새 JWT 를 재발급해서 응답에 실어 보낸다.
+     * 프론트(check-email-token.html) 의 JS 가 이 토큰을 받아 localStorage / 쿠키를 교체하면
+     * 다음 요청부터 즉시 쓰기 기능에 접근할 수 있다.
+     *
+     * [왜 프론트에서 강제 재로그인으로 해결하지 않는가]
+     * 인증 메일 클릭 → 로그인 페이지 이동 → 사용자가 다시 이메일/패스워드 입력
+     * 이 흐름은 사용자에게 "방금 인증했는데 또 뭐하라는 거야" 라는 짜증을 준다.
+     * 서버에서 JWT 만 재발급하면 사용자는 인증 성공 화면을 거쳐 바로 홈으로 이동하며,
+     * 추가 조작 없이 모든 기능을 쓸 수 있다. UX 관점의 핵심 개선점이다.
+     *
+     * [보안 관점]
+     * 이메일 토큰 검증이 이미 성공한 상태이므로 새 JWT 를 발급하는 것이 안전하다.
+     * 공격자가 이메일 토큰을 탈취해야만 JWT 재발급이 가능한 구조이므로,
+     * 이메일 인증 자체의 보안이 유지되는 한 이 흐름도 안전하다.
+     */
     @GetMapping("/check-email-token")
-    public ResponseEntity<CommonApiResponse<Void>> checkEmailToken(
+    public ResponseEntity<CommonApiResponse<TokenResponse>> checkEmailToken(
             @RequestParam String token,
             @RequestParam String email) {
 
@@ -61,8 +84,14 @@ public class AuthController {
         if (!account.isValidToken(token)) {
             throw new IllegalArgumentException("유효하지 않은 인증 토큰입니다.");
         }
+
+        // 이메일 인증 완료 처리 (emailVerified=true, joinedAt=now)
         signUpService.completeSignUp(account);
-        return ResponseEntity.ok(CommonApiResponse.ok("이메일 인증이 완료되었습니다. 로그인해주세요."));
+
+        // JWT 재발급 — 새 토큰에는 emailVerified=true 가 담긴다
+        TokenResponse tokenResponse = accountAuthService.reissueTokensAfterEmailVerification(account);
+
+        return ResponseEntity.ok(CommonApiResponse.ok("이메일 인증이 완료되었습니다.", tokenResponse));
     }
 
     // 인증 이메일 재발송

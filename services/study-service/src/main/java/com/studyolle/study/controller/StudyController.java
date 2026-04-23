@@ -1,6 +1,7 @@
 package com.studyolle.study.controller;
 
 import com.studyolle.study.client.MetadataFeignClient;
+import com.studyolle.study.common.EmailVerifiedGuard;
 import com.studyolle.study.dto.response.CommonApiResponse;
 import com.studyolle.study.dto.response.StudyResponse;
 import com.studyolle.study.dto.response.StudySummaryResponse;
@@ -65,17 +66,24 @@ public class StudyController {
     // ============================
 
     /**
-     * POST /api/studies
+     * POST /api/studies — 스터디 생성
      *
-     * 새로운 스터디를 생성한다.
-     * @Valid 가 CreateStudyRequest 의 Bean Validation 어노테이션(@NotBlank 등)을 실행한다.
-     * 유효성 검사 실패 시 MethodArgumentNotValidException 이 발생하고
-     * @ControllerAdvice 의 예외 핸들러가 400 Bad Request 를 반환한다.
+     * [Phase 8 옵션 B 추가]
+     * @RequestHeader("X-Account-Email-Verified") 로 이메일 인증 여부를 받아
+     * EmailVerifiedGuard 로 검증한다.
+     * 인증 안 된 사용자의 스터디 생성을 백엔드 단에서 직접 차단한다 (2차 방어선).
+     *
+     * frontend-service 의 EmailVerifiedInterceptor 가 이미 /new-study 페이지 접근을 차단하므로 정상 흐름에서는 여기까지 오지 않는다.
+     * 그러나 개발자 도구로 fetch 를 직접 호출해 우회하는 경우를 차단하기 위해 백엔드 체크가 필수적이다.
+     * 회원 권한 변경 기능의 방어 깊이와 동일한 설계 원칙.
      */
     @PostMapping
     public ResponseEntity<CommonApiResponse<StudyResponse>> createStudy(
             @RequestHeader("X-Account-Id") Long accountId,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @Valid @RequestBody CreateStudyRequest request) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.createNewStudy(request, accountId);
         return ResponseEntity.ok(CommonApiResponse.ok(StudyResponse.from(study)));
@@ -114,12 +122,20 @@ public class StudyController {
      *
      * 두 경로 모두 같은 엔드포인트를 사용하고 서버가 joinType 을 확인하여 처리한다.
      * 클라이언트는 joinType 을 알 필요 없이 항상 같은 URL 로 요청하면 된다.
+     *
+     * [Phase 8 옵션 B 추가]
+     * 이메일 인증 안 한 사용자의 스터디 가입을 백엔드에서 차단한다.
+     * 가입은 프론트 인터셉터가 막지 못하는 API 직접 호출 경로이므로 (fragments.html 의
+     * joinStudy JS 함수 참고) 백엔드 가드가 실질적인 방어선이 된다.
      */
     @PostMapping("/{path}/join")
     public ResponseEntity<CommonApiResponse<Void>> joinStudy(
             @RequestHeader("X-Account-Id") Long accountId,
             @RequestHeader("X-Account-Nickname") String nickname,
+            @RequestHeader("X-Account-Email-Verified") Boolean emailVerified,
             @PathVariable String path) {
+
+        EmailVerifiedGuard.require(emailVerified);
 
         Study study = studyService.getStudy(path);
         if (!study.isJoinable(accountId)) {

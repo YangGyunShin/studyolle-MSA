@@ -1,3 +1,21 @@
+<!--
+  check-email-token.html
+
+  ====================================================================
+  역할: 이메일 인증 링크 클릭 시 도착하는 페이지.
+        URL 파라미터의 token, email 로 account-service 에 검증 요청을 보내고
+        결과에 따라 성공/실패 화면을 렌더링한다.
+
+  [Phase 8 옵션 B 변경 — JWT 재발급 흐름]
+  변경 전: 성공 시 "로그인 페이지로 이동하세요" 안내만 함
+  변경 후: account-service 가 새 JWT 를 응답에 실어주므로
+          localStorage / 쿠키에 새 토큰을 저장하고 홈으로 자동 이동
+
+  변경 후의 이점:
+  - 사용자가 인증 메일 클릭 후 추가로 로그인할 필요가 없음
+  - 새 JWT 에는 emailVerified=true 가 담겨있어 즉시 모든 기능 사용 가능
+  - 기존 JWT (emailVerified=false) 를 가진 채로 쓰기 기능이 막히는 상황이 해소됨
+-->
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 
@@ -23,7 +41,7 @@
         <span>StudyOlle</span>
     </a>
 
-    <!-- 로딩 카드 -->
+    <!-- 로딩 카드 — fetch 응답 대기 중 -->
     <div id="loadingCard" class="result-card">
         <div class="mail-icon" style="animation: none; transform: scale(1); opacity: 1;">
             <i class="fa-solid fa-spinner fa-spin"></i>
@@ -32,7 +50,7 @@
         <p class="result-subtitle" style="animation: none; opacity: 1; transform: none;">잠시만 기다려주세요</p>
     </div>
 
-    <!-- 성공 카드 (초기 숨김) -->
+    <!-- 성공 카드 (초기 숨김) — JWT 저장 후 잠시 보여주고 홈으로 자동 이동 -->
     <div id="successCard" class="result-card" style="display:none; position: relative; overflow: visible;">
         <div class="confetti" style="top: -10px; left: 20%; background: #8e85b0; animation-delay: 0.5s;"></div>
         <div class="confetti" style="top: -10px; left: 40%; background: #a099bd; animation-delay: 0.6s;"></div>
@@ -47,16 +65,10 @@
         <h1 class="result-title">이메일 인증 완료!</h1>
         <p class="result-subtitle">
             환영합니다!<br>
-            이제 로그인해서 스터디올래의 모든 기능을 이용할 수 있어요
+            <span id="successSubtext">잠시 후 홈으로 이동합니다...</span>
         </p>
-        <!--
-            인증 완료 후 JWT를 바로 발급하지 않고 로그인 페이지로 이동한다.
-            account-service의 checkEmailToken()이 현재 Void를 반환하기 때문이다.
-            [Phase TODO] checkEmailToken이 TokenResponse를 반환하도록 수정하면
-            여기서 JWT를 localStorage에 저장하고 바로 홈으로 이동할 수 있다.
-        -->
-        <a class="btn-home" href="/login">
-            <i class="fa-solid fa-right-to-bracket"></i> 로그인하기
+        <a class="btn-home" href="/" id="homeLink">
+            <i class="fa-solid fa-house"></i> 홈으로 이동
         </a>
     </div>
 
@@ -105,19 +117,50 @@
 
                 if (response.ok) {
                     // -------------------------------------------------------
-                    // 인증 성공
-                    // account-service가 현재 CommonApiResponse<Void>를 반환하므로
-                    // JWT가 응답에 없다. 성공 화면을 보여주고 로그인 페이지로 안내한다.
+                    // 인증 성공 — 새 JWT 저장 후 홈으로 이동
                     //
-                    // [Phase TODO]
-                    // account-service checkEmailToken()이 TokenResponse를 반환하도록
-                    // 수정하면 아래처럼 JWT를 바로 저장하고 홈으로 이동할 수 있다:
-                    //   const result = await response.json();
-                    //   localStorage.setItem('accessToken', result.data.accessToken);
-                    //   localStorage.setItem('refreshToken', result.data.refreshToken);
-                    //   window.location.href = '/';
+                    // 응답 본문 구조:
+                    //   {
+                    //     "success": true,
+                    //     "message": "이메일 인증이 완료되었습니다.",
+                    //     "data": {
+                    //       "accessToken": "...",
+                    //       "refreshToken": "..."
+                    //     }
+                    //   }
+                    //
+                    // 이 새 JWT 에는 emailVerified=true 가 담겨 있어
+                    // 다음 요청부터 쓰기 기능을 즉시 쓸 수 있다.
                     // -------------------------------------------------------
-                    showSuccess();
+                    const result = await response.json();
+
+                    if (result && result.data && result.data.accessToken) {
+                        const accessToken = result.data.accessToken;
+                        const refreshToken = result.data.refreshToken;
+
+                        // localStorage 저장 — JS fetch 호출용
+                        localStorage.setItem('accessToken', accessToken);
+                        if (refreshToken) {
+                            localStorage.setItem('refreshToken', refreshToken);
+                        }
+
+                        // 쿠키 저장 — 브라우저 페이지 이동용
+                        // max-age 는 login.html 과 동일한 30분으로 맞춘다 (1800초)
+                        // path=/ 로 설정해 모든 경로에서 쿠키가 전송되게 한다
+                        document.cookie = 'accessToken=' + accessToken +
+                                          '; path=/; max-age=1800; SameSite=Lax';
+
+                        showSuccess();
+
+                        // 1.5초 후 홈으로 자동 이동 (성공 애니메이션 감상 시간)
+                        setTimeout(function () {
+                            window.location.href = '/';
+                        }, 1500);
+                    } else {
+                        // 예상치 못한 응답 구조 — 실패 처리하되 사용자는 로그인으로 복귀시킴
+                        console.warn('예상치 못한 응답 구조:', result);
+                        showSuccessWithoutToken();
+                    }
                 } else {
                     showError(email);
                 }
@@ -132,6 +175,19 @@
             document.getElementById('loadingCard').style.display = 'none';
             document.getElementById('successCard').style.display = 'block';
             document.getElementById('errorCard').style.display   = 'none';
+        }
+
+        // 응답에 토큰이 없는 예외적 경우 — 성공 화면은 보여주되 사용자가 로그인 페이지로 가게 안내
+        function showSuccessWithoutToken() {
+            document.getElementById('loadingCard').style.display = 'none';
+            document.getElementById('successCard').style.display = 'block';
+            document.getElementById('errorCard').style.display   = 'none';
+
+            document.getElementById('successSubtext').textContent =
+                '로그인 페이지에서 다시 로그인해주세요';
+            const homeLink = document.getElementById('homeLink');
+            homeLink.href = '/login';
+            homeLink.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> 로그인하기';
         }
 
         function showError(email) {

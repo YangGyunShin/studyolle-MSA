@@ -1,5 +1,4 @@
 package com.studyolle.admingateway.filter;
-
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -15,8 +14,23 @@ import org.springframework.web.server.ServerWebExchange;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 
-// AbstractGatewayFilterFactory를 상속받아 Spring Cloud Gateway의 커스텀 필터로 등록
-// application.yml의 filters: - JwtAuthenticationFilter 항목과 이름이 일치해야 인식됨
+/**
+ * JWT 를 검증하고, claim 에서 추출한 사용자 정보를 X-Account-* 헤더로 주입해 하위 서비스에 전달하는 게이트웨이 필터.
+ *
+ * [Phase 8 옵션 B 변경]
+ * JWT claim 에 emailVerified 가 추가되었다 (JwtTokenProvider 참고).
+ * 이 필터는 해당 claim 을 추출해서 X-Account-Email-Verified 헤더로 변환해 주입한다.
+ *
+ * 각 백엔드 서비스의 쓰기 엔드포인트는 이 헤더를 @RequestHeader 로 받아
+ * "true" 가 아니면 400 Bad Request 를 응답한다 (2차 방어선).
+ *
+ * 헤더 이름은 Spring HTTP 표준 관용에 따라 PascalCase-With-Hyphens 형식을 따른다.
+ * X-Account-Id / X-Account-Nickname / X-Account-Role 과 동일한 명명 규칙.
+ *
+ * 값은 문자열 "true" 또는 "false" 로 주입한다.
+ * HTTP 헤더는 문자열만 담을 수 있으므로 boolean 을 toString() 으로 변환한다.
+ * 각 서비스 쪽에서 @RequestHeader 로 받을 때 타입을 Boolean 으로 선언하면 Spring 이 자동 변환해 준다.
+ */
 @Component
 public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAuthenticationFilter.Config> {
 
@@ -88,13 +102,25 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                 String nickname = claims.get("nickname", String.class);
                 String role = claims.get("role", String.class);
 
+                // [Phase 8 신규] emailVerified claim 추출
+                //
+                // Boolean 으로 꺼내되, 과거 JWT (claim 없는 기존 발급분) 에 대응해 null 이면 false 로 간주한다.
+                // 발급된 지 오래된 JWT 는 이 claim 이 없을 수 있고,
+                // 그런 경우 "인증되지 않은 것으로 보수적으로 처리" 하는 것이 안전하다.
+                //
+                // 사용자는 그 JWT 가 만료되고 새로 로그인하면 claim 이 포함된 JWT 를 받는다.
+                // 과도기에만 약간 보수적으로 동작할 뿐, 시간이 지나면 자연스럽게 해소된다.
+                Boolean emailVerifiedBoxed = claims.get("emailVerified", Boolean.class);
+                boolean emailVerified = emailVerifiedBoxed != null && emailVerifiedBoxed;
+
                 // 검증된 사용자 정보를 헤더에 추가해서 하위 서비스로 전달
                 // 하위 서비스(study, event, admin 등)는 JWT 없이 이 헤더만 꺼내서 사용자 식별 및 권한 확인
                 // X-Account-Role 은 admin-service 에서 2차 권한 검증에 사용된다
                 ServerWebExchange modifiedExchange = exchange.mutate()
                         .request(r -> r.header("X-Account-Id", accountId)
                                 .header("X-Account-Nickname", nickname)
-                                .header("X-Account-Role", role))
+                                .header("X-Account-Role", role)
+                                .header("X-Account-Email-Verified", String.valueOf(emailVerified)))
                         .build();
 
                 // 헤더가 추가된 새 exchange로 다음 필터 또는 라우팅 체인 실행
