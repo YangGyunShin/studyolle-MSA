@@ -29,6 +29,7 @@ public class AccountController {
     @GetMapping("/me")
     public ResponseEntity<CommonApiResponse<AccountResponse>> getMyInfo(
             @RequestHeader("X-Account-Id") Long accountId) {
+
         Account account = accountSettingsService.getAccount(accountId);
         return ResponseEntity.ok(CommonApiResponse.ok(AccountResponse.from(account)));
     }
@@ -37,6 +38,7 @@ public class AccountController {
     @GetMapping("/{nickname}")
     public ResponseEntity<CommonApiResponse<AccountResponse>> getProfile(
             @PathVariable String nickname) {
+
         Account account = accountSettingsService.getAccountByNickname(nickname);
         return ResponseEntity.ok(CommonApiResponse.ok(AccountResponse.from(account)));
     }
@@ -101,6 +103,7 @@ public class AccountController {
     @GetMapping("/settings/tags")
     public ResponseEntity<CommonApiResponse<List<String>>> getTags(
             @RequestHeader("X-Account-Id") Long accountId) {
+
         Set<String> tag = accountSettingsService.getTags(accountId);
         List<String> tags = new ArrayList<>(tag);
         return ResponseEntity.ok(CommonApiResponse.ok(tags));
@@ -136,6 +139,7 @@ public class AccountController {
     @GetMapping("/settings/zones")
     public ResponseEntity<CommonApiResponse<List<String>>> getZones(
             @RequestHeader("X-Account-Id") Long accountId) {
+
         Set<String> zone = accountSettingsService.getZones(accountId);
         List<String> zones = new ArrayList<>(zone);
         return ResponseEntity.ok(CommonApiResponse.ok(zones));
