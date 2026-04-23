@@ -1,36 +1,118 @@
 package com.studyolle.account.service;
 
+import com.studyolle.account.dto.response.AccountResponse;
 import com.studyolle.account.dto.response.AccountSummaryResponse;
 import com.studyolle.account.entity.Account;
 import com.studyolle.account.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
 /**
- * 내부 전용 (/internal/**) API 가 필요로 하는 비즈니스 로직을 담는 service.
+ * 내부 전용 (/internal/**) API 의 모든 비즈니스 로직을 담는 service.
  *
- * [왜 새로 만들었는가]
- * 기존 AccountInternalController 는 단순 조회만 했기에 service 계층 없이
- * Repository 를 직접 호출했다. 그러나 권한 변경(updateRole) 은 다음 세 가지
- * 비즈니스 규칙이 한 메서드 안에서 검증·실행되어야 한다:
+ * 조회와 쓰기 모두 이 service 를 경유한다.
+ * controller 는 HTTP 어댑터 역할만 하고 Repository 에 직접 접근하지 않는다
+ * — "Controller → Service → Repository" 라는 프로젝트의 3 계층 원칙을 일관되게 적용하기 위해서다.
  *
- *   1) 요청자 정보 존재 여부 (X-Account-Id 헤더 필수)
- *   2) 자기 자신 권한 변경 금지
- *   3) ROLE_ADMIN / ROLE_USER 화이트리스트 검증
- *
- * 이런 검증 로직을 controller 에 두면 컨트롤러가 비대해지고 단위 테스트도 까다로워진다.
- * 그래서 이 service 가 만들어졌다.
- *
- * [현재 상태]
- * 권한 변경(updateRole) 만 이 service 에 있다.
- * AccountInternalController 에 남아 있는 조회 API 들은 추후 모두 이 service 로 옮길 예정이다.
+ * 조회 메서드는 모두 readOnly 트랜잭션으로 묶여 있다.
+ * 쓰기 메서드(updateRole) 만 일반 @Transactional 이며 dirty checking 으로 UPDATE 가 발행된다.
  */
 @Service
 @RequiredArgsConstructor
 public class AccountInternalService {
 
     private final AccountRepository accountRepository;
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 조회 API
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * id 로 계정 요약 정보를 조회한다. 대시보드/네비게이션 렌더링에 쓰인다.
+     */
+    @Transactional(readOnly = true)
+    public AccountSummaryResponse getAccountSummary(Long id) {
+        Account account = findAccountOrThrow(id);
+        return AccountSummaryResponse.from(account);
+    }
+
+    /**
+     * id 로 계정의 전체 정보(프로필 + 알림 설정 등) 를 조회한다.
+     * 설정 페이지 초기 로드 시 사용된다.
+     */
+    @Transactional(readOnly = true)
+    public AccountResponse getAccountFull(Long id) {
+        Account account = findAccountOrThrow(id);
+        return AccountResponse.from(account);
+    }
+
+    /**
+     * id 에 해당하는 계정의 관심 태그 목록을 조회한다.
+     * 컬렉션은 방어적 복사를 거쳐 반환한다 — 호출 측이 컬렉션을 변경하더라도
+     * 영속성 컨텍스트의 원본 컬렉션이 영향을 받지 않게 하기 위함이다.
+     */
+    @Transactional(readOnly = true)
+    public List<String> getAccountTags(Long id) {
+        Account account = findAccountOrThrow(id);
+        return new ArrayList<>(account.getTags());
+    }
+
+    /**
+     * id 에 해당하는 계정의 활동 지역 목록을 조회한다.
+     * 태그와 동일하게 방어적 복사를 거친다.
+     */
+    @Transactional(readOnly = true)
+    public List<String> getAccountZones(Long id) {
+        Account account = findAccountOrThrow(id);
+        return new ArrayList<>(account.getZones());
+    }
+
+    /**
+     * 닉네임으로 계정을 조회한다.
+     * <p>
+     * 다른 조회 메서드들과 달리 "없을 수 있음" 을 정상 케이스로 본다.
+     * 따라서 IllegalArgumentException 을 던지지 않고 Optional 을 반환한다.
+     * controller 는 이 결과를 보고 200(찾음) 또는 404(없음) 로 응답한다.
+     * <p>
+     * 왜 다른가:
+     * id 기반 조회는 보통 "내가 방금 받은 토큰의 sub" 같이 이미 존재가 확인된 식별자로 들어온다.
+     * 닉네임 기반 조회는 사용자가 URL 을 직접 치고 들어오는 케이스("/profile/없는닉네임") 가 있어서
+     * 404 응답이 정상 흐름이다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<AccountSummaryResponse> getAccountByNickname(String nickname) {
+        Account account = accountRepository.findByNickname(nickname);
+        return Optional.ofNullable(account).map(AccountSummaryResponse::from);
+    }
+
+    /**
+     * 관리자용 회원 목록 페이지네이션 조회.
+     * <p>
+     * keyword 가 null/blank 이면 전체 조회, 있으면 email 또는 nickname 부분 일치 검색.
+     * Page.map() 은 totalElements/totalPages 등 페이지 메타데이터를 유지하면서
+     * 요소 타입만 변환해 준다.
+     */
+    @Transactional(readOnly = true)
+    public Page<AccountSummaryResponse> listAccounts(String keyword, Pageable pageable) {
+        Page<Account> page;
+        if (keyword == null || keyword.isBlank()) {
+            page = accountRepository.findAll(pageable);
+        } else {
+            page = accountRepository.findByEmailContainingOrNicknameContaining(keyword, keyword, pageable);
+        }
+        return page.map(AccountSummaryResponse::from);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 쓰기 API
+    // ──────────────────────────────────────────────────────────────────────────
 
     /**
      * 회원 권한을 변경한다. admin-service 가 호출하는 내부 전용 메서드.
@@ -53,7 +135,6 @@ public class AccountInternalService {
      */
     @Transactional
     public AccountSummaryResponse updateRole(Long targetId, Long requesterId, String newRole) {
-
         // 가드 1 — 요청자 정보가 없으면 거부.
         // 정상적으로 게이트웨이를 거쳐 들어왔다면 X-Account-Id 가 반드시 있어야 한다.
         // null 이면 헤더 없이 들어온 비정상 호출이다.
@@ -84,5 +165,22 @@ public class AccountInternalService {
 
         // 응답 DTO 변환 후 반환. 트랜잭션 종료 시점(이 메서드 return 직후)에 UPDATE 가 실제로 발행된다.
         return AccountSummaryResponse.from(account);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // private 헬퍼
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * id 로 계정을 조회하고 없으면 IllegalArgumentException 을 던지는 공통 로직.
+     * <p>
+     * 이 헬퍼를 두는 이유: 조회 메서드 4개 + updateRole 까지 동일한 패턴이 5번 반복되기 때문이다.
+     * 한 곳에 모아두면 예외 메시지 형식이 자동으로 일관되고, 추후 "회원을 찾지 못함" 을
+     * 별도의 예외 타입(예: AccountNotFoundException) 으로 분리하고 싶을 때
+     * 이 한 줄만 바꾸면 된다.
+     */
+    private Account findAccountOrThrow(Long id) {
+        return accountRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("계정을 찾을 수 없습니다: id=" + id));
     }
 }

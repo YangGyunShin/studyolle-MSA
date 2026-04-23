@@ -15,11 +15,21 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 내부 전용 (/internal/accounts/**) HTTP 어댑터.
+ *
+ * 모든 비즈니스 로직은 AccountInternalService 에 위임한다.
+ * 이 컨트롤러는 다음만 책임진다:
+ *   1) HTTP 경로/헤더/본문 파싱
+ *   2) X-Internal-Service 헤더로 내부 호출 검증 (InternalRequestFilter 가 1차 처리)
+ *   3) Service 호출 결과를 ResponseEntity 로 감싸 반환
+ *
+ * 외부에서 /internal/** 로 직접 접근하는 것은 api-gateway 가 전면 차단한다.
+ */
 @RestController
 @RequiredArgsConstructor
 public class AccountInternalController {
 
-    private final AccountRepository accountRepository;
     private final AccountInternalService accountInternalService;
 
     /*
@@ -34,10 +44,7 @@ public class AccountInternalController {
             @PathVariable Long id,
             @RequestHeader("X-Internal-Service") String internalService) {
 
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("계정을 찾을 수 없습니다."));
-
-        return ResponseEntity.ok(AccountSummaryResponse.from(account));
+        return ResponseEntity.ok(accountInternalService.getAccountSummary(id));
     }
 
     // GET /internal/accounts/{id}/full — 프로필/알림 설정 전체 조회 (frontend-service 설정 페이지용)
@@ -45,9 +52,8 @@ public class AccountInternalController {
     public ResponseEntity<AccountResponse> getAccountFull(
             @PathVariable Long id,
             @RequestHeader("X-Internal-Service") String internalService) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("계정을 찾을 수 없습니다."));
-        return ResponseEntity.ok(AccountResponse.from(account));
+
+        return ResponseEntity.ok(accountInternalService.getAccountFull(id));
     }
 
     // GET /internal/accounts/{id}/tags — 태그 목록 조회 (settings/tags 페이지 초기 로드용)
@@ -55,9 +61,8 @@ public class AccountInternalController {
     public ResponseEntity<List<String>> getAccountTags(
             @PathVariable Long id,
             @RequestHeader("X-Internal-Service") String internalService) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("계정을 찾을 수 없습니다."));
-        return ResponseEntity.ok(new ArrayList<>(account.getTags()));
+
+        return ResponseEntity.ok(accountInternalService.getAccountTags(id));
     }
 
     // GET /internal/accounts/{id}/zones — 지역 목록 조회 (settings/zones 페이지 초기 로드용)
@@ -65,21 +70,24 @@ public class AccountInternalController {
     public ResponseEntity<List<String>> getAccountZones(
             @PathVariable Long id,
             @RequestHeader("X-Internal-Service") String internalService) {
-        Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("계정을 찾을 수 없습니다."));
-        return ResponseEntity.ok(new ArrayList<>(account.getZones()));
+
+        return ResponseEntity.ok(accountInternalService.getAccountZones(id));
     }
 
-    // GET /internal/accounts/by-nickname/{nickname}
+    /*
+     * 닉네임으로 계정 조회 — frontend-service 프로필 페이지에서 호출.
+     *
+     * 닉네임이 존재하지 않을 가능성이 정상 흐름의 일부이므로
+     * service 가 Optional 을 반환한다. 여기서는 200/404 로 분기만 한다.
+     */
     @GetMapping("/internal/accounts/by-nickname/{nickname}")
     public ResponseEntity<AccountSummaryResponse> getAccountByNickname(
             @PathVariable String nickname,
             @RequestHeader("X-Internal-Service") String internalService) {
-        Account account = accountRepository.findByNickname(nickname);
-        if (account == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(AccountSummaryResponse.from(account));
+
+        return accountInternalService.getAccountByNickname(nickname)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     // GET /internal/accounts?page=0&size=20&keyword=xxx
@@ -101,31 +109,16 @@ public class AccountInternalController {
             @RequestParam(required = false) String keyword,
             Pageable pageable) {
 
-        // keyword 가 있으면 email 또는 nickname 에 포함된 것만 검색
-        // keyword 가 null/빈문자면 전체 조회
-        Page<Account> page;
-        if (keyword == null || keyword.isBlank()) {
-            page = accountRepository.findAll(pageable);
-        } else {
-            page = accountRepository.findByEmailContainingOrNicknameContaining(keyword, keyword, pageable);
-        }
-
-        // Page<Account> → Page<AccountSummaryResponse> 변환
-        // Page.map() 은 전체 페이지 메타데이터(totalElements 등)를 유지한 채 요소만 변환한다
-        return ResponseEntity.ok(page.map(AccountSummaryResponse::from));
+        return ResponseEntity.ok(accountInternalService.listAccounts(keyword, pageable));
     }
 
     /**
-     * PATCH /internal/accounts/{id}/role
+     * POST /internal/accounts/{id}/role
      *
      * 요청 본문: { "role": "ROLE_ADMIN" } 또는 { "role": "ROLE_USER" }
      * 헤더:
      *   X-Internal-Service: admin-service  (InternalRequestFilter 가 검증)
      *   X-Account-Id: {요청자 id}          (자기 자신 권한 변경 방지에 사용)
-     *
-     * [왜 PATCH 인가]
-     * PUT 은 리소스 전체를 교체한다는 의미가 강하지만, 여기서는 role 필드 하나만 바꾼다.
-     * 부분 수정의 시맨틱을 가진 PATCH 가 더 정확하다.
      *
      * [X-Account-Id 헤더를 controller 에서 받는 이유]
      * "요청자가 누구인가" 는 service 계층의 비즈니스 검증에 필요한 값이다.
@@ -146,7 +139,6 @@ public class AccountInternalController {
             @RequestHeader("X-Internal-Service") String internalService,
             @RequestHeader(value = "X-Account-Id", required = false) Long requesterId) {
 
-        AccountSummaryResponse response = accountInternalService.updateRole(id, requesterId, request.role());
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(accountInternalService.updateRole(id, requesterId, request.role()));
     }
 }
