@@ -3,8 +3,6 @@ package com.studyolle.account.controller;
 import com.studyolle.account.dto.request.RoleUpdateRequest;
 import com.studyolle.account.dto.response.AccountResponse;
 import com.studyolle.account.dto.response.AccountSummaryResponse;
-import com.studyolle.account.entity.Account;
-import com.studyolle.account.repository.AccountRepository;
 import com.studyolle.account.service.AccountInternalService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -12,7 +10,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**

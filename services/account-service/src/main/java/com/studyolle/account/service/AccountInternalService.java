@@ -157,8 +157,7 @@ public class AccountInternalService {
         }
 
         // 대상 조회. 이 시점부터 account 는 영속 상태이므로 changeRole 호출 후 save() 가 필요 없다.
-        Account account = accountRepository.findById(targetId)
-                .orElseThrow(() -> new IllegalArgumentException("회원을 찾을 수 없습니다: id=" + targetId));
+        Account account = findAccountOrThrow(targetId);
 
         // 도메인 메서드 호출 — Account 엔티티가 자기 상태를 스스로 바꾼다.
         account.changeRole(newRole);
