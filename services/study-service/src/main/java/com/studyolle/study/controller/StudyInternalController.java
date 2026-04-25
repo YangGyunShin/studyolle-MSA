@@ -1,7 +1,10 @@
 package com.studyolle.study.controller;
 
+import com.studyolle.study.client.AccountFeignClient;
 import com.studyolle.study.client.EventFeignClient;
 import com.studyolle.study.client.MetadataFeignClient;
+import com.studyolle.study.client.dto.AccountBatchRequest;
+import com.studyolle.study.client.dto.AccountSummaryDto;
 import com.studyolle.study.client.dto.EventSummaryDto;
 import com.studyolle.study.client.dto.ZoneDto;
 import com.studyolle.study.dto.response.*;
@@ -11,6 +14,7 @@ import com.studyolle.study.repository.JoinRequestRepository;
 import com.studyolle.study.repository.StudyRepository;
 import com.studyolle.study.service.StudyInternalService;
 import com.studyolle.study.service.StudyService;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -65,6 +69,7 @@ public class StudyInternalController {
 
     private final StudyRepository studyRepository;
     private final JoinRequestRepository joinRequestRepository;
+    private final AccountFeignClient accountFeignClient;
     private final MetadataFeignClient metadataFeignClient;
     private final StudyService studyService;
     private final EventFeignClient eventFeignClient;
@@ -160,44 +165,51 @@ public class StudyInternalController {
         boolean hasPendingRequest = accountId != null && joinRequestRepository.existsByStudyAndAccountIdAndStatus(study, accountId, JoinRequestStatus.PENDING);
 
         // =============================================
-        // Set<Long> → List<MemberInfo> 변환이 필요한 이유
+        // 멤버 닉네임/프로필 이미지를 account-service 로부터 한 번에 조회
         // =============================================
         //
-        // Study 엔티티는 멤버 정보를 managerIds, memberIds라는 Set<Long>으로만 저장한다.
-        // study-service DB에는 숫자 ID(123, 456...)만 있고, 닉네임·프로필 이미지 등
-        // 사람에 대한 정보는 모두 account-service가 소유한다.
+        // study-service DB 는 멤버에 대해 숫자 id 만 갖고 있다.
+        // 닉네임, 프로필 이미지, 자기소개는 모두 account-service 가 소유한 정보이므로
+        // Feign Client (AccountFeignClient) 를 통해 HTTP 로 가져온다.
         //
-        // 그런데 frontend-service가 요구하는 응답 형태(StudyPageDataDto)의 managers/members 필드는
-        // List<MemberDto> 타입이고, MemberDto에는 id뿐 아니라 nickname, profileImage, bio가 있다.
-        // 즉, frontend-service는 "숫자 ID 목록"이 아니라 "사람 정보 목록"을 원한다.
+        // [왜 managers 와 members 를 합쳐서 한 번에 호출하는가]
+        // 관리자는 일반적으로 멤버이기도 하므로 두 Set 이 상당히 겹친다.
+        // 그러나 겹치지 않는 "관리자만" 케이스가 있을 수 있어 Set 의 합집합으로 모은다.
+        // HashSet 의 addAll() 은 중복을 자동 제거한다.
+        // 한 번의 batch 호출로 N+1 API 호출 문제를 피한다 — 멤버 N 명이면 기존에는 N 번의 단건 호출이 필요했지만,
+        // 이제는 크기와 무관하게 단 1 번의 HTTP 왕복으로 끝난다.
         //
-        // 이 불일치를 완전히 해결하려면 account-service에 아래와 같은 batch 조회 endpoint가 필요하다.
-        //   POST /internal/accounts/batch  { ids: [123, 456] }  →  [{ id, nickname, profileImage, bio }, ...]
-        // 그 결과로 MemberInfo의 nickname 등을 채워서 반환하는 것이 올바른 구현이다.
+        // [왜 try-catch 로 예외를 삼키고 빈 map 으로 fallback 하는가]
+        // account-service 가 일시적으로 다운되거나 타임아웃이 나도 스터디 페이지 자체는 떠야 한다.
+        // 멤버 카드의 닉네임/이미지는 "부가 정보" 일 뿐, 핵심 기능(스터디 열람) 을 막아서는 안 된다.
+        // 이것이 graceful degradation — MSA 에서 의존 서비스 장애가 호출 서비스로 전파되지 않게 하는 원칙.
+        // Feign 예외가 나면 map 이 비어 있어서 닉네임/이미지 자리가 null 로 남을 뿐이고,
+        // Jdenticon 라이브러리가 id 만으로 아바타를 자동 생성하므로 화면은 여전히 정상 렌더링된다.
         //
-        // 그러나 현재 account-service에 해당 endpoint가 아직 구현되지 않았으므로,
-        // 일단 id만 채운 MemberInfo 객체를 만들어 보낸다.
-        // Jdenticon 라이브러리는 id 값만 있어도 아바타를 자동 생성하므로
-        // 화면에서 멤버 카드 자체는 나타나고, 닉네임 자리만 빈칸으로 표시된다.
-        //
-        // [Phase 5 TODO] account-service에 batch endpoint 추가 후 아래 두 블록을 교체한다.
-        //   AccountFeignClient.getAccountsByIds(study.getManagerIds(), "study-service")
-        //   → List<AccountSummaryDto>를 받아 MemberInfo.nickname, profileImage, bio까지 채운다.
+        // [왜 FeignException 만 잡고 Exception 은 잡지 않는가]
+        // Exception 으로 광범위하게 잡으면 Feign 호출과 무관한 버그(NPE 등) 까지 삼켜져
+        // "왜 닉네임이 안 보이지?" 같은 디버깅 악몽이 발생한다.
+        // 원격 서비스 장애 (FeignException) 만 graceful degradation 의 대상이고,
+        // 우리 코드의 버그는 평소처럼 500 으로 올라가 로그에 남아야 원인 추적이 가능하다.
+        Set<Long> allMemberIds = new HashSet<>();
+        allMemberIds.addAll(study.getManagerIds());
+        allMemberIds.addAll(study.getMemberIds());
+
+        Map<Long, AccountSummaryDto> accountMap = fetchAccountMap(allMemberIds);
+
+        // Set<Long> → List<MemberInfo> 변환.
+        // 닉네임 등은 accountMap 에서 id 로 O(1) 조회로 꺼낸다.
+        // map 에 해당 id 가 없으면 (batch 에 누락되거나 삭제된 계정) toMemberInfo 헬퍼가 null 로 둔다.
         List<StudyPageDataResponse.MemberInfo> managers = study.getManagerIds()
                 .stream()
-                .map(id -> StudyPageDataResponse.MemberInfo
-                        .builder()
-                        .id(id)
-                        .build())
+                .map(id -> toMemberInfo(id, accountMap))
                 .collect(Collectors.toList());
 
         List<StudyPageDataResponse.MemberInfo> members = study.getMemberIds()
                 .stream()
-                .map(id -> StudyPageDataResponse.MemberInfo
-                        .builder()
-                        .id(id)
-                        .build())
+                .map(id -> toMemberInfo(id, accountMap))
                 .collect(Collectors.toList());
+
 
         StudyPageDataResponse response = StudyPageDataResponse.builder()
                 .id(study.getId())
@@ -493,5 +505,58 @@ public class StudyInternalController {
 
         StudyAdminResponse response = studyInternalService.forceClose(path, requesterId);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * accountId 와 batch 조회 결과 map 을 받아 MemberInfo 를 조립한다.
+     *
+     * map 에 해당 id 가 없으면 nickname/profileImage/bio 가 null 로 남는다.
+     * 이는 두 가지 경우에 일어난다:
+     *   1) account-service 장애로 batch 호출이 실패해 map 이 비어있는 경우
+     *   2) 해당 계정이 삭제되었거나 batch 응답에서 누락된 경우
+     * 어느 쪽이든 스터디 페이지는 정상 렌더링되고, 아바타는 Jdenticon 이 id 만으로 생성한다.
+     */
+    private StudyPageDataResponse.MemberInfo toMemberInfo(Long accountId, Map<Long, AccountSummaryDto> accountMap) {
+        AccountSummaryDto account = accountMap.get(accountId);
+        return StudyPageDataResponse.MemberInfo.builder()
+                .id(accountId)
+                .nickname(account != null ? account.getNickname() : null)
+                .profileImage(account != null ? account.getProfileImage() : null)
+                .bio(account != null ? account.getBio() : null)
+                .build();
+    }
+
+    /**
+     * 멤버 id 집합을 받아 account-service 로부터 nickname/profileImage/bio 를 한 번에 조회한다.
+     *
+     * 이 메서드가 별도로 존재하는 이유는 두 가지다.
+     *
+     * 첫째, getStudyPageData 의 람다식 안에서 accountMap 을 참조하려면 그 변수가 "실질적 final" 이어야 한다.
+     * if/try/catch 로 여러 분기에서 할당하면 컴파일러가 실질적 final 로 인정해주지 않으므로,
+     * 반환값을 한 번의 할당으로 받도록 여기에 뽑았다.
+     *
+     * 둘째, 장애 대응(graceful degradation) 을 한 메서드 안에 응집시킬 수 있다.
+     * 빈 id 가드 + Feign 호출 + FeignException fallback 이 한 묶음으로 표현되어
+     * 호출부(getStudyPageData) 는 "멤버 정보를 받아온다" 라는 의도에만 집중할 수 있다.
+     *
+     * 반환값은 항상 non-null 이며, 장애 또는 빈 입력 시 빈 Map 을 돌려준다.
+     */
+    private Map<Long, AccountSummaryDto> fetchAccountMap(Set<Long> accountIds) {
+        // 멤버가 한 명도 없으면 네트워크 호출 자체를 생략한다 — latency 와 로그 모두 절약.
+        if (accountIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        try {
+            return accountFeignClient.getAccountsBatch(
+                    AccountBatchRequest.of(accountIds),
+                    "study-service"   // X-Internal-Service 헤더 — InternalRequestFilter 통과용
+            );
+        } catch (FeignException e) {
+            // account-service 장애 시 fallback — 빈 map 을 돌려주면 호출부에서 nickname 등이 null 로 남는다.
+            // 스터디 페이지는 여전히 렌더링되고, 아바타는 Jdenticon 이 id 만으로 생성한다.
+            // FeignException 만 잡는 이유: 광범위하게 Exception 을 잡으면 Feign 과 무관한
+            // 버그(NPE 등) 까지 삼켜서 디버깅이 어려워진다. 원격 장애만이 degradation 의 대상이다.
+            return Collections.emptyMap();
+        }
     }
 }

@@ -5,7 +5,6 @@ import com.studyolle.account.dto.response.AccountSummaryResponse;
 import com.studyolle.account.entity.Account;
 import com.studyolle.account.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.java.Log;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
