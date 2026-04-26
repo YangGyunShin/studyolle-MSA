@@ -3,7 +3,7 @@ StudyOlle MSA 전환 — TODO 리스트
 ================================================
 
 최초 작성일: 2026-03-10
-최종 수정일: 2026-04-23 — 다음: 미정
+최종 수정일: 2026-04-24 — 다음: Phase 8/9 통합 테스트 (묶어서 진행)
 
 
 ================================================
@@ -24,6 +24,8 @@ StudyOlle MSA 전환 — TODO 리스트
   - AccountRepository.findByEmailContainingOrNicknameContaining() 추가 ← 2026-04-12
   - AccountSummaryResponse 에 role 필드 추가 ← 2026-04-12
   - InternalRequestFilter (ALLOWED: frontend-service, study-service, admin-service, event-service)
+  - AccountInternalController 조회 API 들 → AccountInternalService 일괄 이관 ← 2026-04-24
+  - POST /internal/accounts/batch (멤버 정보 일괄 조회 엔드포인트) ← 2026-04-24
 
 [Phase 2] api-gateway — ✅ 완료
   - JwtAuthenticationFilter: Authorization 헤더 + 쿠키(accessToken) 모두 지원
@@ -47,6 +49,7 @@ StudyOlle MSA 전환 — TODO 리스트
   - StudyController, StudySettingsController, StudyInternalController
   - EventFeignClient 추가 (getDashboard에서 event-service 호출)
   - getDashboard(): studyEventsMap 실제 데이터 채움
+  - AccountFeignClient 신규 추가 (스터디 페이지 멤버 정보 batch 조회) ← 2026-04-24
 
 [Phase 4] event-service — ✅ 완료
   - 포트: 8084, PostgreSQL :5435 (event_db)
@@ -224,7 +227,7 @@ Phase 8 — admin-service 기능 확장 + 보안 강화 ✅
 
 [x] 이메일 인증 기반 페이지 접근 제한 (옵션 B 하이브리드) — 완료 ✅ (2026-04-23)
     소스 작성 + 게이트웨이 4개 필터 수정 + 백엔드 가드 + 프론트 인터셉터 + HTML 전체 완료.
-    통합 테스트는 후속 작업.
+    통합 테스트는 Phase 8/9 묶음 통합 테스트 항목으로 이관.
 
     [설계 결정 — 옵션 B 하이브리드 (B1: 인증 시 JWT 재발급)]
     "이메일 인증 안 한 사용자도 로그인은 가능하지만, 쓰기 기능은 막는다"
@@ -290,23 +293,136 @@ Phase 8 — admin-service 기능 확장 + 보안 강화 ✅
           - JWT 응답 받아 localStorage + 쿠키 교체
           - 1.5초 후 홈 자동 이동
 
-    [ ] 통합 테스트 (다음 세션 권장)
-        - 신규 가입자 흐름: 가입 → 로그인 → /new-study → /check-email-required 리다이렉트
-        - 메일 클릭 → JWT 자동 교체 → 즉시 스터디 생성 가능
-        - 개발자 도구 fetch 직접 호출 → 백엔드 가드 403 (방어 깊이)
-        - 헤더 주입 확인 (X-Account-Email-Verified)
-        - JWT claim 확인 (jwt.io 에서 emailVerified)
-        - 비로그인 사용자 정상 둘러보기
+
+================================================
+Phase 9 — account batch 엔드포인트 + 스터디 페이지 멤버 카드 ✅
+================================================
+
+큰 그림: 스터디 페이지 멤버 카드에 닉네임/프로필 이미지가 표시되지 않던 문제를 해결하기 위해
+account-service 에 batch 조회 엔드포인트를 추가하고, study-service 가 그것을 호출하도록 만들고,
+마지막으로 frontend-service 의 HTML 템플릿이 새로 받아오는 데이터를 화면에 그리도록 한다.
+
+세 단계로 나눠 진행하며 단계별 검증을 거친다. 통합 검증은 Phase 8/9 묶음 통합 테스트로 이관.
+
+[x] 1단계 — account-service batch 엔드포인트 추가 ✅ (2026-04-24)
+
+    [x] dto/request/AccountBatchRequest.java 신규
+          record AccountBatchRequest(List<Long> ids) {}
+
+    [x] repository/AccountRepository.java
+          List<Account> findAllByIdIn(Collection<Long> ids) 메서드 추가
+          (Spring Data JPA 의 IN 절 쿼리 메서드 네이밍 규칙 활용)
+
+    [x] service/AccountInternalService.java
+          getAccountsBatch(List<Long> ids) 메서드 추가
+          빈 입력 가드 → DB 조회 → Collectors.toMap 으로 Map<Long, AccountSummaryResponse> 변환
+          @Transactional(readOnly = true) 적용
+
+    [x] controller/AccountInternalController.java
+          POST /internal/accounts/batch 핸들러 추가
+          요청 본문: { "ids": [1, 5, 12] }
+          응답 본문: { "1": {...}, "5": {...}, "12": {...} }   ← id → AccountSummaryResponse 의 map
+          (왜 GET 이 아닌 POST: URL 길이 제한 회피 + 프로젝트 원칙 "전 계층 POST 통일")
+
+    [x] AccountInternalController 조회 API 일괄 service 이관도 함께 진행
+          기존 5개 조회 API + 신규 batch 까지 모두 controller → service 위임 패턴으로 통일
+          (이전 추후 고려 사항 항목도 동시에 해결됨)
+
+[x] 2단계 — study-service 가 batch 엔드포인트 호출 ✅ (2026-04-24)
+
+    [x] client/AccountFeignClient.java 신규
+          @FeignClient(name = "account-service")
+          POST /internal/accounts/batch 호출 메서드
+          반환 타입: Map<Long, AccountSummaryDto>
+
+    [x] client/dto/AccountSummaryDto.java 신규
+          id, nickname, profileImage, bio 4개 필드만 정의 (anti-corruption layer)
+          account-service 의 AccountSummaryResponse 를 import 하지 않음
+          Jackson 의 FAIL_ON_UNKNOWN_PROPERTIES=false 가 나머지 필드 무시
+
+    [x] client/dto/AccountBatchRequest.java 신규
+          record AccountBatchRequest(List<Long> ids) — account-service 와 별도 정의
+          static of(Set<Long>) 팩토리 메서드 추가
+
+    [x] controller/StudyInternalController.java 수정
+          AccountFeignClient 주입
+          getStudyPageData() 에서 managerIds + memberIds 합집합으로 batch 호출
+          fetchAccountMap(Set<Long>) private 헬퍼 추가
+            - 빈 입력 가드 + Feign 호출 + FeignException fallback
+            - 람다 캡처 규칙(실질적 final) 회피를 위한 메서드 추출
+          toMemberInfo(Long, Map) private 헬퍼 추가
+          graceful degradation: account-service 장애 시 빈 map 반환
+            → 닉네임 등이 null 로 남고 Jdenticon 이 id 만으로 아바타 자동 생성
+          상세 트러블슈팅: TroubleShooting/TroubleShooting_019.MD
+
+[x] 3단계 — frontend-service HTML 템플릿이 새 데이터 활용 ✅ (2026-04-24)
+
+    [학습 포인트 — defensive UI / resilient UI 패턴]
+    이 단계의 코드 작업은 사실상 거의 없었다. 양균님이 frontend-service 의 DTO 와 템플릿을
+    처음 작성하실 때 이미 "언젠가 batch API 가 생기면 채워질 자리" 를 미리 마련해 두셨기 때문에,
+    백엔드의 source 끝(study-service 의 getStudyPageData) 만 채우는 것으로 화면이 자동으로
+    실제 데이터를 표시하는 상태가 되었다. 이는 잘 설계된 데이터 계약(data contract) 의 위력.
+
+    검토 결과 (코드 변경 불필요)
+      [x] dto/MemberDto.java
+            id / nickname / profileImage / bio 4필드 모두 이미 선언되어 있음
+            "// null 이면 Jdenticon 자동 생성" 주석으로 미래 의도까지 명시되어 있었음
+      [x] dto/StudyPageDataDto.java
+            List<MemberDto> managers / List<MemberDto> members 이미 선언
+      [x] templates/study/view.html
+            구성원 섹션의 관리자/멤버 카드가 이미 nickname/profileImage/bio 를 참조 중
+            ${#strings.isEmpty(...)} 로 fallback 분기 처리, Jdenticon 자동 아바타 깔려 있음
+            엘비스 연산자(?: '') 로 null safety 보장
+            "Phase 5 에서 account-service batch 추가 후 링크 활성화" 주석으로 미래 의도 기록
+      [x] templates/study/members.html
+            view.html 과 동일한 패턴으로 더 큰 카드(52x52) 사용
+            관리자/멤버 섹션 모두 동일한 fallback 구조 유지
+
+    결론
+      코드 변경 0줄. Phase 9 1·2단계의 백엔드 작업만으로 멤버 카드의 닉네임/프로필 이미지가
+      자동으로 표시되는 상태가 되었다. 검증은 Phase 8/9 묶음 통합 테스트에서 시각적으로 확인 예정.
+
+
+================================================
+다음 작업 — Phase 8/9 묶음 통합 테스트
+================================================
+
+[ ] Phase 8/9 통합 테스트 (한 세션에 묶어서 진행)
+
+    의도적으로 Phase 8 의 세 번째 기능(이메일 인증 접근 제한)과 Phase 9(스터디 페이지 멤버 카드)
+    의 검증을 묶어서 진행한다. 컨텍스트 전환 비용을 줄이고, 여러 기능이 동시에 동작할 때
+    드러나는 통합 이슈를 함께 잡기 위해서다.
+
+    [Phase 8 세 번째 기능 검증 항목]
+      [ ] 신규 가입자 흐름: 가입 → 로그인 → /new-study → /check-email-required 리다이렉트
+      [ ] 메일 클릭 → JWT 자동 교체 → 즉시 스터디 생성 가능
+      [ ] 개발자 도구 fetch 직접 호출 → 백엔드 가드 403 (방어 깊이 검증)
+      [ ] 헤더 주입 확인 (X-Account-Email-Verified)
+      [ ] JWT claim 확인 (jwt.io 에서 emailVerified)
+      [ ] 비로그인 사용자 정상 둘러보기
+
+    [Phase 9 검증 항목]
+      [ ] curl 로 study-service 의 /internal/studies/{path}/page-data 응답 확인
+            → managers/members 배열에 nickname/profileImage/bio 가 채워져 있어야 함
+      [ ] 브라우저에서 스터디 페이지 진입 → 멤버 카드 정상 표시
+            view.html 의 관리자/멤버 섹션 + members.html 모두 닉네임 텍스트 노출
+      [ ] 프로필 이미지 미등록 사용자: Jdenticon 추상 아바타 자동 생성 확인
+      [ ] 프로필 이미지 등록 사용자: 실제 사진이 둥근 테두리로 표시되는지 확인
+      [ ] 멤버 카드 클릭 → /profile/{nickname} 정상 이동
+      [ ] graceful degradation 검증: account-service 정지 → 페이지는 여전히 200,
+            멤버 카드 자리는 id 기반 Jdenticon 아바타만 보이는 상태로 폴백
+
+    [Phase 8/9 교차 검증 (두 기능 동시 동작)]
+      [ ] 이메일 미인증 사용자가 자기가 멤버인 스터디 페이지에 진입 → 페이지는 정상 표시
+            (둘러보기는 허용이라 멤버 카드도 그대로 보여야 함)
+      [ ] 이메일 미인증 사용자가 스터디 가입 시도 (조인 버튼 클릭) → /check-email-required
+            (1차 방어선) 리다이렉트 또는 백엔드 가드 403 (2차 방어선)
+      [ ] 인증 완료 직후 JWT 재발급 → 멤버 카드의 본인 정보가 즉시 업데이트되는지
 
 
 ================================================
 추후 고려 사항
 ================================================
-
-[ ] account-service AccountInternalController 조회 API 들을 모두 AccountInternalService 로 이관
-    현재 권한 변경(updateRole)과 이메일 인증 가드만 service 에 있고
-    나머지 조회 API 들은 controller 가 Repository 직접 호출 중.
-    "조회도 모두 service 경유" 라는 프로젝트 원칙에 맞게 추후 일괄 이관 필요.
 
 [ ] 로그인 페이지 "아이디 기억하기"(Remember Me) 기능 추가
     간단 버전: 이메일만 localStorage 에 저장, 비밀번호는 직접 입력
@@ -323,11 +439,11 @@ Phase 8 — admin-service 기능 확장 + 보안 강화 ✅
 
 [ ] 운영 배포 준비 (application-prod.yml, JWT secret 환경변수, HTTPS)
 
-[ ] account-service batch 엔드포인트 추가
-    POST /internal/accounts/batch { ids: [123, 456] }
-    → study 페이지 멤버 카드에 nickname/profileImage 표시 (현재 id만 표시)
-
 [ ] 모노리틱 미반영 항목: 스터디 통계 대시보드, 게시판(Board)
+
+[ ] account-service batch API 활용 확장
+    현재는 study-service 의 페이지 렌더링에서만 사용 중.
+    notification-service 알림 목록 또는 admin-frontend 의 회원 일괄 조회 등에서도 재사용 가능성 검토.
 
 
 ================================================
@@ -342,9 +458,6 @@ Phase 8 — admin-service 기능 확장 + 보안 강화 ✅
 
 [ ] 캘린더 이벤트 API (/api/calendar/events) 미구현
     → index.html FullCalendar가 호출하지만 404 반환 (콘솔 warning만, UI 영향 없음)
-
-[ ] study 페이지 멤버 카드 닉네임/프로필 이미지 미표시
-    → account-service batch API 미구현으로 id만 표시 중
 
 [ ] admin-service 의 NoResourceFoundException ERROR 로그
     → 브라우저가 /favicon.ico 등 직접 접근 시 GlobalExceptionHandler 가 ERROR 로그 출력
@@ -373,6 +486,10 @@ TroubleShooting_017: 알림 읽음 처리 시 nav 배지 차감 불발
 TroubleShooting_018: 모임 수정 시 eventType 필드 미반영
   - UpdateEventRequest DTO 와 Event.update() 양쪽에 eventType 누락 / Jackson 의 조용한 무시
 
+TroubleShooting_019: Java 람다식에서 "변수는 final 또는 유사 final이어야 합니다" (2026-04-24)
+  - StudyInternalController.getStudyPageData 의 if/try/catch 다중 할당 변수를 람다가 캡처
+  - 해결: 분기 로직을 fetchAccountMap 별도 메서드로 추출 → 호출부는 한 번의 할당으로 받기
+
 
 ================================================
 역할 분담 원칙 (절대 준수)
@@ -391,9 +508,9 @@ TroubleShooting_018: 모임 수정 시 eventType 필드 미반영
 
 [기존 완성]
 :8080  api-gateway            ✅ Phase 7 에서 /api/admin/** 정리 + block-admin-api 추가
-:8081  account-service        ✅ Phase 8 에서 EmailVerifiedGuard + JWT emailVerified claim 추가
+:8081  account-service        ✅ Phase 9 에서 batch 엔드포인트 + 조회 API service 이관
 :8082  admin-service          ✅ Phase 6 백엔드 완성
-:8083  study-service          ✅ Phase 8 에서 EmailVerifiedGuard 적용
+:8083  study-service          ✅ Phase 9 에서 AccountFeignClient 추가
 :8084  event-service          ✅ Phase 8 에서 EmailVerifiedGuard 적용
 :8085  notification-service   ✅ Kafka 완성 / RabbitMQ 테스트 대기
 :8090  frontend-service       ✅ Phase 8 에서 EmailVerifiedInterceptor 추가
